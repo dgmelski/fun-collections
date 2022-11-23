@@ -1,22 +1,21 @@
 use std::rc::Rc;
 
-enum List {
-    Cons(i32, Rc<List>),
-    Nil,
-}
+struct List(
+    (i32, Option<Rc<List>>)
+);
 
-use List::{Cons, Nil};
+type OptList = Option<Rc<List>>;
 
 pub struct FunStack {
     sz: usize,
-    list: Rc<List>,
+    list: OptList,
 }
 
 impl FunStack {
     pub fn new() -> Self {
         FunStack {
             sz: 0,
-            list: Rc::new(Nil),
+            list: None,
         }
     }
 
@@ -28,27 +27,24 @@ impl FunStack {
     }
 
     pub fn push(&mut self, v: i32) -> () {
-        self.list = Rc::new(List::Cons(v, self.list.clone()));
+        self.list = Some(Rc::new(List((v, self.list.take()))));
         self.sz += 1;
     }
 
     pub fn top(&self) -> Option<i32> {
-        match *self.list {
-            Cons(v, _) => Some(v),
-            Nil => None,
-        }
+        self.list.as_ref().map(|n| n.0.0)
     }
 
     pub fn pop(&mut self) -> Option<i32> {
-        match self.list.as_ref() {
-            Cons(v, next) => {
-                let ret = Some(*v);
-                self.list = next.clone();
+        match self.list.as_mut() {
+            Some(rc) => {
+                let ret = Some(rc.0.0);
+                self.list = rc.0.1.clone();  // .take() ?
                 self.sz -= 1;
                 ret
             }
 
-            Nil => None,
+            None => None,
         }
     }
 
