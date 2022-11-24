@@ -1,8 +1,9 @@
 use std::rc::Rc;
 
-struct List(
-    (i32, Option<Rc<List>>)
-);
+struct List {
+    val: i32,
+    next: Option<Rc<List>>,
+}
 
 type OptList = Option<Rc<List>>;
 
@@ -26,21 +27,20 @@ impl FunStack {
         }
     }
 
-    pub fn push(&mut self, v: i32) -> () {
-        self.list = Some(Rc::new(List((v, self.list.take()))));
+    pub fn push(&mut self, val: i32) -> () {
+        self.list = Some(Rc::new(List { val, next: self.list.take() }));
         self.sz += 1;
     }
 
     pub fn top(&self) -> Option<i32> {
-        self.list.as_ref().map(|n| n.0.0)
+        self.list.as_ref().map(|n| n.val)
     }
 
     pub fn pop(&mut self) -> Option<i32> {
-        match self.list.as_mut() {
+        match self.list.as_mut().take() {
             Some(rc) => {
-                let ret = Some(rc.0.0);
-                self.list = rc.0.1.clone();  // .take() ?
-                self.sz -= 1;
+                let ret = Some(rc.val);
+                self.list = rc.next.clone(); // Need RefCell to take?
                 ret
             }
 
@@ -58,7 +58,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_works() {
+    fn diff_hd_shared_tl() {
         let mut s = FunStack::new();
         s.push(1);
         s.push(2);
