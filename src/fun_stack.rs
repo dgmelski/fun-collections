@@ -40,8 +40,7 @@ where
     }
 }
 
-// TODO: Can we get rid of Copy?
-impl<T: Copy> FunStack<T> {
+impl<T: Clone> FunStack<T> {
     pub fn new() -> Self {
         FunStack { sz: 0, list: None }
     }
@@ -63,27 +62,24 @@ impl<T: Copy> FunStack<T> {
     }
 
     pub fn pop(&mut self) -> Option<T> {
-        match self.list.as_mut().take() {
+        let opt_list = self.list.take();
+        match opt_list {
+            None => None,
             Some(rc) => {
                 self.sz -= 1;
 
-                // attempt to avoid unnecessary Rc updates
-                match Rc::get_mut(rc) {
-                    Some(hd) => {
-                        let ret = Some(hd.val);
-                        self.list = hd.next.take();
-                        ret
+                match Rc::try_unwrap(rc) {
+                    Ok(mut list) => {
+                        self.list = list.next.take();
+                        Some(list.val)
                     }
 
-                    None => {
-                        let ret = Some(rc.val);
+                    Err(rc) => {
                         self.list = rc.next.clone();
-                        ret
+                        Some(rc.val.clone())
                     }
                 }
             }
-
-            None => None,
         }
     }
 
