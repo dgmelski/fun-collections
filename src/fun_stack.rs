@@ -1,3 +1,5 @@
+use std::fmt;
+use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
 struct List<T> {
@@ -85,6 +87,13 @@ impl<T: Clone> FunStack<T> {
 
     pub fn len(&self) -> usize {
         self.sz
+    }
+}
+
+impl<T: Clone + Debug> Debug for FunStack<T> {
+    fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), fmt::Error> {
+        fmt.write_str("FunStack (TOP -> BOT): ")?;
+        fmt.debug_list().entries(self.iter()).finish()
     }
 }
 
