@@ -111,6 +111,7 @@ mod tests {
     extern crate quickcheck;
     use super::*;
     use quickcheck::quickcheck;
+    use std::cell::RefCell;
     use std::cmp::Ordering::*;
 
     #[test]
@@ -171,6 +172,66 @@ mod tests {
         assert_eq!(*a2.unwrap(), 2);
         assert_eq!(*a1.unwrap(), 1);
         assert_eq!(*a0.unwrap(), 0);
+    }
+
+    struct CloneCounter {
+        pub counter: Rc<RefCell<usize>>,
+    }
+
+    impl CloneCounter {
+        fn new(counter: Rc<RefCell<usize>>) -> Self {
+            CloneCounter { counter }
+        }
+    }
+
+    impl Clone for CloneCounter {
+        fn clone(&self) -> Self {
+            let mut v = (*self.counter).borrow_mut();
+            *v += 1;
+            CloneCounter::new(self.counter.clone())
+        }
+    }
+
+    #[test]
+    fn cloned_pop() {
+        let mut s = FunStack::new();
+        let cntr = Rc::new(RefCell::new(0_usize));
+        s.push(CloneCounter::new(cntr.clone()));
+
+        // creates sharing of stack contents
+        let mut t = s.clone();
+        assert_eq!(*(*cntr).borrow(), 0);
+
+        // will require clone since stack is shared
+        s.pop();
+        assert_eq!(*(*cntr).borrow(), 1);
+
+        // should move the result, instead of cloning
+        t.pop();
+        assert_eq!(*(*cntr).borrow(), 1);
+    }
+
+    #[test]
+    fn cloned_ref_pop() {
+        let cntr = CloneCounter::new(Rc::new(RefCell::new(0_usize)));
+        let mut s = FunStack::new();
+
+        s.push(&cntr);
+
+        // creates sharing of stack contents
+        let mut t = s.clone();
+        assert_eq!(*(*cntr.counter).borrow(), 0);
+
+        // Since the top of the stacks are shared, s.pop() ultimately calls
+        // rc.val.clone().  'val' should have type &CloneCounter, however
+        // rc.val.clone() does not dereference to CloneCounter::clone().
+        // TODO: why not?
+        s.pop();
+        assert_eq!(*(*cntr.counter).borrow(), 0);
+
+        // should move the result, instead of cloning
+        t.pop();
+        assert_eq!(*(*cntr.counter).borrow(), 0);
     }
 
     quickcheck! {
