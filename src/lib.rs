@@ -1,18 +1,18 @@
 use std::rc::Rc;
 
-struct List {
-    val: i32,
-    next: Option<Rc<List>>,
+struct List<T> {
+    val: T,
+    next: Option<Rc<List<T>>>,
 }
 
-type OptList = Option<Rc<List>>;
+type OptList<T> = Option<Rc<List<T>>>;
 
-pub struct FunStack {
+pub struct FunStack<T> {
     sz: usize,
-    list: OptList,
+    list: OptList<T>,
 }
 
-impl FunStack {
+impl<T: Copy> FunStack<T> {
     pub fn new() -> Self {
         FunStack {
             sz: 0,
@@ -27,20 +27,20 @@ impl FunStack {
         }
     }
 
-    pub fn push(&mut self, val: i32) -> () {
+    pub fn push(&mut self, val: T) -> () {
         self.list = Some(Rc::new(List { val, next: self.list.take() }));
         self.sz += 1;
     }
 
-    pub fn top(&self) -> Option<i32> {
+    pub fn top(&self) -> Option<T> {
         self.list.as_ref().map(|n| n.val)
     }
 
-    pub fn pop(&mut self) -> Option<i32> {
+    pub fn pop(&mut self) -> Option<T> {
         match self.list.as_mut().take() {
             Some(rc) => {
                 let ret = Some(rc.val);
-                self.list = rc.next.clone(); // Need RefCell to take?
+                self.list = rc.next.clone();
                 ret
             }
 
