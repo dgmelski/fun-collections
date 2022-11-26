@@ -39,9 +39,20 @@ impl<T: Copy> FunStack<T> {
     pub fn pop(&mut self) -> Option<T> {
         match self.list.as_mut().take() {
             Some(rc) => {
-                let ret = Some(rc.val);
-                self.list = rc.next.clone();
-                ret
+                // attempt to avoid unnecessary Rc updates
+                match Rc::get_mut(rc) {
+                    Some(hd) => {
+                        let ret = Some(hd.val);
+                        self.list = hd.next.take();
+                        ret
+                    }
+
+                    None => {
+                        let ret = Some(rc.val);
+                        self.list = rc.next.clone();
+                        ret
+                    }
+                }
             }
 
             None => None,
