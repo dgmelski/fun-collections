@@ -158,5 +158,33 @@ mod tests {
                 _ => false,
             }
         }
+
+        fn qc_sharing_test(xs: Vec<i32>) -> () {
+            let mut fun_stks = vec![FunStack::new()];
+            let mut vec_stks = vec![Vec::new()];
+
+            for &i in xs.iter() {
+                // clone the lead stacks
+                fun_stks.push(fun_stks[0].clone());  // NB: creates sharing
+                vec_stks.push(vec_stks[0].clone());  // WARNING: n^2
+
+                // update the lead stack by pushing or popping
+                if i < 0 {
+                    fun_stks[0].pop();
+                    vec_stks[0].pop();
+                } else {
+                    fun_stks[0].push(i);
+                    vec_stks[0].push(i);
+                }
+            }
+
+            // Are the stacks equal?  Even as dropping FunStacks reduces 
+            // sharing?
+            while let Some(s1) = fun_stks.pop() {
+                let s2 = vec_stks.pop().unwrap();
+                assert_eq!(s1.len(), s2.len());
+                assert!(s1.iter().cmp(s2.iter().rev()).is_eq());
+            }
+        }
     }
 }
