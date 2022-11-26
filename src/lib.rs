@@ -7,6 +7,7 @@ struct List<T> {
 
 type OptList<T> = Option<Rc<List<T>>>;
 
+#[derive(Clone)]
 pub struct FunStack<T> {
     sz: usize,
     list: OptList<T>,
@@ -17,13 +18,6 @@ impl<T: Copy> FunStack<T> {
         FunStack {
             sz: 0,
             list: None,
-        }
-    }
-
-    pub fn clone(&self) -> Self {
-        FunStack {
-            sz: self.sz,
-            list: self.list.clone(),
         }
     }
 
