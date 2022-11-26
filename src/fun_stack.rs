@@ -94,6 +94,9 @@ impl<T: Copy> FunStack<T> {
 
 #[cfg(test)]
 mod tests {
+    extern crate quickcheck;
+    use quickcheck::quickcheck;
+    use std::cmp::Ordering::*;
     use super::*;
 
     #[test]
@@ -133,5 +136,27 @@ mod tests {
         assert_eq!(s.len(), 1);
         assert_eq!(s.pop(), Some(&"abc"));
         assert_eq!(s.len(), 0);
+    }
+
+    quickcheck! {
+        fn qc_cmp_with_vec(xs: Vec<i32>) -> bool {
+            let mut fun_stk = FunStack::new();
+            let mut vec_stk = Vec::new();
+
+            for &i in xs.iter() {
+                if i < 0 {
+                    assert_eq!(fun_stk.pop(), vec_stk.pop());
+                } else {
+                    fun_stk.push(i);
+                    vec_stk.push(i);
+                }
+                assert_eq!(fun_stk.len(), vec_stk.len());
+            }
+
+            match fun_stk.iter().cmp(vec_stk.iter().rev()) {
+                Equal => true,
+                _ => false,
+            }
+        }
     }
 }
