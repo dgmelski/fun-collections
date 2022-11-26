@@ -243,6 +243,27 @@ mod tests {
         assert_eq!(*(*cntr.counter).borrow(), 0);
     }
 
+    #[test]
+    fn stack_of_stacks() {
+        let mut vss = vec![vec![0, 1, 2], vec![3, 4], vec![5, 6, 7]];
+
+        let mut fss = FunStack::new();
+        for row in vss.iter() {
+            let mut new_row = FunStack::new();
+            for c in row.iter() {
+                new_row.push(*c);
+            }
+            fss.push(new_row);
+        }
+
+        while let Some(vs) = vss.pop() {
+            let fs = fss.pop().unwrap();
+            for (v,f) in vs.iter().rev().zip(fs.iter()) {
+                assert_eq!(*v, *f)
+            }
+        }
+    }
+
     quickcheck! {
         fn qc_cmp_with_vec(xs: Vec<i32>) -> bool {
             let mut fun_stk = FunStack::new();
