@@ -26,8 +26,8 @@ impl<T: Copy> FunStack<T> {
         self.sz += 1;
     }
 
-    pub fn top(&self) -> Option<T> {
-        self.list.as_ref().map(|n| n.val)
+    pub fn top(&self) -> Option<&T> {
+        self.list.as_ref().map(|n| &n.val)
     }
 
     pub fn pop(&mut self) -> Option<T> {
