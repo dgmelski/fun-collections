@@ -65,6 +65,8 @@ impl<T: Copy> FunStack<T> {
     pub fn pop(&mut self) -> Option<T> {
         match self.list.as_mut().take() {
             Some(rc) => {
+                self.sz -= 1;
+
                 // attempt to avoid unnecessary Rc updates
                 match Rc::get_mut(rc) {
                     Some(hd) => {
@@ -121,5 +123,15 @@ mod tests {
         for (&c, d) in s.iter().zip(vec!['c', 'b', 'a']) {
             assert_eq!(c, d);
         }
+    }
+
+    #[test]
+    fn len_test() {
+        let mut s = FunStack::new();
+        assert_eq!(s.len(), 0);
+        s.push(&"abc");
+        assert_eq!(s.len(), 1);
+        assert_eq!(s.pop(), Some(&"abc"));
+        assert_eq!(s.len(), 0);
     }
 }
