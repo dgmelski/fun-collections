@@ -138,6 +138,27 @@ mod tests {
         assert_eq!(s.len(), 0);
     }
 
+    #[test]
+    fn iter_lifetime() {
+        let mut s = FunStack::new();
+        for i in vec![0,1,2] {
+            s.push(i);
+        }
+
+        let mut iter = s.iter();
+        let a2 = iter.next();
+        let a1 = iter.next();
+        let a0 = iter.next();
+        drop(iter);
+
+        // The references from the iterator are borrowed from 's' and live even 
+        // after drop(iter).  The compiler complains if we drop(s) here.
+
+        assert_eq!(*a2.unwrap(), 2);
+        assert_eq!(*a1.unwrap(), 1);
+        assert_eq!(*a0.unwrap(), 0);
+    }
+
     quickcheck! {
         fn qc_cmp_with_vec(xs: Vec<i32>) -> bool {
             let mut fun_stk = FunStack::new();
@@ -178,7 +199,7 @@ mod tests {
                 }
             }
 
-            // Are the stacks equal?  Even as dropping FunStacks reduces 
+            // Are the stacks equal?  Even as dropping FunStacks reduces
             // sharing?
             while let Some(s1) = fun_stks.pop() {
                 let s2 = vec_stks.pop().unwrap();
