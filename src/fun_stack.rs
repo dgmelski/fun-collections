@@ -92,6 +92,24 @@ impl<T: Copy> FunStack<T> {
     }
 }
 
+impl<T> Drop for FunStack<T> {
+    // avoid deep recursion when dropping a large stack
+    fn drop(&mut self) {
+        let mut hd_opt = self.list.as_mut().take();
+        while let Some(rc) = hd_opt {
+            if let Some(hd) = Rc::get_mut(rc) {
+                // As sole owner of the top of the stack, we can break its link
+                // to the rest of the stack so it will be freed w/o recursing.
+                hd_opt = hd.next.as_mut().take();
+            } else {
+                // There are other owners for the rest of the stack; it won't
+                // be dropped at this time.
+                break;
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     extern crate quickcheck;
