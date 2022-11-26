@@ -113,9 +113,9 @@ impl<T> Drop for FunStack<T> {
 #[cfg(test)]
 mod tests {
     extern crate quickcheck;
+    use super::*;
     use quickcheck::quickcheck;
     use std::cmp::Ordering::*;
-    use super::*;
 
     #[test]
     fn diff_hd_shared_tl() {
@@ -159,7 +159,7 @@ mod tests {
     #[test]
     fn iter_lifetime() {
         let mut s = FunStack::new();
-        for i in vec![0,1,2] {
+        for i in vec![0, 1, 2] {
             s.push(i);
         }
 
@@ -169,7 +169,7 @@ mod tests {
         let a0 = iter.next();
         drop(iter);
 
-        // The references from the iterator are borrowed from 's' and live even 
+        // The references from the iterator are borrowed from 's' and live even
         // after drop(iter).  The compiler complains if we drop(s) here.
 
         assert_eq!(*a2.unwrap(), 2);
