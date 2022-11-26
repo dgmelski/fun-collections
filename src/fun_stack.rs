@@ -42,9 +42,25 @@ where
     }
 }
 
+pub struct FunStackIntoIter<T> {
+    stk: FunStack<T>,
+}
+
+impl<T: Clone> Iterator for FunStackIntoIter<T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.stk.pop()
+    }
+}
+
 impl<T: Clone> FunStack<T> {
     pub fn new() -> Self {
         FunStack { sz: 0, list: None }
+    }
+
+    pub fn into_iter(self) -> FunStackIntoIter<T> {
+        FunStackIntoIter { stk: self }
     }
 
     pub fn iter<'a>(&'a self) -> FunStackIter<'a, T> {
@@ -153,6 +169,24 @@ mod tests {
     }
 
     #[test]
+    fn into_iter_test() {
+        let mut s = FunStack::new();
+        s.push('a');
+        let mut t = s.clone();
+        s.push('b');
+        t.push('c');
+
+        let mut ii = s.into_iter();
+        assert_eq!(ii.next(), Some('b'));
+        assert_eq!(ii.next(), Some('a'));
+        assert_eq!(ii.next(), None);
+
+        assert_eq!(t.pop(), Some('c'));
+        assert_eq!(t.pop(), Some('a'));
+        assert_eq!(t.pop(), None);
+    }
+
+    #[test]
     fn len_test() {
         let mut s = FunStack::new();
         assert_eq!(s.len(), 0);
@@ -258,7 +292,7 @@ mod tests {
 
         while let Some(vs) = vss.pop() {
             let fs = fss.pop().unwrap();
-            for (v,f) in vs.iter().rev().zip(fs.iter()) {
+            for (v, f) in vs.iter().rev().zip(fs.iter()) {
                 assert_eq!(*v, *f)
             }
         }
