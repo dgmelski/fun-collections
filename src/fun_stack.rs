@@ -31,7 +31,7 @@ where
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match &self.next {
+        match self.next {
             Some(rc) => {
                 let ret = &rc.val;
                 self.next = &rc.next;
