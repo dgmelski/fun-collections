@@ -2,6 +2,7 @@ use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
+#[derive(Clone)]
 struct List<T> {
     val: T,
     next: Option<Rc<List<T>>>,
@@ -42,6 +43,29 @@ where
     }
 }
 
+pub struct FunStackIterMut<'a, T> {
+    // NB: originally, I tried to use `&'a mut Option<Rc<List<T>>>` as the
+    // type for next, but I could not get it to work.  When I tried to get
+    // next.as_mut() to get at the `&mut Rc...`, the reference had the
+    // lifetime of the function, rather than the 'a.
+    next: Option<&'a mut Rc<List<T>>>,
+}
+
+impl<'a, T: Clone> Iterator for FunStackIterMut<'a, T>
+where
+    T: 'a,
+{
+    type Item = &'a mut T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next.take().map(|rc| {
+            let list = Rc::make_mut(rc);
+            self.next = list.next.as_mut();
+            &mut list.val
+        })
+    }
+}
+
 pub struct FunStackIntoIter<T> {
     stk: FunStack<T>,
 }
@@ -65,6 +89,12 @@ impl<T: Clone> FunStack<T> {
 
     pub fn iter<'a>(&'a self) -> FunStackIter<'a, T> {
         FunStackIter { next: &self.list }
+    }
+
+    pub fn iter_mut<'a>(&'a mut self) -> FunStackIterMut<'a, T> {
+        FunStackIterMut {
+            next: self.list.as_mut(),
+        }
     }
 
     pub fn push(&mut self, val: T) -> () {
@@ -184,6 +214,27 @@ mod tests {
         assert_eq!(t.pop(), Some('c'));
         assert_eq!(t.pop(), Some('a'));
         assert_eq!(t.pop(), None);
+    }
+
+    #[test]
+    fn iter_mut() {
+        let mut s = FunStack::new();
+        s.push(0);
+        let mut t = s.clone();
+        s.push(1);
+        t.push(2);
+
+        for x in s.iter_mut() {
+            *x += 100;
+        }
+
+        assert_eq!(s.pop(), Some(101));
+        assert_eq!(s.pop(), Some(100));
+        assert_eq!(s.pop(), None);
+
+        assert_eq!(t.pop(), Some(2));
+        assert_eq!(t.pop(), Some(0));
+        assert_eq!(s.pop(), None);
     }
 
     #[test]
