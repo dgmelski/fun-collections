@@ -135,12 +135,56 @@ impl<T: Clone> FunStack<T> {
     pub fn len(&self) -> usize {
         self.sz
     }
+
+    // TODO: test me
+    pub fn clear(&mut self) {
+        self.list.take();
+        self.sz = 0;
+    }
+
+    // TODO: test me
+    pub fn contains(&self, x: &T) -> bool
+    where
+        T: PartialEq<T>,
+    {
+        self.iter().any(|y| x == y)
+    }
+
+    // TODO: test me
+    pub fn is_empty(&self) -> bool {
+        self.sz == 0
+    }
+
+    // TODO: "Removes the element at the given index and returns it. This
+    // operation should compute in O(n) time."
+    pub fn remove(&mut self, at: usize) -> T {
+        if at >= self.sz {
+            panic!("Asked to remove item #{at}, but only {} items.", self.sz)
+        }
+        unimplemented!();
+    }
+
+    // TODO: "Splits the list into two at the given index. Returns everything
+    // after the given index, including the index. This operation should compute
+    // in O(n) time."
+    pub fn split_off(&mut self, at: usize) -> Self {
+        if at >= self.sz {
+            panic!("Asked to split off {at} items but only {} items.", self.sz)
+        }
+        unimplemented!();
+    }
 }
 
 impl<T: Clone + Debug> Debug for FunStack<T> {
     fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         fmt.write_str("FunStack (TOP -> BOT): ")?;
         fmt.debug_list().entries(self.iter()).finish()
+    }
+}
+
+impl<T: Clone> Default for FunStack<T> {
+    fn default() -> Self {
+        FunStack::new()
     }
 }
 
@@ -162,11 +206,65 @@ impl<T> Drop for FunStack<T> {
     }
 }
 
+impl<T: Clone + PartialEq> PartialEq for FunStack<T> {
+    // TODO: test
+    fn eq(&self, rhs: &Self) -> bool {
+        self.sz == rhs.sz && self.iter().zip(rhs.iter()).all(|(a, b)| a == b)
+    }
+}
+
+impl<T: Clone + Eq> Eq for FunStack<T> {}
+
+impl<T: Clone + PartialOrd> PartialOrd for FunStack<T> {
+    // tODO: test
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        let mut xs = self.iter();
+        let mut ys = other.iter();
+
+        loop {
+            match (xs.next(), ys.next()) {
+                (Some(a), Some(b)) => {
+                    match a.partial_cmp(b) {
+                        Some(Equal) => (), // continue
+                        res => {
+                            return res;
+                        }
+                    }
+                }
+
+                (None, Some(_)) => {
+                    return Some(Less);
+                }
+
+                (Some(_), None) => {
+                    return Some(Greater);
+                }
+
+                (None, None) => {
+                    return Some(Equal);
+                }
+            }
+        }
+    }
+}
+
+impl<T: Clone + Ord> Ord for FunStack<T> {
+    fn cmp(&self, rhs: &Self) -> std::cmp::Ordering {
+        self.iter().cmp(rhs.iter())
+    }
+}
+
 impl<T: Clone> Extend<T> for FunStack<T> {
     fn extend<Iter: IntoIterator<Item = T>>(&mut self, iter: Iter) {
         for x in iter {
             self.push(x);
         }
+    }
+}
+
+impl<T: Clone> From<Vec<T>> for FunStack<T> {
+    fn from(v: Vec<T>) -> Self {
+        FunStack::from_iter(v.into_iter())
     }
 }
 
