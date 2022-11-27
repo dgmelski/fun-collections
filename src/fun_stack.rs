@@ -117,10 +117,6 @@ impl<T: Clone> FunStack<T> {
         FunStack { sz: 0, list: None }
     }
 
-    pub fn into_iter(self) -> FunStackIntoIter<T> {
-        FunStackIntoIter { stk: self }
-    }
-
     pub fn iter<'a>(&'a self) -> FunStackIter<'a, T> {
         FunStackIter { next: &self.list }
     }
@@ -282,6 +278,29 @@ impl<T> Drop for FunStack<T> {
     }
 }
 
+impl<T: Clone> IntoIterator for FunStack<T> {
+    type Item = T;
+    type IntoIter = FunStackIntoIter<Self::Item>;
+
+    /// Converts the `FunStack<T>` into an `Iterator<T>`.
+    ///
+    /// # Example
+    /// Demonstrate an implict call to into_iter when a `FunStack` is used as
+    /// the iterated collection in a `for` loop.
+    /// ```
+    /// use fun_collections::FunStack;
+    /// let s = FunStack::from(vec![0,1,2]);
+    /// let mut expected = 2;
+    /// for x in s { // equivalent to `for x in s.into_iter()`
+    ///     assert_eq!(x, expected);
+    ///     expected -= 1;
+    /// }
+    /// ```
+    fn into_iter(self) -> Self::IntoIter {
+        FunStackIntoIter { stk: self }
+    }
+}
+
 impl<T: Clone + PartialEq> PartialEq for FunStack<T> {
     // TODO: test
     fn eq(&self, rhs: &Self) -> bool {
@@ -399,24 +418,6 @@ mod tests {
         for (&c, d) in s.iter().zip(vec!['c', 'b', 'a']) {
             assert_eq!(c, d);
         }
-    }
-
-    #[test]
-    fn into_iter_test() {
-        let mut s = FunStack::new();
-        s.push('a');
-        let mut t = s.clone();
-        s.push('b');
-        t.push('c');
-
-        let mut ii = s.into_iter();
-        assert_eq!(ii.next(), Some('b'));
-        assert_eq!(ii.next(), Some('a'));
-        assert_eq!(ii.next(), None);
-
-        assert_eq!(t.pop(), Some('c'));
-        assert_eq!(t.pop(), Some('a'));
-        assert_eq!(t.pop(), None);
     }
 
     #[test]
