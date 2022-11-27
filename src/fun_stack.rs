@@ -1,3 +1,4 @@
+use std::cmp::Ordering::*;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
@@ -183,19 +184,18 @@ mod tests {
     use super::*;
     use quickcheck::quickcheck;
     use std::cell::RefCell;
-    use std::cmp::Ordering::*;
 
     #[test]
     fn collect_test() {
-        let s: FunStack<_> = vec![0,1].into_iter().collect();
-        assert_eq!(s.iter().cmp(vec![1,0].iter()), Equal);
+        let s: FunStack<_> = vec![0, 1].into_iter().collect();
+        assert_eq!(s.iter().cmp(vec![1, 0].iter()), Equal);
     }
 
     #[test]
     fn extend_test() {
         let mut s = FunStack::new();
-        s.extend(vec![0,1]);
-        assert_eq!(s.iter().cmp(vec![1,0].iter()), Equal);
+        s.extend(vec![0, 1]);
+        assert_eq!(s.iter().cmp(vec![1, 0].iter()), Equal);
     }
 
     #[test]
