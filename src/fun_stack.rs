@@ -161,6 +161,22 @@ impl<T> Drop for FunStack<T> {
     }
 }
 
+impl<T: Clone> Extend<T> for FunStack<T> {
+    fn extend<Iter: IntoIterator<Item = T>>(&mut self, iter: Iter) {
+        for x in iter {
+            self.push(x);
+        }
+    }
+}
+
+impl<T: Clone> FromIterator<T> for FunStack<T> {
+    fn from_iter<Iter: IntoIterator<Item = T>>(iter: Iter) -> Self {
+        let mut s: FunStack<T> = FunStack::new();
+        s.extend(iter);
+        s
+    }
+}
+
 #[cfg(test)]
 mod tests {
     extern crate quickcheck;
@@ -168,6 +184,19 @@ mod tests {
     use quickcheck::quickcheck;
     use std::cell::RefCell;
     use std::cmp::Ordering::*;
+
+    #[test]
+    fn collect_test() {
+        let s: FunStack<_> = vec![0,1].into_iter().collect();
+        assert_eq!(s.iter().cmp(vec![1,0].iter()), Equal);
+    }
+
+    #[test]
+    fn extend_test() {
+        let mut s = FunStack::new();
+        s.extend(vec![0,1]);
+        assert_eq!(s.iter().cmp(vec![1,0].iter()), Equal);
+    }
 
     #[test]
     fn diff_hd_shared_tl() {
