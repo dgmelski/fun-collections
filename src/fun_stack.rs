@@ -117,6 +117,30 @@ impl<T: Clone> FunStack<T> {
         FunStack { sz: 0, list: None }
     }
 
+    /// Creates an iterator from the top to the bottom elements of the stack.
+    ///
+    /// # Example
+    /// As with most collections, you cannot modify a `FunStack` while you are
+    /// iterating over it.  However, because cloning a collection is so cheap,
+    /// it is sometimes viable to iterate over a clone while you modify the
+    /// original.  In this example, we iterate over a clone while moving the odd
+    /// elements in the original stack to its top.
+    /// ```
+    /// use fun_collections::FunStack;
+    /// let mut s: FunStack<_> = (0..4).collect();
+    /// for (i, n) in s.clone().iter().enumerate() {
+    ///     if n % 2 == 1 {
+    ///         let x: i32 = s.remove(i);
+    ///         assert_eq!(x, *n);
+    ///         s.push(x);
+    ///     }
+    /// }
+    /// assert_eq!(s.pop(), Some(1));
+    /// assert_eq!(s.pop(), Some(3));
+    /// assert_eq!(s.pop(), Some(2));
+    /// assert_eq!(s.pop(), Some(0));
+    /// assert_eq!(s.pop(), None);
+    /// ```
     pub fn iter(&self) -> FunStackIter<T> {
         FunStackIter { next: &self.list }
     }
@@ -407,17 +431,6 @@ mod tests {
         assert_eq!(s2.pop(), Some(4));
         assert_eq!(s2.pop(), Some(2));
         assert_eq!(s2.pop(), Some(1));
-    }
-
-    #[test]
-    fn iter_test() {
-        let mut s = FunStack::new();
-        s.push('a');
-        s.push('b');
-        s.push('c');
-        for (&c, d) in s.iter().zip(vec!['c', 'b', 'a']) {
-            assert_eq!(c, d);
-        }
     }
 
     #[test]
