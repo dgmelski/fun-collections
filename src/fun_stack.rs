@@ -5,7 +5,7 @@ use std::rc::Rc;
 #[derive(Clone)]
 struct List<T> {
     val: T,
-    next: Option<Rc<List<T>>>,
+    next: OptList<T>,
 }
 
 type OptList<T> = Option<Rc<List<T>>>;
