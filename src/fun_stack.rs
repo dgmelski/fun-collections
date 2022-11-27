@@ -1,3 +1,12 @@
+//! # "Functional" collections that provide memory-efficient cloning
+//!
+//! `fun-collections` is a set of "functional" collections.  The collections use
+//! persistent data structures, which means that a clone `s.clone()` shares its
+//! internal representation with `s`.  The representations of a collection and
+//! its clones gradually diverge as they are updated.  `fun-collections`
+//! provides a subset of the functionality found in the `im` crate, which is way
+//! more mature.  You probably should use the im crate instead of this one.
+
 use std::cmp::Ordering::*;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
@@ -12,6 +21,30 @@ struct List<T> {
 type OptList<T> = Option<Rc<List<T>>>;
 
 #[derive(Clone)]
+/// Implements a stack with constant time `push`, `pop`, and `clone` operations.
+///
+/// The stored elements must implement `Clone`.  During `pop` operations, popped
+/// items are moved if they are not shared among different stacks and cloned if
+/// they are.
+///
+/// # Example
+/// In this example, we create a `FunStack<Box<i32>>`.  We use `T = Box<>`
+/// to illustrate `FunStack`'s handling of elements that implement `Clone` but
+/// not `Copy`.
+/// ```
+/// use fun_collections::FunStack;
+///
+/// let mut s = FunStack::new();
+/// s.push(Box::new(0));
+/// let mut t = s.clone(); // s and t share internal representations
+/// s.push(Box::new(1));
+/// t.push(Box::new(2));
+///
+/// assert_eq!(s.pop(), Some(Box::new(1))); // pop moves its Box(1) (unshared)
+/// assert_eq!(s.pop(), Some(Box::new(0))); // pop clones Box(0) (shared with t)
+/// assert_eq!(t.pop(), Some(Box::new(2))); // pop moves Box(2) (unshared)
+/// assert_eq!(t.pop(), Some(Box::new(0))); // pop moves Box(0) (now unshared)
+/// ```
 pub struct FunStack<T> {
     sz: usize,
     list: OptList<T>,
