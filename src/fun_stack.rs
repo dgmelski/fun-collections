@@ -117,17 +117,17 @@ impl<T: Clone> FunStack<T> {
         FunStack { sz: 0, list: None }
     }
 
-    pub fn iter<'a>(&'a self) -> FunStackIter<'a, T> {
+    pub fn iter(&self) -> FunStackIter<T> {
         FunStackIter { next: &self.list }
     }
 
-    pub fn iter_mut<'a>(&'a mut self) -> FunStackIterMut<'a, T> {
+    pub fn iter_mut(&mut self) -> FunStackIterMut<T> {
         FunStackIterMut {
             next: self.list.as_mut(),
         }
     }
 
-    pub fn push(&mut self, val: T) -> () {
+    pub fn push(&mut self, val: T) {
         self.list = Some(Rc::new(List {
             val,
             next: self.list.take(),
