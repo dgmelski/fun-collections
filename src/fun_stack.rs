@@ -581,10 +581,7 @@ mod tests {
                 assert_eq!(fun_stk.len(), vec_stk.len());
             }
 
-            match fun_stk.iter().cmp(vec_stk.iter().rev()) {
-                Equal => true,
-                _ => false,
-            }
+            fun_stk.iter().cmp(vec_stk.iter().rev()).is_eq()
         }
 
         fn qc_sharing_test(xs: Vec<i32>) -> () {
@@ -592,9 +589,11 @@ mod tests {
             let mut vec_stks = vec![Vec::new()];
 
             for &i in xs.iter() {
-                // clone the lead stacks
-                fun_stks.push(fun_stks[0].clone());  // NB: creates sharing
-                vec_stks.push(vec_stks[0].clone());  // WARNING: n^2
+                // every so often, clone the lead stack
+                if i % 3 == 0 {
+                    fun_stks.push(fun_stks[0].clone());  // NB: creates sharing
+                    vec_stks.push(vec_stks[0].clone());  // WARNING: n^2
+                }
 
                 // update the lead stack by pushing or popping
                 if i < 0 {
