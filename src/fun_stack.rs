@@ -123,8 +123,8 @@ impl<T: Clone> FunStack<T> {
                 self.sz -= 1;
 
                 match Rc::try_unwrap(rc) {
-                    Ok(mut list) => {
-                        self.list = list.next.take();
+                    Ok(list) => {
+                        self.list = list.next;
                         Some(list.val)
                     }
 
