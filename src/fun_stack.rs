@@ -193,13 +193,51 @@ impl<T: Clone> FunStack<T> {
         self.sz == 0
     }
 
-    // TODO: "Removes the element at the given index and returns it. This
-    // operation should compute in O(n) time."
-    pub fn remove(&mut self, at: usize) -> T {
+    /// Removes the element at the given index and returns it.
+    ///
+    /// Any shared nodes on the way to the dropped element are cloned.
+    ///
+    /// # Panics
+    /// Panics if at is greater than or equal to the length of the stack.
+    ///
+    /// # Example
+    /// ```
+    /// use fun_collections::FunStack;
+    /// let mut s = FunStack::from(vec!['a','b','c']);
+    /// s.remove(1);
+    /// assert_eq!(s.pop(), Some('c'));
+    /// assert_eq!(s.pop(), Some('a'));
+    /// assert_eq!(s.pop(), None);
+    /// ```
+    pub fn remove(&mut self, mut at: usize) -> T {
         if at >= self.sz {
             panic!("Asked to remove item #{at}, but only {} items.", self.sz)
         }
-        unimplemented!();
+        self.sz -= 1;
+
+        // find the link we need to update
+        let mut curr = &mut self.list;
+        while at > 0 {
+            // we must clone up to the node we remove so we can route the last
+            // link around the node we're dropping
+            let n = Rc::make_mut(curr.as_mut().unwrap());
+            curr = &mut n.next;
+            at -= 1;
+        }
+
+        // Route around the node we're dropping.  If the node is shared, we need
+        // to clone its contents, but not the node itself.
+        match Rc::try_unwrap(curr.take().unwrap()) {
+            Ok(n) => {
+                *curr = n.next;
+                n.val
+            }
+
+            Err(n) => {
+                *curr = n.next.clone();
+                n.val.clone()
+            }
+        }
     }
 
     // TODO: "Splits the list into two at the given index. Returns everything
