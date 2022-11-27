@@ -110,6 +110,11 @@ impl<T: Clone> FunStack<T> {
         self.list.as_ref().map(|n| &n.val)
     }
 
+    // TODO: test, doc
+    pub fn top_mut(&mut self) -> Option<&mut T> {
+        self.list.as_mut().map(|rc| &mut Rc::make_mut(rc).val)
+    }
+
     pub fn pop(&mut self) -> Option<T> {
         let opt_list = self.list.take();
         match opt_list {
