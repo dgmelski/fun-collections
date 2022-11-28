@@ -388,10 +388,11 @@ impl<T: Clone> FunStack<T> {
         }
     }
 
-    /// Splits the stack at the given index, retaining [0..at] and returning a
-    /// new stack with [at..].
+    /// Splits the stack at the given index, retaining the bottom elements from
+    /// [0..at] and returning a new stack with the top elements from [at..].
     ///
-    /// Any shared nodes in the portion that is retained will be cloned.
+    /// The bottom element has index 0 and the top has index `self.len()-1`. Any
+    /// shared nodes in the returned top portion of the stack are cloned.
     ///
     /// # Panics
     /// Panics if `at > self.len()`.
@@ -405,10 +406,14 @@ impl<T: Clone> FunStack<T> {
     ///
     /// assert_eq!(s.len(), 7);
     /// assert_eq!(t.len(), 14);
-    /// assert!(s.into_iter().cmp((14..21).rev()).is_eq());
-    /// assert!(t.into_iter().cmp((0..14).rev()).is_eq());
+    /// assert!(s.into_iter().cmp((0..7).rev()).is_eq());
+    /// assert!(t.into_iter().cmp((7..21).rev()).is_eq());
     /// ```
     pub fn split_off(&mut self, mut at: usize) -> Self {
+        if at > self.len {
+            panic!("Asked to split off {at} items but only {} avail.", self.len)
+        }
+
         if at == 0 {
             return FunStack {
                 len: std::mem::take(&mut self.len),
@@ -420,9 +425,8 @@ impl<T: Clone> FunStack<T> {
             return FunStack::new();
         }
 
-        if at > self.len {
-            panic!("Asked to split off {at} items but only {} avail.", self.len)
-        }
+        // for the remainder, count from top instead of from bottom
+        at = self.len() - at;
 
         // save the sizes of the split stacks
         let sz_top_part = at;
@@ -439,11 +443,15 @@ impl<T: Clone> FunStack<T> {
         }
 
         // execute the split
-        self.len = sz_top_part;
+        let bot_elems = curr.take();
+        let top_elems = self.elems.take();
+
+        self.len = sz_bot_part;
+        self.elems = bot_elems;
 
         FunStack {
-            len: sz_bot_part,
-            elems: curr.take(),
+            len: sz_top_part,
+            elems: top_elems,
         }
     }
 }
@@ -731,6 +739,27 @@ mod tests {
                 assert_eq!(*v, *f)
             }
         }
+    }
+
+    #[test]
+    fn split_at_test() {
+        let mut s: FunStack<_> = (0..21).collect();
+        let t = s.split_off(7);
+
+        assert_eq!(s.len(), 7);
+        assert_eq!(t.len(), 14);
+        assert!(s.into_iter().cmp((0..7).rev()).is_eq());
+        assert!(t.into_iter().cmp((7..21).rev()).is_eq());
+
+        s = (0..3).collect();
+        let t = s.split_off(0);
+        assert!(s.is_empty());
+        assert!(t.into_iter().cmp((0..3).rev()).is_eq());
+
+        s = (0..3).collect();
+        let t = s.split_off(3);
+        assert!(s.into_iter().cmp((0..3).rev()).is_eq());
+        assert!(t.is_empty());
     }
 
     quickcheck! {
