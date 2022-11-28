@@ -9,3 +9,6 @@
 
 mod fun_stack;
 pub use fun_stack::FunStack;
+
+mod fun_map;
+pub use fun_map::FunMap;
