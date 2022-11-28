@@ -320,11 +320,43 @@ impl<T: Clone> FunStack<T> {
     // TODO: "Splits the list into two at the given index. Returns everything
     // after the given index, including the index. This operation should compute
     // in O(n) time."
-    pub fn split_off(&mut self, at: usize) -> Self {
-        if at >= self.sz {
-            panic!("Asked to split off {at} items but only {} items.", self.sz)
+    pub fn split_off(&mut self, mut at: usize) -> Self {
+        if at == 0 {
+            return FunStack {
+                sz: std::mem::take(&mut self.sz),
+                list: self.list.take(),
+            };
         }
-        unimplemented!();
+
+        if at == self.sz {
+            return FunStack::new();
+        }
+
+        if at > self.sz {
+            panic!("Asked to split off {at} items but only {} avail.", self.sz)
+        }
+
+        // save the sizes of the split stacks
+        let sz_top_part = at;
+        let sz_bot_part = self.sz - at;
+
+        // find the link we need to sever
+        let mut curr = &mut self.list;
+        while at > 0 {
+            // we must clone up to the node we remove so we can route the last
+            // link around the node we're dropping
+            let n = Rc::make_mut(curr.as_mut().unwrap());
+            curr = &mut n.next;
+            at -= 1;
+        }
+
+        // execute the split
+        self.sz = sz_top_part;
+
+        FunStack {
+            sz: sz_bot_part,
+            list: curr.take(),
+        }
     }
 }
 
