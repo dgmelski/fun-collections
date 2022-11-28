@@ -145,6 +145,34 @@ impl<T: Clone> FunStack<T> {
         FunStackIter { next: &self.list }
     }
 
+    /// Returns an iterator with mutable references.
+    ///
+    /// Before iterating to a shared node, the iterator will clone it.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fun_collections::FunStack;
+    ///
+    /// let mut s = FunStack::new();
+    ///
+    /// s.push(0);
+    /// let mut t = s.clone();
+    /// s.push(1);
+    /// t.push(2);
+    ///
+    /// for x in s.iter_mut() {
+    ///     *x += 100;
+    /// }
+    ///
+    /// assert_eq!(s.pop(), Some(101));
+    /// assert_eq!(s.pop(), Some(100));
+    /// assert_eq!(s.pop(), None);
+    ///
+    /// assert_eq!(t.pop(), Some(2));
+    /// assert_eq!(t.pop(), Some(0));
+    /// assert_eq!(s.pop(), None);
+    /// ```
     pub fn iter_mut(&mut self) -> FunStackIterMut<T> {
         FunStackIterMut {
             next: self.list.as_mut(),
@@ -431,27 +459,6 @@ mod tests {
         assert_eq!(s2.pop(), Some(4));
         assert_eq!(s2.pop(), Some(2));
         assert_eq!(s2.pop(), Some(1));
-    }
-
-    #[test]
-    fn iter_mut() {
-        let mut s = FunStack::new();
-        s.push(0);
-        let mut t = s.clone();
-        s.push(1);
-        t.push(2);
-
-        for x in s.iter_mut() {
-            *x += 100;
-        }
-
-        assert_eq!(s.pop(), Some(101));
-        assert_eq!(s.pop(), Some(100));
-        assert_eq!(s.pop(), None);
-
-        assert_eq!(t.pop(), Some(2));
-        assert_eq!(t.pop(), Some(0));
-        assert_eq!(s.pop(), None);
     }
 
     #[test]
