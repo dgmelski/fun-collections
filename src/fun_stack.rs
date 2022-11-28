@@ -218,6 +218,15 @@ impl<T: Clone> FunStack<T> {
         }
     }
 
+    /// Returns the number of elements in the stack.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunStack;
+    ///
+    /// let mut s: FunStack<_> = (0..5).collect();
+    /// assert_eq!(s.len(), 5);
+    /// ```
     pub fn len(&self) -> usize {
         self.sz
     }
@@ -236,7 +245,17 @@ impl<T: Clone> FunStack<T> {
         self.iter().any(|y| x == y)
     }
 
-    // TODO: test me
+    /// Tests if there are any elements in the stack.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunStack;
+    ///
+    /// let mut s = FunStack::new();
+    /// assert!(s.is_empty());
+    /// s.push(47);
+    /// assert!(!s.is_empty());
+    /// ```
     pub fn is_empty(&self) -> bool {
         self.sz == 0
     }
@@ -402,6 +421,22 @@ impl<T: Clone + Ord> Ord for FunStack<T> {
 }
 
 impl<T: Clone> Extend<T> for FunStack<T> {
+    /// Pushes elements from an iterator onto the stack.
+    ///
+    /// Elements are pushed in order of the iteration, which means they will
+    /// be popped in reverse order of the iteration.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunStack;
+    ///
+    /// let mut s = FunStack::new();
+    /// s.extend((0..10));
+    ///
+    /// assert_eq!(s.top(), Some(&9));
+    /// assert_eq!(s.len(), 10);
+    /// assert!(s.into_iter().cmp((0..10).rev()).is_eq());
+    /// ```
     fn extend<Iter: IntoIterator<Item = T>>(&mut self, iter: Iter) {
         for x in iter {
             self.push(x);
@@ -437,13 +472,6 @@ mod tests {
     }
 
     #[test]
-    fn extend_test() {
-        let mut s = FunStack::new();
-        s.extend(vec![0, 1]);
-        assert_eq!(s.iter().cmp(vec![1, 0].iter()), Equal);
-    }
-
-    #[test]
     fn diff_hd_shared_tl() {
         let mut s = FunStack::new();
         s.push(1);
@@ -459,16 +487,6 @@ mod tests {
         assert_eq!(s2.pop(), Some(4));
         assert_eq!(s2.pop(), Some(2));
         assert_eq!(s2.pop(), Some(1));
-    }
-
-    #[test]
-    fn len_test() {
-        let mut s = FunStack::new();
-        assert_eq!(s.len(), 0);
-        s.push(&"abc");
-        assert_eq!(s.len(), 1);
-        assert_eq!(s.pop(), Some(&"abc"));
-        assert_eq!(s.len(), 0);
     }
 
     #[test]
