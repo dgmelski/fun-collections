@@ -19,17 +19,22 @@ type OptList<T> = Option<Rc<List<T>>>;
 /// they are.
 ///
 /// # Examples
-/// In this example, we create a `FunStack<Box<i32>>`.  We use `T = Box<>`
-/// to illustrate `FunStack`'s handling of elements that implement `Clone` but
-/// not `Copy`.
+/// In this example, we create a `FunStack` of `Box`es to illustrate
+/// `FunStack`'s use of clone on stored elements.
 /// ```
 /// use fun_collections::FunStack;
 ///
 /// let mut s = FunStack::new();
 /// s.push(Box::new(0));
-/// let mut t = s.clone(); // s and t share internal representations
+/// let mut t = s.clone();
+///
+/// // At this point, s and t share their internal storage.
+///
 /// s.push(Box::new(1));
 /// t.push(Box::new(2));
+///
+/// // s and t still have common storage of the Box(0) element, but also
+/// // their own storage for Box(1) and Box(2), respectively.
 ///
 /// assert_eq!(s.pop(), Some(Box::new(1))); // pop moves its Box(1) (unshared)
 /// assert_eq!(s.pop(), Some(Box::new(0))); // pop clones Box(0) (shared with t)
@@ -104,6 +109,14 @@ impl<T: Clone> Iterator for FunStackIntoIter<T> {
 }
 
 impl<T: Clone> FunStack<T> {
+    /// Creates an empty stack.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunStack;
+    ///
+    /// let stack: FunStack<i32> = FunStack::new();
+    /// ```
     pub fn new() -> Self {
         FunStack { sz: 0, list: None }
     }
@@ -118,7 +131,9 @@ impl<T: Clone> FunStack<T> {
     /// elements in the original stack to its top.
     /// ```
     /// use fun_collections::FunStack;
-    /// let mut s: FunStack<_> = (0..4).collect();
+    ///
+    /// let mut s: FunStack<_> = (0..6).collect();
+    ///
     /// for (i, n) in s.clone().iter().enumerate() {
     ///     if n % 2 == 1 {
     ///         let x: i32 = s.remove(i);
@@ -126,8 +141,11 @@ impl<T: Clone> FunStack<T> {
     ///         s.push(x);
     ///     }
     /// }
+    ///
     /// assert_eq!(s.pop(), Some(1));
     /// assert_eq!(s.pop(), Some(3));
+    /// assert_eq!(s.pop(), Some(5));
+    /// assert_eq!(s.pop(), Some(4));
     /// assert_eq!(s.pop(), Some(2));
     /// assert_eq!(s.pop(), Some(0));
     /// assert_eq!(s.pop(), None);
@@ -170,6 +188,17 @@ impl<T: Clone> FunStack<T> {
         }
     }
 
+    /// Pushes an element on top of the stack.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunStack;
+    ///
+    /// let mut s = FunStack::new();
+    ///
+    /// s.push("hello");
+    /// assert_eq!(s.top(), Some(&"hello"));
+    /// ```
     pub fn push(&mut self, val: T) {
         self.list = Some(Rc::new(List {
             val,
@@ -178,15 +207,46 @@ impl<T: Clone> FunStack<T> {
         self.sz += 1;
     }
 
+    /// Returns a reference to the top of the stack, or `None` if the stack is
+    /// empty.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunStack;
+    ///
+    /// let mut s: FunStack<_> = (0..3).collect();
+    /// assert_eq!(s.top(), Some(&2));
+    ///
+    /// s.clear();
+    /// assert_eq!(s.top(), None);
+    /// ```
     pub fn top(&self) -> Option<&T> {
         self.list.as_ref().map(|n| &n.val)
     }
 
-    // TODO: test, doc
+    /// Returns a mutable ref to the top of the stack or `None` if empty.
+    ///
+    /// Clones the top node if it is shared.
+    ///
+    /// # Examples
+    /// ```
+    ///
+    /// use fun_collections::FunStack;
+    ///
+    /// let mut s: FunStack<_> = (0..=3).collect();
+    ///
+    /// assert_eq!(s.top_mut(), Some(&mut 3));
+    ///
+    /// *s.top_mut().unwrap() += 5;
+    ///
+    /// assert_eq!(s.pop(), Some(8));
+    /// assert_eq!(s.pop(), Some(2));
+    /// ```
     pub fn top_mut(&mut self) -> Option<&mut T> {
         self.list.as_mut().map(|rc| &mut Rc::make_mut(rc).val)
     }
 
+    /// Returns the top of the stack or `None` if empty.
     pub fn pop(&mut self) -> Option<T> {
         let opt_list = self.list.take();
         match opt_list {
@@ -295,8 +355,8 @@ impl<T: Clone> FunStack<T> {
         // find the link we need to update
         let mut curr = &mut self.list;
         while at > 0 {
-            // we must clone up to the node we remove so we can route the last
-            // link around the node we're dropping
+            // we must ensure we have sole ownership of all the nodes up to the
+            // one we're dropping so we can route around it
             let n = Rc::make_mut(curr.as_mut().unwrap());
             curr = &mut n.next;
             at -= 1;
@@ -317,9 +377,26 @@ impl<T: Clone> FunStack<T> {
         }
     }
 
-    // TODO: "Splits the list into two at the given index. Returns everything
-    // after the given index, including the index. This operation should compute
-    // in O(n) time."
+    /// Splits the stack at the given index, retaining [0..at] and returning a
+    /// new stack with [at..].
+    ///
+    /// Any shared nodes in the portion that is retained will be cloned.
+    ///
+    /// # Panics
+    /// Panics if `at > self.len()`.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunStack;
+    ///
+    /// let mut s: FunStack<_> = (0..21).collect();
+    /// let t = s.split_off(7);
+    ///
+    /// assert_eq!(s.len(), 7);
+    /// assert_eq!(t.len(), 14);
+    /// assert!(s.into_iter().cmp((14..21).rev()).is_eq());
+    /// assert!(t.into_iter().cmp((0..14).rev()).is_eq());
+    /// ```
     pub fn split_off(&mut self, mut at: usize) -> Self {
         if at == 0 {
             return FunStack {
@@ -343,8 +420,8 @@ impl<T: Clone> FunStack<T> {
         // find the link we need to sever
         let mut curr = &mut self.list;
         while at > 0 {
-            // we must clone up to the node we remove so we can route the last
-            // link around the node we're dropping
+            // we must ensure we own all the nodes up to the split point so we
+            // can break the final link
             let n = Rc::make_mut(curr.as_mut().unwrap());
             curr = &mut n.next;
             at -= 1;
@@ -361,9 +438,21 @@ impl<T: Clone> FunStack<T> {
 }
 
 impl<T: Clone + Debug> Debug for FunStack<T> {
+    /// Prints the `FunStack` to the supplied `Formatter`.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunStack;
+    ///
+    /// let s: FunStack<_> = (0..3).collect();
+    ///
+    /// assert_eq!(&format!("{:?}", s),
+    ///     "FunStack { len: 3, elems: TOP[2, 1, 0]BOT }");
+    /// ```
     fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), fmt::Error> {
-        fmt.write_str("FunStack (TOP -> BOT): ")?;
-        fmt.debug_list().entries(self.iter()).finish()
+        fmt.write_fmt(format_args!("FunStack {{ len: {}, elems: TOP", self.sz))?;
+        fmt.debug_list().entries(self.iter()).finish()?;
+        fmt.write_str("BOT }")
     }
 }
 
