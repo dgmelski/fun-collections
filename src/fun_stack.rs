@@ -139,7 +139,8 @@ impl<T: Clone> FunStack<T> {
     ///
     /// for (i, n) in s.clone().iter().enumerate() {
     ///     if n % 2 == 1 {
-    ///         let x: i32 = s.remove(i);
+    ///         // remove indexes bottom to top, while iter goes top to bottom
+    ///         let x: i32 = s.remove(5 - i);
     ///         assert_eq!(x, *n);
     ///         s.push(x);
     ///     }
@@ -333,9 +334,10 @@ impl<T: Clone> FunStack<T> {
         self.len == 0
     }
 
-    /// Removes the element at the given index and returns it.
+    /// Removes and returns the element at the given index.
     ///
-    /// Any shared nodes on the way to the dropped element are cloned.
+    /// The bottom element of the stack has index 0 and the top has index
+    /// `self.len() - 1`. Any shared nodes above the dropped element are cloned.
     ///
     /// # Panics
     /// Panics if the index is greater than or equal to the length of the stack.
@@ -343,17 +345,21 @@ impl<T: Clone> FunStack<T> {
     /// # Example
     /// ```
     /// use fun_collections::FunStack;
-    /// let mut s = FunStack::from(vec!['a','b','c']);
-    /// s.remove(1);
+    /// let mut s = FunStack::from(vec!['a','b','c', 'd']);
+    /// assert_eq!(s.remove(1), 'b');
+    /// assert_eq!(s.len(), 3);
+    /// assert_eq!(s.pop(), Some('d'));
     /// assert_eq!(s.pop(), Some('c'));
     /// assert_eq!(s.pop(), Some('a'));
     /// assert_eq!(s.pop(), None);
     /// ```
-    pub fn remove(&mut self, mut at: usize) -> T {
+    pub fn remove(&mut self, at: usize) -> T {
         if at >= self.len {
             panic!("Asked to remove item # {at}, but only {} items.", self.len)
         }
-        self.len -= 1;
+
+        // switch to counting elements from the top
+        let mut at = self.len - 1 - at;
 
         // find the link we need to update
         let mut curr = &mut self.elems;
@@ -364,6 +370,8 @@ impl<T: Clone> FunStack<T> {
             curr = &mut n.rest;
             at -= 1;
         }
+
+        self.len -= 1;
 
         // Route around the node we're dropping.  If the node is shared, we need
         // to clone its contents, but not the node itself.
