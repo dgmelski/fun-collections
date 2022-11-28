@@ -726,23 +726,6 @@ mod tests {
     }
 
     quickcheck! {
-        fn qc_cmp_with_vec(xs: Vec<i32>) -> bool {
-            let mut fun_stk = FunStack::new();
-            let mut vec_stk = Vec::new();
-
-            for &i in xs.iter() {
-                if i < 0 {
-                    assert_eq!(fun_stk.pop(), vec_stk.pop());
-                } else {
-                    fun_stk.push(i);
-                    vec_stk.push(i);
-                }
-                assert_eq!(fun_stk.len(), vec_stk.len());
-            }
-
-            fun_stk.iter().cmp(vec_stk.iter().rev()).is_eq()
-        }
-
         fn qc_sharing_test(xs: Vec<i32>) -> () {
             let mut fun_stks = vec![FunStack::new()];
             let mut vec_stks = vec![Vec::new()];
