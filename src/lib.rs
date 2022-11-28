@@ -8,4 +8,4 @@
 //! more mature.  You probably should use the im crate instead of this one.
 
 mod fun_stack;
-pub use fun_stack::*;
+pub use fun_stack::FunStack;
