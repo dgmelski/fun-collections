@@ -1,12 +1,3 @@
-//! # "Functional" collections that provide memory-efficient cloning
-//!
-//! `fun-collections` is a set of "functional" collections.  The collections use
-//! persistent data structures, which means that a clone `s.clone()` shares its
-//! internal representation with `s`.  The representations of a collection and
-//! its clones gradually diverge as they are updated.  `fun-collections`
-//! provides a subset of the functionality found in the `im` crate, which is way
-//! more mature.  You probably should use the im crate instead of this one.
-
 use std::cmp::Ordering::*;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
@@ -27,7 +18,7 @@ type OptList<T> = Option<Rc<List<T>>>;
 /// items are moved if they are not shared among different stacks and cloned if
 /// they are.
 ///
-/// # Example
+/// # Examples
 /// In this example, we create a `FunStack<Box<i32>>`.  We use `T = Box<>`
 /// to illustrate `FunStack`'s handling of elements that implement `Clone` but
 /// not `Copy`.
@@ -231,13 +222,32 @@ impl<T: Clone> FunStack<T> {
         self.sz
     }
 
-    // TODO: test me
+    /// Removes all elements from the stack.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunStack;
+    ///
+    /// let mut s: FunStack<_> = (0..3).collect();
+    /// assert_eq!(s.len(), 3);
+    /// s.clear();
+    /// assert!(s.is_empty());
+    /// ```
     pub fn clear(&mut self) {
         self.list.take();
         self.sz = 0;
     }
 
-    // TODO: test me
+    /// Tests if the element x occurs in the stack.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunStack;
+    ///
+    /// let s: FunStack<_> = (3..8).collect();
+    /// assert!(s.contains(&4));
+    /// assert!(!s.contains(&0));
+    /// ```
     pub fn contains(&self, x: &T) -> bool
     where
         T: PartialEq<T>,
@@ -265,7 +275,7 @@ impl<T: Clone> FunStack<T> {
     /// Any shared nodes on the way to the dropped element are cloned.
     ///
     /// # Panics
-    /// Panics if at is greater than or equal to the length of the stack.
+    /// Panics if the index is greater than or equal to the length of the stack.
     ///
     /// # Example
     /// ```
@@ -278,7 +288,7 @@ impl<T: Clone> FunStack<T> {
     /// ```
     pub fn remove(&mut self, mut at: usize) -> T {
         if at >= self.sz {
-            panic!("Asked to remove item #{at}, but only {} items.", self.sz)
+            panic!("Asked to remove item # {at}, but only {} items.", self.sz)
         }
         self.sz -= 1;
 
@@ -424,7 +434,7 @@ impl<T: Clone> Extend<T> for FunStack<T> {
     /// Pushes elements from an iterator onto the stack.
     ///
     /// Elements are pushed in order of the iteration, which means they will
-    /// be popped in reverse order of the iteration.
+    /// be popped in the reverse order.
     ///
     /// # Examples
     /// ```
