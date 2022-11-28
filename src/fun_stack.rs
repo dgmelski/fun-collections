@@ -5,8 +5,8 @@ use std::rc::Rc;
 
 #[derive(Clone)]
 struct List<T> {
-    val: T,
-    next: OptList<T>,
+    elem: T,
+    rest: OptList<T>,
 }
 
 type OptList<T> = Option<Rc<List<T>>>;
@@ -42,8 +42,8 @@ type OptList<T> = Option<Rc<List<T>>>;
 /// assert_eq!(t.pop(), Some(Box::new(0))); // pop moves Box(0) (now unshared)
 /// ```
 pub struct FunStack<T> {
-    sz: usize,
-    list: OptList<T>,
+    len: usize,
+    elems: OptList<T>,
 }
 
 // We could implement the iterator to clone the Rc links and the iterated items.
@@ -51,11 +51,11 @@ pub struct FunStack<T> {
 // to be updated during iteration.  However, you can achieve the same effect
 // by iterating a clone of the stack.  We use references because it should be
 // more efficient than cloning Rc's.
-pub struct FunStackIter<'a, T> {
+pub struct Iter<'a, T> {
     next: &'a OptList<T>,
 }
 
-impl<'a, T> Iterator for FunStackIter<'a, T>
+impl<'a, T> Iterator for Iter<'a, T>
 where
     T: 'a,
 {
@@ -64,8 +64,8 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         match self.next {
             Some(rc) => {
-                let ret = &rc.val;
-                self.next = &rc.next;
+                let ret = &rc.elem;
+                self.next = &rc.rest;
                 Some(ret)
             }
             None => None,
@@ -73,7 +73,7 @@ where
     }
 }
 
-pub struct FunStackIterMut<'a, T> {
+pub struct IterMut<'a, T> {
     // NB: originally, I tried to use `&'a mut Option<Rc<List<T>>>` as the
     // type for next, but I could not get it to work.  When I tried to get
     // next.as_mut() to get at the `&mut Rc...`, the reference had the
@@ -81,7 +81,7 @@ pub struct FunStackIterMut<'a, T> {
     next: Option<&'a mut Rc<List<T>>>,
 }
 
-impl<'a, T: Clone> Iterator for FunStackIterMut<'a, T>
+impl<'a, T: Clone> Iterator for IterMut<'a, T>
 where
     T: 'a,
 {
@@ -90,17 +90,17 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         self.next.take().map(|rc| {
             let list = Rc::make_mut(rc);
-            self.next = list.next.as_mut();
-            &mut list.val
+            self.next = list.rest.as_mut();
+            &mut list.elem
         })
     }
 }
 
-pub struct FunStackIntoIter<T> {
+pub struct IntoIter<T> {
     stk: FunStack<T>,
 }
 
-impl<T: Clone> Iterator for FunStackIntoIter<T> {
+impl<T: Clone> Iterator for IntoIter<T> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -118,7 +118,10 @@ impl<T: Clone> FunStack<T> {
     /// let stack: FunStack<i32> = FunStack::new();
     /// ```
     pub fn new() -> Self {
-        FunStack { sz: 0, list: None }
+        FunStack {
+            len: 0,
+            elems: None,
+        }
     }
 
     /// Creates an iterator from the top to the bottom elements of the stack.
@@ -150,8 +153,8 @@ impl<T: Clone> FunStack<T> {
     /// assert_eq!(s.pop(), Some(0));
     /// assert_eq!(s.pop(), None);
     /// ```
-    pub fn iter(&self) -> FunStackIter<T> {
-        FunStackIter { next: &self.list }
+    pub fn iter(&self) -> Iter<T> {
+        Iter { next: &self.elems }
     }
 
     /// Returns an iterator with mutable references.
@@ -182,9 +185,9 @@ impl<T: Clone> FunStack<T> {
     /// assert_eq!(t.pop(), Some(0));
     /// assert_eq!(s.pop(), None);
     /// ```
-    pub fn iter_mut(&mut self) -> FunStackIterMut<T> {
-        FunStackIterMut {
-            next: self.list.as_mut(),
+    pub fn iter_mut(&mut self) -> IterMut<T> {
+        IterMut {
+            next: self.elems.as_mut(),
         }
     }
 
@@ -200,11 +203,11 @@ impl<T: Clone> FunStack<T> {
     /// assert_eq!(s.top(), Some(&"hello"));
     /// ```
     pub fn push(&mut self, val: T) {
-        self.list = Some(Rc::new(List {
-            val,
-            next: self.list.take(),
+        self.elems = Some(Rc::new(List {
+            elem: val,
+            rest: self.elems.take(),
         }));
-        self.sz += 1;
+        self.len += 1;
     }
 
     /// Returns a reference to the top of the stack, or `None` if the stack is
@@ -221,7 +224,7 @@ impl<T: Clone> FunStack<T> {
     /// assert_eq!(s.top(), None);
     /// ```
     pub fn top(&self) -> Option<&T> {
-        self.list.as_ref().map(|n| &n.val)
+        self.elems.as_ref().map(|n| &n.elem)
     }
 
     /// Returns a mutable ref to the top of the stack or `None` if empty.
@@ -243,26 +246,26 @@ impl<T: Clone> FunStack<T> {
     /// assert_eq!(s.pop(), Some(2));
     /// ```
     pub fn top_mut(&mut self) -> Option<&mut T> {
-        self.list.as_mut().map(|rc| &mut Rc::make_mut(rc).val)
+        self.elems.as_mut().map(|rc| &mut Rc::make_mut(rc).elem)
     }
 
     /// Returns the top of the stack or `None` if empty.
     pub fn pop(&mut self) -> Option<T> {
-        let opt_list = self.list.take();
+        let opt_list = self.elems.take();
         match opt_list {
             None => None,
             Some(rc) => {
-                self.sz -= 1;
+                self.len -= 1;
 
                 match Rc::try_unwrap(rc) {
                     Ok(list) => {
-                        self.list = list.next;
-                        Some(list.val)
+                        self.elems = list.rest;
+                        Some(list.elem)
                     }
 
                     Err(rc) => {
-                        self.list = rc.next.clone();
-                        Some(rc.val.clone())
+                        self.elems = rc.rest.clone();
+                        Some(rc.elem.clone())
                     }
                 }
             }
@@ -279,7 +282,7 @@ impl<T: Clone> FunStack<T> {
     /// assert_eq!(s.len(), 5);
     /// ```
     pub fn len(&self) -> usize {
-        self.sz
+        self.len
     }
 
     /// Removes all elements from the stack.
@@ -294,8 +297,8 @@ impl<T: Clone> FunStack<T> {
     /// assert!(s.is_empty());
     /// ```
     pub fn clear(&mut self) {
-        self.list.take();
-        self.sz = 0;
+        self.elems.take();
+        self.len = 0;
     }
 
     /// Tests if the element x occurs in the stack.
@@ -327,7 +330,7 @@ impl<T: Clone> FunStack<T> {
     /// assert!(!s.is_empty());
     /// ```
     pub fn is_empty(&self) -> bool {
-        self.sz == 0
+        self.len == 0
     }
 
     /// Removes the element at the given index and returns it.
@@ -347,18 +350,18 @@ impl<T: Clone> FunStack<T> {
     /// assert_eq!(s.pop(), None);
     /// ```
     pub fn remove(&mut self, mut at: usize) -> T {
-        if at >= self.sz {
-            panic!("Asked to remove item # {at}, but only {} items.", self.sz)
+        if at >= self.len {
+            panic!("Asked to remove item # {at}, but only {} items.", self.len)
         }
-        self.sz -= 1;
+        self.len -= 1;
 
         // find the link we need to update
-        let mut curr = &mut self.list;
+        let mut curr = &mut self.elems;
         while at > 0 {
             // we must ensure we have sole ownership of all the nodes up to the
             // one we're dropping so we can route around it
             let n = Rc::make_mut(curr.as_mut().unwrap());
-            curr = &mut n.next;
+            curr = &mut n.rest;
             at -= 1;
         }
 
@@ -366,13 +369,13 @@ impl<T: Clone> FunStack<T> {
         // to clone its contents, but not the node itself.
         match Rc::try_unwrap(curr.take().unwrap()) {
             Ok(n) => {
-                *curr = n.next;
-                n.val
+                *curr = n.rest;
+                n.elem
             }
 
             Err(n) => {
-                *curr = n.next.clone();
-                n.val.clone()
+                *curr = n.rest.clone();
+                n.elem.clone()
             }
         }
     }
@@ -400,39 +403,39 @@ impl<T: Clone> FunStack<T> {
     pub fn split_off(&mut self, mut at: usize) -> Self {
         if at == 0 {
             return FunStack {
-                sz: std::mem::take(&mut self.sz),
-                list: self.list.take(),
+                len: std::mem::take(&mut self.len),
+                elems: self.elems.take(),
             };
         }
 
-        if at == self.sz {
+        if at == self.len {
             return FunStack::new();
         }
 
-        if at > self.sz {
-            panic!("Asked to split off {at} items but only {} avail.", self.sz)
+        if at > self.len {
+            panic!("Asked to split off {at} items but only {} avail.", self.len)
         }
 
         // save the sizes of the split stacks
         let sz_top_part = at;
-        let sz_bot_part = self.sz - at;
+        let sz_bot_part = self.len - at;
 
         // find the link we need to sever
-        let mut curr = &mut self.list;
+        let mut curr = &mut self.elems;
         while at > 0 {
             // we must ensure we own all the nodes up to the split point so we
             // can break the final link
             let n = Rc::make_mut(curr.as_mut().unwrap());
-            curr = &mut n.next;
+            curr = &mut n.rest;
             at -= 1;
         }
 
         // execute the split
-        self.sz = sz_top_part;
+        self.len = sz_top_part;
 
         FunStack {
-            sz: sz_bot_part,
-            list: curr.take(),
+            len: sz_bot_part,
+            elems: curr.take(),
         }
     }
 }
@@ -450,7 +453,7 @@ impl<T: Clone + Debug> Debug for FunStack<T> {
     ///     "FunStack { len: 3, elems: TOP[2, 1, 0]BOT }");
     /// ```
     fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), fmt::Error> {
-        fmt.write_fmt(format_args!("FunStack {{ len: {}, elems: TOP", self.sz))?;
+        fmt.write_fmt(format_args!("FunStack {{ len: {}, elems: TOP", self.len))?;
         fmt.debug_list().entries(self.iter()).finish()?;
         fmt.write_str("BOT }")
     }
@@ -465,12 +468,12 @@ impl<T: Clone> Default for FunStack<T> {
 impl<T> Drop for FunStack<T> {
     // avoid deep recursion when dropping a large stack
     fn drop(&mut self) {
-        let mut hd_opt = self.list.as_mut().take();
+        let mut hd_opt = self.elems.as_mut().take();
         while let Some(rc) = hd_opt {
             if let Some(hd) = Rc::get_mut(rc) {
                 // As sole owner of the top of the stack, we can break its link
                 // to the rest of the stack so it will be freed w/o recursing.
-                hd_opt = hd.next.as_mut().take();
+                hd_opt = hd.rest.as_mut().take();
             } else {
                 // There are other owners for the rest of the stack; it won't
                 // be dropped at this time.
@@ -482,7 +485,7 @@ impl<T> Drop for FunStack<T> {
 
 impl<T: Clone> IntoIterator for FunStack<T> {
     type Item = T;
-    type IntoIter = FunStackIntoIter<Self::Item>;
+    type IntoIter = IntoIter<Self::Item>;
 
     /// Converts the `FunStack<T>` into an `Iterator<T>`.
     ///
@@ -499,14 +502,14 @@ impl<T: Clone> IntoIterator for FunStack<T> {
     /// }
     /// ```
     fn into_iter(self) -> Self::IntoIter {
-        FunStackIntoIter { stk: self }
+        IntoIter { stk: self }
     }
 }
 
 impl<T: Clone + PartialEq> PartialEq for FunStack<T> {
     // TODO: test
     fn eq(&self, rhs: &Self) -> bool {
-        self.sz == rhs.sz && self.iter().zip(rhs.iter()).all(|(a, b)| a == b)
+        self.len == rhs.len && self.iter().zip(rhs.iter()).all(|(a, b)| a == b)
     }
 }
 
