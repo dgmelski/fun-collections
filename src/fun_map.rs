@@ -370,6 +370,20 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         ret
     }
 
+    // TODO: generalize ala https://doc.rust-lang.org/std/collections/struct.BTreeMap.html#method.get
+    pub fn get(&self, k: &K) -> Option<&V> {
+        let mut curr = &self.root;
+        while let Some(n) = curr {
+            match k.cmp(&n.key) {
+                Less => curr = &n.left,
+                Equal => return Some(&n.val),
+                Greater => curr = &n.right,
+            }
+        }
+
+        None
+    }
+
     pub fn len(&self) -> usize {
         self.len
     }

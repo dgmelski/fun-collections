@@ -27,5 +27,9 @@ quickcheck! {
             assert_eq!(btree.insert(*k, *v), fmap.insert(*k, *v));
             assert!(btree.iter().cmp(fmap.iter()).is_eq());
         }
+
+        for k in 0..=u8::MAX {
+            assert_eq!(fmap.get(&k), btree.get(&k));
+        }
     }
 }
