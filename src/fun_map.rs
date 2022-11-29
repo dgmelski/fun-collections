@@ -3,6 +3,10 @@ use std::fmt::{Debug, Formatter};
 use std::mem::replace;
 use std::rc::Rc;
 
+type OptNode<K, V> = Option<Rc<Node<K, V>>>;
+type IsShorter = bool;
+type IsTaller = bool;
+
 struct Node<K, V> {
     key: K,
     val: V,
@@ -10,8 +14,6 @@ struct Node<K, V> {
     left: OptNode<K, V>,
     right: OptNode<K, V>,
 }
-
-type OptNode<K, V> = Option<Rc<Node<K, V>>>;
 
 impl<K, V> Node<K, V> {
     fn new(key: K, val: V) -> Self {
@@ -92,7 +94,7 @@ fn take_node<K: Clone, V: Clone>(opt_node: &mut OptNode<K, V>) -> Node<K, V> {
     }
 }
 
-fn rot_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> bool {
+fn rot_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> IsShorter {
     // We want the following transformation:
     //    a(x, b(y, z)))   =>   b(a(x, y), z)
     // x and z retain the same parents.
@@ -128,7 +130,7 @@ fn rot_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> bool {
     !b_was_bal
 }
 
-fn rot_rt_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> bool {
+fn rot_rt_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> IsShorter {
     // We want the following transformation:
     //    a(x, b(c(y, z), w))   =>   c(a(x, y), b(z, w))
     // x and w retain the same parents.
@@ -196,7 +198,7 @@ fn rot_rt_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> bool {
     true
 }
 
-fn rot_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> bool {
+fn rot_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> IsShorter {
     // We want the following transformation:
     //    a(b(x, y), z)   =>   b(x, a(y, z))
     // x and z retain the same parents.
@@ -243,7 +245,7 @@ fn rot_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> bool {
     !b_was_bal
 }
 
-fn rot_lf_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> bool {
+fn rot_lf_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> IsShorter {
     // We want the following transformation:
     //    a(b(x,c(y,z)),w)   =>   c(b(x,y),a(z,w))
     // x and w retain the same parents.
@@ -301,7 +303,8 @@ fn rot_lf_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> bool {
     true
 }
 
-fn rebal_lf_to_rt<K, V>(root: &mut OptNode<K, V>) -> bool
+// rebalance by "shifting height" from left to right
+fn rebal_lf_to_rt<K, V>(root: &mut OptNode<K, V>) -> IsShorter
 where
     K: Clone,
     V: Clone,
@@ -315,7 +318,8 @@ where
     }
 }
 
-fn rebal_rt_to_lf<K, V>(root: &mut OptNode<K, V>) -> bool
+// rebalance by "shifting height" from right to left
+fn rebal_rt_to_lf<K, V>(root: &mut OptNode<K, V>) -> IsShorter
 where
     K: Clone,
     V: Clone,
@@ -331,7 +335,7 @@ where
 
 // Inserts (k,v) into the map rooted at root and returns the replaced value and
 // whether the updated node is taller as a result of insertion.
-fn ins<K, V>(root: &mut OptNode<K, V>, k: K, v: V) -> (Option<V>, bool)
+fn ins<K, V>(root: &mut OptNode<K, V>, k: K, v: V) -> (Option<V>, IsTaller)
 where
     K: Clone + Ord,
     V: Clone,
@@ -372,7 +376,7 @@ where
     }
 }
 
-fn rm_leftmost<K, V>(root: &mut OptNode<K, V>) -> (Option<(K, V)>, bool)
+fn rm_leftmost<K, V>(root: &mut OptNode<K, V>) -> (Option<(K, V)>, IsShorter)
 where
     K: Clone + Ord,
     V: Clone,
@@ -399,7 +403,7 @@ where
 
 // removes k from the map and returns the associated value and whether the
 // tree at root is shorter as a result of the deletion.
-fn rm<K, V>(root: &mut OptNode<K, V>, k: &K) -> (Option<V>, bool)
+fn rm<K, V>(root: &mut OptNode<K, V>, k: &K) -> (Option<V>, IsShorter)
 where
     K: Clone + Ord,
     V: Clone,
