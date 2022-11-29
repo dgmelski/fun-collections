@@ -1,8 +1,8 @@
 #![allow(dead_code, unused)] // FIXME
 
 use std::cmp::Ordering::*;
-// use std::fmt;
 use std::fmt::{Debug, Formatter};
+use std::mem::replace;
 use std::rc::Rc;
 
 #[derive(Clone)]
@@ -57,6 +57,21 @@ impl<K: Clone + Debug, V: Clone + Debug> Debug for FunMap<K, V> {
             }
         }
     }
+}
+
+// prerequisites:
+//   - opt_node.is_some()
+//   - opt_node.unwrap().get_mut().is_some() (the node is uniquely owned)
+fn take_node<K: Clone, V: Clone>(opt_node: &mut OptNode<K, V>) -> Node<K, V> {
+    let old_rc = opt_node.take().unwrap();
+    match Rc::try_unwrap(old_rc) {
+        Ok(n) => n,
+        Err(_) => panic!("Attempt to take a shared node"),
+    }
+}
+enum RmOp<'a, K> {
+    Key(&'a K),
+    Leftmost,
 }
 
 impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
@@ -370,7 +385,80 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         ret
     }
 
-    // TODO: generalize ala https://doc.rust-lang.org/std/collections/struct.BTreeMap.html#method.get
+    fn rm(root: &mut OptNode<K, V>, op: RmOp<K>) -> (Option<(K, V)>, bool) {
+        match root.as_mut() {
+            None => (None, false),
+            Some(rc) => {
+                let n = Rc::make_mut(rc);
+
+                match op {
+                    RmOp::Leftmost => {
+                        if n.left.is_some() {
+                            let (v, is_shorter) = Self::rm(&mut n.left, op);
+                            return (v, is_shorter && n.bal > 0);
+                        } else {
+                            let old_n = take_node(root);
+                            *root = old_n.right;
+                            return (Some((old_n.key, old_n.val)), true);
+                        }
+                    }
+
+                    RmOp::Key(k) => match k.cmp(&n.key) {
+                        Less => Self::rm(&mut n.left, op),
+                        Greater => Self::rm(&mut n.right, op),
+                        Equal => match (&n.left, &n.right) {
+                            (None, None) => {
+                                let old_n = take_node(root);
+                                (Some((old_n.key, old_n.val)), true)
+                            }
+
+                            (None, Some(_)) => {
+                                let old_n = take_node(root);
+                                *root = old_n.right;
+                                (Some((old_n.key, old_n.val)), true)
+                            }
+
+                            (Some(_), None) => {
+                                let old_n = take_node(root);
+                                *root = old_n.left;
+                                (Some((old_n.key, old_n.val)), true)
+                            }
+
+                            _ => {
+                                // both children are populated
+                                let x = Self::rm(&mut n.right, RmOp::Leftmost);
+                                let (succ, mut is_shorter) = x;
+                                let (succ_key, succ_val) = succ.unwrap();
+                                let old_key = replace(&mut n.key, succ_key);
+                                let old_val = replace(&mut n.val, succ_val);
+                                is_shorter &= n.bal < 0;
+                                (Some((old_key, old_val)), is_shorter)
+                            }
+                        },
+                    },
+                }
+            }
+        }
+    }
+
+    /// Removes a key from a map and returns the mapped value, if present.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunMap;
+    ///
+    /// let mut fmap = FunMap::new();
+    /// fmap.insert(1, 2);
+    /// fmap.insert(2, 3);
+    /// assert_eq!(fmap.remove(&2), Some(3));
+    /// assert_eq!(fmap.remove(&2), None);
+    /// ```
+    pub fn remove(&mut self, k: &K) -> Option<V> {
+        let (ret, _) = Self::rm(&mut self.root, RmOp::Key(k));
+        self.len -= ret.is_some() as usize;
+        ret.map(|(_, v)| v)
+    }
+
     // TODO: generalize ala
     // https://doc.rust-lang.org/std/collections/struct.BTreeMap.html#method.get,
     // specifically, using type Q for the key.
@@ -490,14 +578,45 @@ mod test {
         }
     }
 
+    fn rm_test(vs: Vec<(i8, u32)>) {
+        let mut fmap = FunMap::new();
+        let mut btree = std::collections::BTreeMap::new();
+
+        for &(k, v) in vs.iter() {
+            match k {
+                1..=i8::MAX => {
+                    assert_eq!(fmap.insert(k, v), btree.insert(k, v));
+                }
+
+                0 | i8::MIN => (),
+
+                _ => {
+                    let k = -k;
+                    assert_eq!(fmap.remove(&k), btree.remove(&k));
+                }
+            }
+
+            assert!(fmap.iter().cmp(btree.iter()).is_eq());
+        }
+    }
+
     #[test]
     fn bal_test_regr1() {
         bal_test(vec![(4, 0), (0, 0), (5, 0), (1, 0), (2, 0), (3, 0)]);
     }
 
+    #[test]
+    fn rm_test_regr1() {
+        rm_test(vec![(101, 0), (100, 0), (1, 0), (-100, 0)]);
+    }
+
     quickcheck! {
         fn qc_bal_test(vs: Vec<(u8, u32)>) -> () {
             bal_test(vs);
+        }
+
+        fn qc_rm_test(vs: Vec<(i8, u32)>) -> () {
+            rm_test(vs);
         }
     }
 }
