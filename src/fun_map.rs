@@ -417,6 +417,22 @@ impl<'a, K: Clone, V: Clone> Iterator for Iter<'a, K, V> {
     }
 }
 
+impl<K: Clone + Ord, V: Clone> Extend<(K, V)> for FunMap<K, V> {
+    fn extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) {
+        for (k, v) in iter {
+            self.insert(k, v);
+        }
+    }
+}
+
+impl<K: Clone + Ord, V: Clone> FromIterator<(K, V)> for FunMap<K, V> {
+    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
+        let mut fmap = FunMap::new();
+        fmap.extend(iter);
+        fmap
+    }
+}
+
 #[cfg(test)]
 mod test {
     extern crate quickcheck;
