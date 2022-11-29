@@ -92,7 +92,7 @@ fn take_node<K: Clone, V: Clone>(opt_node: &mut OptNode<K, V>) -> Node<K, V> {
     }
 }
 
-fn rot_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) {
+fn rot_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> bool {
     // We want the following transformation:
     //    a(x, b(y, z)))   =>   b(a(x, y), z)
     // x and z retain the same parents.
@@ -106,6 +106,7 @@ fn rot_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) {
     let b = Rc::make_mut(b_rc);
 
     // update the bal fields (while we have mutable access)
+    let b_was_bal = b.bal == 0;
     if b.bal == 0 {
         a.bal = 1;
         b.bal = -1;
@@ -123,9 +124,11 @@ fn rot_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) {
 
     // install b as the new root
     *root = b_opt;
+
+    !b_was_bal
 }
 
-fn rot_rt_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) {
+fn rot_rt_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> bool {
     // We want the following transformation:
     //    a(x, b(c(y, z), w))   =>   c(a(x, y), b(z, w))
     // x and w retain the same parents.
@@ -188,9 +191,12 @@ fn rot_rt_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) {
 
     // install c as the new root
     *root = c_opt;
+
+    // this rebalance always makes the tree shorter
+    true
 }
 
-fn rot_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) {
+fn rot_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> bool {
     // We want the following transformation:
     //    a(b(x, y), z)   =>   b(x, a(y, z))
     // x and z retain the same parents.
@@ -203,11 +209,12 @@ fn rot_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) {
     let b_rc = b_opt.as_mut().unwrap();
     let b = Rc::make_mut(b_rc);
 
-    // update the balances while we have mutable access
-    // we are called when a.bal = -2, which means
+    // Update the balances while we have mutable access.
+    // We are called when a.bal = -2, which means
     //    ht(b) = ht(z) + 2
     //    max(ht(x), ht(y)) + 1 = ht(z) + 2
     //    max(ht(x), ht(y)) = ht(z) + 1
+    let b_was_bal = b.bal == 0;
     if b.bal == 0 {
         // ht(x) = ht(y) = ht(z) + 1
         a.bal = -1; // because ht(y) > ht(z)
@@ -231,10 +238,12 @@ fn rot_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) {
     b.right = a_opt.take();
 
     // install b as the new root
-    *root = b_opt
+    *root = b_opt;
+
+    !b_was_bal
 }
 
-fn rot_lf_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) {
+fn rot_lf_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> bool {
     // We want the following transformation:
     //    a(b(x,c(y,z)),w)   =>   c(b(x,y),a(z,w))
     // x and w retain the same parents.
@@ -288,9 +297,11 @@ fn rot_lf_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) {
     c.right = a_opt; // => c(b(x, y), a(z, w))
 
     *root = c_opt;
+
+    true
 }
 
-fn rebal_lf_to_rt<K, V>(root: &mut OptNode<K, V>) -> i8
+fn rebal_lf_to_rt<K, V>(root: &mut OptNode<K, V>) -> bool
 where
     K: Clone,
     V: Clone,
@@ -298,20 +309,13 @@ where
     let n = Rc::get_mut(root.as_mut().unwrap()).unwrap();
 
     if n.left.as_ref().unwrap().bal <= 0 {
-        rot_rt(root);
+        rot_rt(root)
     } else {
-        rot_lf_rt(root);
+        rot_lf_rt(root)
     }
-
-    // +1 bal at root => same ht   1 -> 0
-    //  0 bal at root => -1 ht     0 -> -1
-    // -1 bal at root is not possible from selected rotations
-    let root_bal = root.as_ref().unwrap().bal;
-    assert!(root_bal == 0 || root_bal == 1, "Bad root_bal = {root_bal}.");
-    root_bal - 1
 }
 
-fn rebal_rt_to_lf<K, V>(root: &mut OptNode<K, V>) -> i8
+fn rebal_rt_to_lf<K, V>(root: &mut OptNode<K, V>) -> bool
 where
     K: Clone,
     V: Clone,
@@ -319,20 +323,10 @@ where
     let n = Rc::get_mut(root.as_mut().unwrap()).unwrap();
 
     if n.right.as_ref().unwrap().bal >= 0 {
-        rot_lf(root);
+        rot_lf(root)
     } else {
-        rot_rt_lf(root);
+        rot_rt_lf(root)
     }
-
-    // -1 bal at root => same ht   -1 -> 0
-    //  0 bal at root => -1 ht      0 -> -1
-    // +1 bal at root is not possible from selected rotations
-    let root_bal = root.as_ref().unwrap().bal;
-    assert!(
-        root_bal == -1 || root_bal == 0,
-        "Bad root_bal = {root_bal}."
-    );
-    -1 - root_bal
 }
 
 // Inserts (k,v) into the map rooted at root and returns the replaced value and
@@ -391,7 +385,7 @@ where
     if n.left.is_some() {
         let (kv, is_shorter) = rm_leftmost(&mut n.left);
         if is_shorter && n.bal > 0 {
-            (kv, rebal_rt_to_lf(root) < 0)
+            (kv, rebal_rt_to_lf(root))
         } else {
             n.bal += is_shorter as i8;
             (kv, is_shorter && n.bal == 0)
@@ -419,7 +413,7 @@ where
         Less => {
             let (v, is_shorter) = rm(&mut n.left, k);
             if is_shorter && n.bal > 0 {
-                (v, rebal_rt_to_lf(root) < 0)
+                (v, rebal_rt_to_lf(root))
             } else {
                 n.bal += is_shorter as i8;
                 (v, is_shorter && n.bal == 0)
@@ -429,7 +423,7 @@ where
         Greater => {
             let (v, is_shorter) = rm(&mut n.right, k);
             if is_shorter && n.bal < 0 {
-                (v, rebal_lf_to_rt(root) < 0)
+                (v, rebal_lf_to_rt(root))
             } else {
                 n.bal -= is_shorter as i8;
                 (v, is_shorter && n.bal == 0)
@@ -462,7 +456,7 @@ where
                 let old_val = replace(&mut n.val, succ_val);
 
                 if is_shorter && n.bal < 0 {
-                    (Some(old_val), rebal_lf_to_rt(root) < 0)
+                    (Some(old_val), rebal_lf_to_rt(root))
                 } else {
                     n.bal -= is_shorter as i8;
                     (Some(old_val), is_shorter && n.bal == 0)
