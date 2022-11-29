@@ -13,6 +13,18 @@ struct Node<K, V> {
 
 type OptNode<K, V> = Option<Rc<Node<K, V>>>;
 
+impl<K, V> Node<K, V> {
+    fn new(key: K, val: V) -> Self {
+        Node {
+            key,
+            val,
+            bal: 0,
+            left: None,
+            right: None,
+        }
+    }
+}
+
 impl<K: Clone, V: Clone> Clone for Node<K, V> {
     fn clone(&self) -> Self {
         Node {
@@ -284,7 +296,6 @@ where
     V: Clone,
 {
     let n = Rc::get_mut(root.as_mut().unwrap()).unwrap();
-    assert_eq!(n.bal, -2);
 
     if n.left.as_ref().unwrap().bal <= 0 {
         rot_rt(root);
@@ -306,7 +317,6 @@ where
     V: Clone,
 {
     let n = Rc::get_mut(root.as_mut().unwrap()).unwrap();
-    assert_eq!(n.bal, 2);
 
     if n.right.as_ref().unwrap().bal >= 0 {
         rot_lf(root);
@@ -325,60 +335,44 @@ where
     -1 - root_bal
 }
 
-// Inserts (k,v) into the map rooted at r and returns the replaced value and
-// returns the change in height (0 or 1) after the insertion.
-fn ins<K, V>(root: &mut OptNode<K, V>, k: K, v: V) -> (Option<V>, i8)
+// Inserts (k,v) into the map rooted at root and returns the replaced value and
+// whether the updated node is taller as a result of insertion.
+fn ins<K, V>(root: &mut OptNode<K, V>, k: K, v: V) -> (Option<V>, bool)
 where
     K: Clone + Ord,
     V: Clone,
 {
     let n = match root.as_mut() {
-        Some(rc) => Rc::make_mut(rc),
         None => {
-            *root = Some(Rc::new(Node {
-                key: k,
-                val: v,
-                bal: 0,
-                left: None,
-                right: None,
-            }));
-
-            return (None, 1); // *** EARLY RETURN ***
+            *root = Some(Rc::new(Node::new(k, v)));
+            return (None, true); // *** EARLY RETURN ***
         }
+
+        Some(rc) => Rc::make_mut(rc),
     };
 
     match k.cmp(&n.key) {
-        Equal => (Some(std::mem::replace(&mut n.val, v)), 0),
+        Equal => (Some(std::mem::replace(&mut n.val, v)), false),
 
         Less => {
-            let (old_v, ht_delta) = ins(&mut n.left, k, v);
-            assert!(ht_delta == 0 || ht_delta == 1);
-            n.bal -= ht_delta; // subtract b/c on left
-
-            if ht_delta == 0 {
-                (old_v, 0)
-            } else if n.bal == -2 {
-                // rebalance may change height by 0 or -1; add that
-                // delta to ht_delta for the overall growth
-                (old_v, ht_delta + rebal_lf_to_rt(root))
+            let (old_v, is_taller) = ins(&mut n.left, k, v);
+            if is_taller && n.bal < 0 {
+                rebal_lf_to_rt(root);
+                (old_v, false)
             } else {
-                // if n.bal == 0, the left grew to match the right.
-                // if n.bal == -1, we're now one taller (on left).
-                (old_v, -n.bal)
+                n.bal -= is_taller as i8;
+                (old_v, is_taller && n.bal < 0)
             }
         }
 
         Greater => {
-            let (old_v, ht_delta) = ins(&mut n.right, k, v);
-            assert!(ht_delta == 0 || ht_delta == 1);
-            n.bal += ht_delta; // add b/c on right
-
-            if ht_delta == 0 {
-                (old_v, 0)
-            } else if n.bal == 2 {
-                (old_v, ht_delta + rebal_rt_to_lf(root))
+            let (old_v, is_taller) = ins(&mut n.right, k, v);
+            if is_taller && n.bal > 0 {
+                rebal_rt_to_lf(root);
+                (old_v, false)
             } else {
-                (old_v, n.bal)
+                n.bal += is_taller as i8;
+                (old_v, is_taller && n.bal > 0)
             }
         }
     }
