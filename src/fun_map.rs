@@ -2,7 +2,7 @@
 
 use std::cmp::Ordering::*;
 // use std::fmt;
-// use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
 #[derive(Clone)]
@@ -38,6 +38,204 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         Iter { spine }
     }
 
+    fn rot_lf(root: &mut OptNode<K, V>) {
+        // We want the following transformation:
+        //    a(x, b(y, z)))   =>   b(a(x, y), z)
+        // x and z retain the same parents.
+
+        let mut a_opt = root.take();
+        let a_rc = a_opt.as_mut().unwrap();
+        let a = Rc::make_mut(a_rc);
+
+        let mut b_opt = a.right.take();
+        let b_rc = b_opt.as_mut().unwrap();
+        let b = Rc::make_mut(b_rc);
+
+        // update the bal fields (while we have mutable access)
+        if b.bal == 0 {
+            a.bal = 1;
+            b.bal = -1;
+        } else {
+            // b.bal == 1  -> ht(y) < ht(z)
+            a.bal = 0;
+            b.bal = 0;
+        }
+
+        // move y from b to a
+        a.right = b.left.take();
+
+        // make a be b's left child
+        b.left = a_opt;
+
+        // install b as the new root
+        *root = b_opt;
+    }
+
+    fn rot_rt_lf(root: &mut OptNode<K, V>) {
+        // We want the following transformation:
+        //    a(x, b(c(y, z), w))   =>   c(a(x, y), b(z, w))
+        // x and w retain the same parents.
+
+        let mut a_opt = root.take();
+        let a_rc = a_opt.as_mut().unwrap();
+        let a = Rc::make_mut(a_rc);
+
+        let mut b_opt = a.right.take();
+        let b_rc = b_opt.as_mut().unwrap();
+        let b = Rc::make_mut(b_rc);
+
+        let mut c_opt = b.left.take();
+        let c_rc = c_opt.as_mut().unwrap();
+        let c = Rc::make_mut(c_rc);
+
+        // a right-left rotation is called for when:
+        //   * b is two taller than x
+        //   * c is one taller than w
+        // After the rotation, the final balances will depend on the heights
+        // of y and z.
+
+        // assert_eq!(
+        //     b.bal, -1,
+        //     "right-left rotation when .right.left child is not taller"
+        // );
+
+        // Update the bal fields while we have mutable access
+        match c.bal.cmp(&0) {
+            Equal => {
+                a.bal = 0;
+                b.bal = 0;
+            }
+
+            Greater => {
+                a.bal = -1;
+                b.bal = 0;
+            }
+
+            Less => {
+                a.bal = 0;
+                b.bal = 1;
+            }
+        }
+        c.bal = 0;
+
+        // We need to take care not to overwrite any links before taking them.
+        // With the unlinks we've done, we have
+        //   a(x, None)
+        //   b(None, w)
+        //   c(y, z)
+
+        // move c's children to a and b
+        a.right = c.left.take();
+        b.left = c.right.take();
+
+        // move a and b into c
+        c.left = a_opt.take();
+        c.right = b_opt.take();
+
+        // install c as the new root
+        *root = c_opt;
+    }
+
+    fn rot_rt(root: &mut OptNode<K, V>) {
+        // We want the following transformation:
+        //    a(b(x, y), z)   =>   b(x, a(y, z))
+        // x and z retain the same parents.
+
+        let mut a_opt = root.take();
+        let a_rc = a_opt.as_mut().unwrap();
+        let a = Rc::make_mut(a_rc);
+
+        let mut b_opt = a.left.take();
+        let b_rc = b_opt.as_mut().unwrap();
+        let b = Rc::make_mut(b_rc);
+
+        // update the balances while we have mutable access
+        // we are called when a.bal = -2, which means
+        //    ht(b) = ht(z) + 2
+        //    max(ht(x), ht(y)) + 1 = ht(z) + 2
+        //    max(ht(x), ht(y)) = ht(z) + 1
+        if b.bal == 0 {
+            // ht(x) = ht(y) = ht(z) + 1
+            a.bal = -1; // because ht(y) > ht(z)
+            b.bal = 1; // because ht(a) = (ht(y) + 1) > ht(x) = ht(y)
+        } else {
+            // assert_eq!(b.bal, -1,);
+            // ht(x) = ht(y) + 1 = ht(z) + 1
+            // ht(y) = ht(z) < ht(x)
+            a.bal = 0;
+            b.bal = 0;
+        }
+
+        // We have
+        //   a(None, z)
+        //   b(x, y)
+
+        // move y from b to a
+        a.left = b.right.take();
+
+        // move a into b
+        b.right = a_opt.take();
+
+        // install b as the new root
+        *root = b_opt
+    }
+
+    fn rot_lf_rt(root: &mut OptNode<K, V>) {
+        // We want the following transformation:
+        //    a(b(x,c(y,z)),w)   =>   c(b(x,y),a(z,w))
+        // x and w retain the same parents.
+
+        let mut a_opt = root.take();
+        let a_rc = a_opt.as_mut().unwrap();
+        let a = Rc::make_mut(a_rc);
+
+        let mut b_opt = a.left.take();
+        let b_rc = b_opt.as_mut().unwrap();
+        let b = Rc::make_mut(b_rc);
+
+        let mut c_opt = b.right.take();
+        let c_rc = c_opt.as_mut().unwrap();
+        let c = Rc::make_mut(c_rc);
+
+        // assert_eq!(b.bal, 1)
+        match c.bal.cmp(&0) {
+            Equal => {
+                a.bal = 0;
+                b.bal = 0;
+            }
+
+            Less => {
+                // ht(y) = ht(z) + 1
+                // ht(y) > ht(z)
+                // ht(x) = ht(y) = ht(w)
+                a.bal = 1;
+                b.bal = 0;
+            }
+
+            Greater => {
+                // ht(y) + 1 = ht(z)
+                // ht(y) < ht(z)
+                // ht(x) = ht(z) = ht(w)
+                a.bal = 0;
+                b.bal = -1;
+            }
+        }
+        c.bal = 0;
+
+        // We have:
+        //   a(None, w)
+        //   b(x, None)
+        //   c(y, z)
+
+        b.right = c.left.take(); // => b(x, y), c(None, z)
+        a.left = c.right.take(); // => a(z, w), c(None, None)
+
+        c.left = b_opt; // => c(b(x, y), None)
+        c.right = a_opt; // => c(b(x, y), a(z, w))
+
+        *root = c_opt;
+    }
+
     // Inserts (k,v) into the map rooted at r and returns the replaced value and
     // whether the tree is taller after the insertion.
     fn ins(root: &mut OptNode<K, V>, k: K, v: V) -> (Option<V>, bool) {
@@ -49,9 +247,32 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
 
                     Less => {
                         let (old_v, is_taller) = Self::ins(&mut n.left, k, v);
+
                         if is_taller {
-                            n.bal -= 1;
-                            (old_v, n.bal < 0)
+                            match n.bal.cmp(&0) {
+                                Less => {
+                                    // we were already left heavy
+                                    if n.left.as_ref().unwrap().bal > 0 {
+                                        Self::rot_lf_rt(root)
+                                    } else {
+                                        Self::rot_rt(root)
+                                    }
+
+                                    (old_v, false)
+                                }
+
+                                Equal => {
+                                    // we were balanced
+                                    n.bal = -1;
+                                    (old_v, true)
+                                }
+
+                                Greater => {
+                                    // we were right heavy
+                                    n.bal = 0;
+                                    (old_v, false)
+                                }
+                            }
                         } else {
                             (old_v, false)
                         }
@@ -59,9 +280,32 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
 
                     Greater => {
                         let (old_v, is_taller) = Self::ins(&mut n.right, k, v);
+
                         if is_taller {
-                            n.bal += 1;
-                            (old_v, n.bal > 0)
+                            match n.bal.cmp(&0) {
+                                Less => {
+                                    // we were left heavy
+                                    n.bal = 0;
+                                    (old_v, false)
+                                }
+
+                                Equal => {
+                                    // we were balanced
+                                    n.bal = 1;
+                                    (old_v, true)
+                                }
+
+                                Greater => {
+                                    // we were already right heavy
+                                    if n.right.as_ref().unwrap().bal < 0 {
+                                        Self::rot_rt_lf(root)
+                                    } else {
+                                        Self::rot_lf(root)
+                                    }
+
+                                    (old_v, false)
+                                }
+                            }
                         } else {
                             (old_v, false)
                         }
