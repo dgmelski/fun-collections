@@ -710,19 +710,42 @@ mod test {
         for &(k, v) in vs.iter() {
             match k {
                 1..=i8::MAX => {
+                    let k = k % 32;
                     assert_eq!(fmap.insert(k, v), btree.insert(k, v));
                 }
 
                 0 | i8::MIN => (),
 
                 _ => {
-                    let k = -k;
+                    let k = -k % 32;
                     assert_eq!(fmap.remove(&k), btree.remove(&k));
                 }
             }
 
             assert!(fmap.iter().cmp(btree.iter()).is_eq());
+            chk_bal(&fmap.root);
         }
+    }
+
+    // systematically try deleting each element of fmap
+    fn chk_all_removes(fmap: FunMap<u8, u8>) {
+        for (k, v) in fmap.clone().iter() {
+            let mut fmap2 = fmap.clone();
+            assert_eq!(fmap2.remove(k), Some(*v));
+            chk_bal(&fmap2.root);
+            chk_sort(&fmap2);
+        }
+    }
+
+    #[test]
+    fn rm_each_test() {
+        // build map in order to encourage skewing
+        let fmap: FunMap<_, _> = (0..32).map(|x| (x, x + 100)).collect();
+        chk_all_removes(fmap);
+
+        // build map in reverse order to encourage opposite skewing
+        let fmap: FunMap<_, _> = (0..32).rev().map(|x| (x, x + 100)).collect();
+        chk_all_removes(fmap);
     }
 
     #[test]
@@ -784,6 +807,11 @@ mod test {
 
         fn qc_rm_test(vs: Vec<(i8, u32)>) -> () {
             rm_test(vs);
+        }
+
+        fn qc_rm_test2(vs: Vec<(u8, u8)>) -> () {
+            let fmap = vs.into_iter().collect();
+            chk_all_removes(fmap);
         }
     }
 }
