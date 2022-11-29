@@ -81,6 +81,7 @@ fn take_node<K: Clone, V: Clone>(opt_node: &mut OptNode<K, V>) -> Node<K, V> {
         Err(_) => panic!("Attempt to take a shared node"),
     }
 }
+
 enum RmOp<'a, K> {
     Key(&'a K),
     Leftmost,
@@ -284,47 +285,73 @@ fn rot_lf_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) {
     *root = c_opt;
 }
 
+fn rebal_lf_to_rt<K, V>(root: &mut OptNode<K, V>) -> i8
+where
+    K: Clone,
+    V: Clone,
+{
+    let n = Rc::get_mut(root.as_mut().unwrap()).unwrap();
+    assert_eq!(n.bal, -2);
+
+    if n.left.as_ref().unwrap().bal <= 0 {
+        rot_rt(root);
+    } else {
+        rot_lf_rt(root);
+    }
+
+    // +1 bal at root => same ht   1 -> 0
+    //  0 bal at root => -1 ht     0 -> -1
+    // -1 bal at root is not possible from selected rotations
+    let root_bal = root.as_ref().unwrap().bal;
+    assert!(root_bal == 0 || root_bal == 1, "Bad root_bal = {root_bal}.");
+    root_bal - 1
+}
+
+fn rebal_rt_to_lf<K, V>(root: &mut OptNode<K, V>) -> i8
+where
+    K: Clone,
+    V: Clone,
+{
+    let n = Rc::get_mut(root.as_mut().unwrap()).unwrap();
+    assert_eq!(n.bal, 2);
+
+    if n.right.as_ref().unwrap().bal >= 0 {
+        rot_lf(root);
+    } else {
+        rot_rt_lf(root);
+    }
+
+    // -1 bal at root => same ht   -1 -> 0
+    //  0 bal at root => -1 ht      0 -> -1
+    // +1 bal at root is not possible from selected rotations
+    let root_bal = root.as_ref().unwrap().bal;
+    assert!(
+        root_bal == -1 || root_bal == 0,
+        "Bad root_bal = {root_bal}."
+    );
+    -1 - root_bal
+}
+
 // Rebalances the node at root and returns the change in height.
 // The change in height will always be 0 or -1.
 fn rebal<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> i8 {
     let n = match root.as_mut() {
-        Some(rc) => Rc::make_mut(rc),
-        None => {
-            return 0; // *** EARLY RETURN ***
+        None => return 0, // *** EARLY RETURN ***
+        Some(rc) => {
+            // check if balanced before potentially cloning
+            if -1 <= rc.bal && rc.bal <= 1 {
+                return 0; // *** EARLY RETURN ***
+            }
+            Rc::make_mut(rc)
         }
     };
 
     if n.bal == -2 {
-        if n.left.as_ref().unwrap().bal <= 0 {
-            rot_rt(root);
-        } else {
-            rot_lf_rt(root);
-        }
-
-        // +1 bal at root => same ht   1 -> 0
-        //  0 bal at root => -1 ht     0 -> -1
-        // -1 bal at root is not possible from selected rotations
-        let root_bal = root.as_ref().unwrap().bal;
-        assert!(root_bal == 0 || root_bal == 1, "Bad root_bal = {root_bal}.");
-        root_bal - 1
+        rebal_lf_to_rt(root)
     } else if n.bal == 2 {
-        if n.right.as_ref().unwrap().bal >= 0 {
-            rot_lf(root);
-        } else {
-            rot_rt_lf(root);
-        }
-
-        // -1 bal at root => same ht   -1 -> 0
-        //  0 bal at root => -1 ht      0 -> -1
-        // +1 bal at root is not possible from selected rotations
-        let root_bal = root.as_ref().unwrap().bal;
-        assert!(
-            root_bal == -1 || root_bal == 0,
-            "Bad root_bal = {root_bal}."
-        );
-        -1 - root_bal
+        rebal_rt_to_lf(root)
     } else {
-        0
+        unreachable!("Unexpected balance factor: {}", n.bal);
     }
 }
 
@@ -363,7 +390,7 @@ where
             } else if n.bal == -2 {
                 // rebalance may change height by 0 or -1; add that
                 // delta to ht_delta for the overall growth
-                (old_v, ht_delta + rebal(root))
+                (old_v, ht_delta + rebal_lf_to_rt(root))
             } else {
                 // if n.bal == 0, the left grew to match the right.
                 // if n.bal == -1, we're now one taller (on left).
@@ -379,7 +406,7 @@ where
             if ht_delta == 0 {
                 (old_v, 0)
             } else if n.bal == 2 {
-                (old_v, ht_delta + rebal(root))
+                (old_v, ht_delta + rebal_rt_to_lf(root))
             } else {
                 (old_v, n.bal)
             }
