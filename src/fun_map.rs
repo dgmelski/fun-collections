@@ -378,128 +378,95 @@ where
     }
 }
 
-fn rebal_lf_rm<K, V, R>(
-    root: &mut OptNode<K, V>,
-    old_v: R,
-    ht_delta: i8,
-    root_bal: i8,
-) -> (R, i8)
-where
-    K: Clone + Ord,
-    V: Clone,
-{
-    if ht_delta == 0 {
-        (old_v, 0)
-    } else if root_bal == 2 {
-        assert_eq!(ht_delta, -1);
-        // The delete reduced the short side of the node, which did not
-        // shrink the overall height.  The total change depends on rebal.
-        (old_v, rebal_rt_to_lf(root))
-    } else {
-        // if root_bal went to 0, we lost height.     0 -> -1
-        // if root_bal went to 1, height unchanged.   1 -> 0
-        (old_v, root_bal - 1)
-    }
-}
-
-fn rebal_rt_rm<K, V, R>(
-    root: &mut OptNode<K, V>,
-    old_v: R,
-    ht_delta: i8,
-    root_bal: i8,
-) -> (R, i8)
-where
-    K: Clone + Ord,
-    V: Clone,
-{
-    if ht_delta == 0 {
-        (old_v, 0)
-    } else if root_bal == -2 {
-        // The delete reduced the short side of the node, which did not
-        // shrink the overall height.  The total change depends on rebal.
-        (old_v, rebal_lf_to_rt(root))
-    } else {
-        // if root_bal =  0, the taller (rt) side shrank -> -1 ht change
-        // if root_bal = -1, the rt shrank, but lf is the same -> 0 ht change
-        (old_v, -1 - root_bal)
-    }
-}
-
-fn rm_leftmost<K, V>(root: &mut OptNode<K, V>) -> (Option<(K, V)>, i8)
+fn rm_leftmost<K, V>(root: &mut OptNode<K, V>) -> (Option<(K, V)>, bool)
 where
     K: Clone + Ord,
     V: Clone,
 {
     let n = match root.as_mut() {
-        None => return (None, 0), // *** EARLY RETURN ***
+        None => return (None, false), // *** EARLY RETURN ***
         Some(rc) => Rc::make_mut(rc),
     };
 
     if n.left.is_some() {
-        let (v, ht_delta) = rm_leftmost(&mut n.left);
-        n.bal -= ht_delta; // subtraction because its on the left
-        let root_bal = n.bal;
-        rebal_lf_rm(root, v, ht_delta, root_bal)
+        let (kv, is_shorter) = rm_leftmost(&mut n.left);
+        if is_shorter && n.bal > 0 {
+            (kv, rebal_rt_to_lf(root) < 0)
+        } else {
+            n.bal += is_shorter as i8;
+            (kv, is_shorter && n.bal == 0)
+        }
     } else {
         let old_n = take_node(root);
         *root = old_n.right;
-        (Some((old_n.key, old_n.val)), -1)
+        (Some((old_n.key, old_n.val)), true)
     }
 }
 
-fn rm<K, V>(root: &mut OptNode<K, V>, k: &K) -> (Option<V>, i8)
+// removes k from the map and returns the associated value and whether the
+// tree at root is shorter as a result of the deletion.
+fn rm<K, V>(root: &mut OptNode<K, V>, k: &K) -> (Option<V>, bool)
 where
     K: Clone + Ord,
     V: Clone,
 {
     let n = match root.as_mut() {
-        None => return (None, 0), // *** EARLY RETURN ***
+        None => return (None, false), // *** EARLY RETURN ***
         Some(rc) => Rc::make_mut(rc),
     };
 
     match k.cmp(&n.key) {
         Less => {
-            let (v, ht_delta) = rm(&mut n.left, k);
-            n.bal -= ht_delta;
-            let root_bal = n.bal;
-            rebal_lf_rm(root, v, ht_delta, root_bal)
+            let (v, is_shorter) = rm(&mut n.left, k);
+            if is_shorter && n.bal > 0 {
+                (v, rebal_rt_to_lf(root) < 0)
+            } else {
+                n.bal += is_shorter as i8;
+                (v, is_shorter && n.bal == 0)
+            }
         }
 
         Greater => {
-            let (v, ht_delta) = rm(&mut n.right, k);
-            n.bal += ht_delta;
-            let root_bal = n.bal;
-            rebal_rt_rm(root, v, ht_delta, root_bal)
+            let (v, is_shorter) = rm(&mut n.right, k);
+            if is_shorter && n.bal < 0 {
+                (v, rebal_lf_to_rt(root) < 0)
+            } else {
+                n.bal -= is_shorter as i8;
+                (v, is_shorter && n.bal == 0)
+            }
         }
 
         Equal => match (&n.left, &n.right) {
             (None, None) => {
                 let old_n = take_node(root);
-                (Some(old_n.val), -1)
+                (Some(old_n.val), true)
             }
 
             (None, Some(_)) => {
                 let old_n = take_node(root);
                 *root = old_n.right;
-                (Some(old_n.val), -1)
+                (Some(old_n.val), true)
             }
 
             (Some(_), None) => {
                 let old_n = take_node(root);
                 *root = old_n.left;
-                (Some(old_n.val), -1)
+                (Some(old_n.val), true)
             }
 
             _ => {
                 // both children are populated
-                let (succ, ht_delta) = rm_leftmost(&mut n.right);
+                let (succ, is_shorter) = rm_leftmost(&mut n.right);
                 let (succ_key, succ_val) = succ.unwrap();
                 n.key = succ_key;
                 let old_val = replace(&mut n.val, succ_val);
 
-                n.bal += ht_delta;
-                let root_bal = n.bal;
-                rebal_rt_rm(root, Some(old_val), ht_delta, root_bal)
+                if is_shorter && n.bal < 0 {
+                    (Some(old_val), rebal_lf_to_rt(root) < 0)
+                } else {
+                    n.bal -= is_shorter as i8;
+                    (Some(old_val), is_shorter && n.bal == 0)
+                }
             }
         },
     }
