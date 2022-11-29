@@ -437,58 +437,56 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     }
 
     fn rm(root: &mut OptNode<K, V>, op: RmOp<K>) -> (Option<(K, V)>, bool) {
-        match root.as_mut() {
-            None => (None, false),
-            Some(rc) => {
-                let n = Rc::make_mut(rc);
+        let n = match root.as_mut() {
+            None => return ((None, false)), // *** EARLY RETURN ***
+            Some(rc) => Rc::make_mut(rc),
+        };
 
-                match op {
-                    RmOp::Leftmost => {
-                        if n.left.is_some() {
-                            let (v, is_shorter) = Self::rm(&mut n.left, op);
-                            return (v, is_shorter && n.bal > 0);
-                        } else {
-                            let old_n = take_node(root);
-                            *root = old_n.right;
-                            return (Some((old_n.key, old_n.val)), true);
-                        }
-                    }
-
-                    RmOp::Key(k) => match k.cmp(&n.key) {
-                        Less => Self::rm(&mut n.left, op),
-                        Greater => Self::rm(&mut n.right, op),
-                        Equal => match (&n.left, &n.right) {
-                            (None, None) => {
-                                let old_n = take_node(root);
-                                (Some((old_n.key, old_n.val)), true)
-                            }
-
-                            (None, Some(_)) => {
-                                let old_n = take_node(root);
-                                *root = old_n.right;
-                                (Some((old_n.key, old_n.val)), true)
-                            }
-
-                            (Some(_), None) => {
-                                let old_n = take_node(root);
-                                *root = old_n.left;
-                                (Some((old_n.key, old_n.val)), true)
-                            }
-
-                            _ => {
-                                // both children are populated
-                                let x = Self::rm(&mut n.right, RmOp::Leftmost);
-                                let (succ, mut is_shorter) = x;
-                                let (succ_key, succ_val) = succ.unwrap();
-                                let old_key = replace(&mut n.key, succ_key);
-                                let old_val = replace(&mut n.val, succ_val);
-                                is_shorter &= n.bal < 0;
-                                (Some((old_key, old_val)), is_shorter)
-                            }
-                        },
-                    },
+        match op {
+            RmOp::Leftmost => {
+                if n.left.is_some() {
+                    let (v, is_shorter) = Self::rm(&mut n.left, op);
+                    return (v, is_shorter && n.bal > 0);
+                } else {
+                    let old_n = take_node(root);
+                    *root = old_n.right;
+                    return (Some((old_n.key, old_n.val)), true);
                 }
             }
+
+            RmOp::Key(k) => match k.cmp(&n.key) {
+                Less => Self::rm(&mut n.left, op),
+                Greater => Self::rm(&mut n.right, op),
+                Equal => match (&n.left, &n.right) {
+                    (None, None) => {
+                        let old_n = take_node(root);
+                        (Some((old_n.key, old_n.val)), true)
+                    }
+
+                    (None, Some(_)) => {
+                        let old_n = take_node(root);
+                        *root = old_n.right;
+                        (Some((old_n.key, old_n.val)), true)
+                    }
+
+                    (Some(_), None) => {
+                        let old_n = take_node(root);
+                        *root = old_n.left;
+                        (Some((old_n.key, old_n.val)), true)
+                    }
+
+                    _ => {
+                        // both children are populated
+                        let x = Self::rm(&mut n.right, RmOp::Leftmost);
+                        let (succ, mut is_shorter) = x;
+                        let (succ_key, succ_val) = succ.unwrap();
+                        let old_key = replace(&mut n.key, succ_key);
+                        let old_val = replace(&mut n.val, succ_val);
+                        is_shorter &= n.bal < 0;
+                        (Some((old_key, old_val)), is_shorter)
+                    }
+                },
+            },
         }
     }
 
