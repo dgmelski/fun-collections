@@ -414,6 +414,53 @@ where
     }
 }
 
+fn rebal_lf_rm<K, V, R>(
+    root: &mut OptNode<K, V>,
+    old_v: R,
+    ht_delta: i8,
+    root_bal: i8,
+) -> (R, i8)
+where
+    K: Clone + Ord,
+    V: Clone,
+{
+    if ht_delta == 0 {
+        (old_v, 0)
+    } else if root_bal == 2 {
+        assert_eq!(ht_delta, -1);
+        // The delete reduced the short side of the node, which did not
+        // shrink the overall height.  The total change depends on rebal.
+        (old_v, rebal_rt_to_lf(root))
+    } else {
+        // if root_bal went to 0, we lost height.     0 -> -1
+        // if root_bal went to 1, height unchanged.   1 -> 0
+        (old_v, root_bal - 1)
+    }
+}
+
+fn rebal_rt_rm<K, V, R>(
+    root: &mut OptNode<K, V>,
+    old_v: R,
+    ht_delta: i8,
+    root_bal: i8,
+) -> (R, i8)
+where
+    K: Clone + Ord,
+    V: Clone,
+{
+    if ht_delta == 0 {
+        (old_v, 0)
+    } else if root_bal == -2 {
+        // The delete reduced the short side of the node, which did not
+        // shrink the overall height.  The total change depends on rebal.
+        (old_v, rebal_lf_to_rt(root))
+    } else {
+        // if root_bal =  0, the taller (rt) side shrank -> -1 ht change
+        // if root_bal = -1, the rt shrank, but lf is the same -> 0 ht change
+        (old_v, -1 - root_bal)
+    }
+}
+
 fn rm_leftmost<K, V>(root: &mut OptNode<K, V>) -> (Option<(K, V)>, i8)
 where
     K: Clone + Ord,
@@ -426,21 +473,9 @@ where
 
     if n.left.is_some() {
         let (v, ht_delta) = rm_leftmost(&mut n.left);
-
         n.bal -= ht_delta; // subtraction because its on the left
-
-        if ht_delta == 0 {
-            (v, 0)
-        } else if n.bal == 2 {
-            assert_eq!(ht_delta, -1);
-            // rebal to 0 indicates reduced height.   0 -> -1
-            // rebal to -1 indicates same height.    -1 -> 0
-            (v, -1 - rebal_rt_to_lf(root))
-        } else {
-            // if n.bal went to 0, we lost height.     0 -> -1
-            // if n.bal went to 1, height unchanged.   1 -> 0
-            (v, -1 + n.bal)
-        }
+        let root_bal = n.bal;
+        rebal_lf_rm(root, v, ht_delta, root_bal)
     } else {
         let old_n = take_node(root);
         *root = old_n.right;
@@ -448,7 +483,7 @@ where
     }
 }
 
-fn rm<K, V>(root: &mut OptNode<K, V>, k: &K) -> (Option<(K, V)>, i8)
+fn rm<K, V>(root: &mut OptNode<K, V>, k: &K) -> (Option<V>, i8)
 where
     K: Clone + Ord,
     V: Clone,
@@ -459,24 +494,36 @@ where
     };
 
     match k.cmp(&n.key) {
-        Less => rm(&mut n.left, k),
-        Greater => rm(&mut n.right, k),
+        Less => {
+            let (v, ht_delta) = rm(&mut n.left, k);
+            n.bal -= ht_delta;
+            let root_bal = n.bal;
+            rebal_lf_rm(root, v, ht_delta, root_bal)
+        }
+
+        Greater => {
+            let (v, ht_delta) = rm(&mut n.right, k);
+            n.bal += ht_delta;
+            let root_bal = n.bal;
+            rebal_rt_rm(root, v, ht_delta, root_bal)
+        }
+
         Equal => match (&n.left, &n.right) {
             (None, None) => {
                 let old_n = take_node(root);
-                (Some((old_n.key, old_n.val)), -1)
+                (Some(old_n.val), -1)
             }
 
             (None, Some(_)) => {
                 let old_n = take_node(root);
                 *root = old_n.right;
-                (Some((old_n.key, old_n.val)), -1)
+                (Some(old_n.val), -1)
             }
 
             (Some(_), None) => {
                 let old_n = take_node(root);
                 *root = old_n.left;
-                (Some((old_n.key, old_n.val)), -1)
+                (Some(old_n.val), -1)
             }
 
             _ => {
@@ -485,7 +532,10 @@ where
                 let (succ_key, succ_val) = succ.unwrap();
                 let old_key = replace(&mut n.key, succ_key);
                 let old_val = replace(&mut n.val, succ_val);
-                (Some((old_key, old_val)), ht_delta)
+
+                n.bal += ht_delta;
+                let root_bal = n.bal;
+                rebal_rt_rm(root, Some(old_val), ht_delta, root_bal)
             }
         },
     }
@@ -526,9 +576,9 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     /// assert_eq!(fmap.remove(&2), None);
     /// ```
     pub fn remove(&mut self, k: &K) -> Option<V> {
-        if let (Some((_, v)), _) = rm(&mut self.root, k) {
+        if let (opt_v @ Some(_), _) = rm(&mut self.root, k) {
             self.len -= 1;
-            Some(v)
+            opt_v
         } else {
             None
         }
@@ -702,6 +752,29 @@ mod test {
     #[test]
     fn rm_test_regr1() {
         rm_test(vec![(101, 0), (100, 0), (1, 0), (-100, 0)]);
+    }
+
+    #[test]
+    fn rm_test_regr2() {
+        rm_test(vec![
+            (99, 0),
+            (1, 0),
+            (103, 0),
+            (3, 0),
+            (98, 0),
+            (2, 0),
+            (8, 0),
+            (4, 0),
+            (5, 0),
+            (6, 0),
+            (7, 0),
+            (102, 0),
+            (9, 0),
+            (97, 0),
+            (-102, 0),
+            (10, 0),
+            (-97, 0),
+        ]);
     }
 
     quickcheck! {

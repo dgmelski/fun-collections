@@ -469,7 +469,10 @@ impl<T: Clone + Debug> Debug for FunStack<T> {
     ///     "FunStack { len: 3, elems: TOP[2, 1, 0]BOT }");
     /// ```
     fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), fmt::Error> {
-        fmt.write_fmt(format_args!("FunStack {{ len: {}, elems: TOP", self.len))?;
+        fmt.write_fmt(format_args!(
+            "FunStack {{ len: {}, elems: TOP",
+            self.len
+        ))?;
         fmt.debug_list().entries(self.iter()).finish()?;
         fmt.write_str("BOT }")
     }
