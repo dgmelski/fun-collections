@@ -376,6 +376,8 @@ where
     }
 }
 
+// helper function for remove that removes the leftmost node and returns both
+// its key and value and whether or not the removal made the tree smaller.
 fn rm_leftmost<K, V>(root: &mut OptNode<K, V>) -> (Option<(K, V)>, IsShorter)
 where
     K: Clone + Ord,
@@ -460,6 +462,7 @@ where
                 let old_val = replace(&mut n.val, succ_val);
 
                 if is_shorter && n.bal < 0 {
+                    // we were taller on left and lost height on right
                     (Some(old_val), rebal_lf_to_rt(root))
                 } else {
                     n.bal -= is_shorter as i8;
