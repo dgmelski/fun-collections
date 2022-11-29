@@ -426,7 +426,21 @@ where
 
     if n.left.is_some() {
         let (v, ht_delta) = rm_leftmost(&mut n.left);
-        (v, ht_delta)
+
+        n.bal -= ht_delta; // subtraction because its on the left
+
+        if ht_delta == 0 {
+            (v, 0)
+        } else if n.bal == 2 {
+            assert_eq!(ht_delta, -1);
+            // rebal to 0 indicates reduced height.   0 -> -1
+            // rebal to -1 indicates same height.    -1 -> 0
+            (v, -1 - rebal_rt_to_lf(root))
+        } else {
+            // if n.bal went to 0, we lost height.     0 -> -1
+            // if n.bal went to 1, height unchanged.   1 -> 0
+            (v, -1 + n.bal)
+        }
     } else {
         let old_n = take_node(root);
         *root = old_n.right;
