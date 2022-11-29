@@ -5,8 +5,7 @@ use std::fmt::{Debug, Formatter};
 use std::mem::replace;
 use std::rc::Rc;
 
-#[derive(Clone)]
-struct Node<K: Clone, V: Clone> {
+struct Node<K, V> {
     key: K,
     val: V,
     bal: i8, // "balance factor" = height(right) - height(left)
@@ -15,6 +14,18 @@ struct Node<K: Clone, V: Clone> {
 }
 
 type OptNode<K, V> = Option<Rc<Node<K, V>>>;
+
+impl<K: Clone, V: Clone> Clone for Node<K, V> {
+    fn clone(&self) -> Self {
+        Node {
+            key: self.key.clone(),
+            val: self.val.clone(),
+            bal: self.bal,
+            left: self.left.clone(),
+            right: self.right.clone(),
+        }
+    }
+}
 
 impl<K: Clone + Debug, V: Clone + Debug> Debug for Node<K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
