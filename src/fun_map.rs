@@ -29,19 +29,20 @@ impl<K: Clone, V: Clone> Clone for Node<K, V> {
 
 impl<K: Clone + Debug, V: Clone + Debug> Debug for Node<K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str("(")?;
+        f.write_fmt(format_args!("({{{:?}: {:?}}} ", self.key, self.val))?;
+
+        if self.bal == 0 {
+            f.write_str("=0 ")?;
+        } else {
+            f.write_fmt(format_args!("{:+} ", self.bal))?;
+        }
+
         match &self.left {
             None => f.write_str(".")?,
             Some(lf) => lf.fmt(f)?,
         }
 
-        f.write_fmt(format_args!(" {{{:?}: {:?}}}", self.key, self.val))?;
-
-        match self.bal.cmp(&0) {
-            Less => f.write_str(" > ")?,
-            Equal => f.write_str(" = ")?,
-            Greater => f.write_str(" < ")?,
-        }
+        f.write_str(" ")?;
 
         match &self.right {
             None => f.write_str(".")?,
