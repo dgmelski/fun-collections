@@ -283,6 +283,50 @@ fn rot_lf_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) {
     *root = c_opt;
 }
 
+// Rebalances the node at root and returns the change in height.
+// The change in height will always be 0 or -1.
+fn rebal<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> i8 {
+    let n = match root.as_mut() {
+        Some(rc) => Rc::make_mut(rc),
+        None => {
+            return 0;
+        }
+    };
+
+    if n.bal == -2 {
+        if n.left.as_ref().unwrap().bal <= 0 {
+            rot_rt(root);
+        } else {
+            rot_lf_rt(root);
+        }
+
+        // +1 bal at root => same ht   1 -> 0
+        //  0 bal at root => -1 ht     0 -> -1
+        // -1 bal at root is not possible from selected rotations
+        let root_bal = root.as_ref().unwrap().bal;
+        assert!(root_bal == 0 || root_bal == 1, "Bad root_bal = {root_bal}.");
+        root_bal - 1
+    } else if n.bal == 2 {
+        if n.right.as_ref().unwrap().bal >= 0 {
+            rot_lf(root);
+        } else {
+            rot_rt_lf(root);
+        }
+
+        // -1 bal at root => same ht   -1 -> 0
+        //  0 bal at root => -1 ht      0 -> -1
+        // +1 bal at root is not possible from selected rotations
+        let root_bal = root.as_ref().unwrap().bal;
+        assert!(
+            root_bal == -1 || root_bal == 0,
+            "Bad root_bal = {root_bal}."
+        );
+        -1 - root_bal
+    } else {
+        0
+    }
+}
+
 // Inserts (k,v) into the map rooted at r and returns the replaced value and
 // whether the tree is taller after the insertion.
 fn ins<K, V>(root: &mut OptNode<K, V>, k: K, v: V) -> (Option<V>, bool)
