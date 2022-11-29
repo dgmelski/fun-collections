@@ -358,7 +358,9 @@ where
             assert!(ht_delta == 0 || ht_delta == 1);
             n.bal -= ht_delta; // subtract b/c on left
 
-            if n.bal == -2 {
+            if ht_delta == 0 {
+                (old_v, 0)
+            } else if n.bal == -2 {
                 // rebalance may change height by 0 or -1; add that
                 // delta to ht_delta for the overall growth
                 (old_v, ht_delta + rebal(root))
@@ -373,7 +375,10 @@ where
             let (old_v, ht_delta) = ins(&mut n.right, k, v);
             assert!(ht_delta == 0 || ht_delta == 1);
             n.bal += ht_delta; // add b/c on right
-            if n.bal == 2 {
+
+            if ht_delta == 0 {
+                (old_v, 0)
+            } else if n.bal == 2 {
                 (old_v, ht_delta + rebal(root))
             } else {
                 (old_v, n.bal)
@@ -591,7 +596,7 @@ mod test {
         let mut fmap = FunMap::new();
         for &(k, v) in vs.iter() {
             fmap.insert(k, v);
-            println!("{:?}", fmap);
+            // println!("{:?}", fmap);
             chk_bal(&fmap.root);
             chk_sort(&fmap);
         }
@@ -627,6 +632,20 @@ mod test {
     #[test]
     fn bal_test_regr2() {
         bal_test(vec![(3, 0), (0, 0), (1, 0), (2, 0), (4, 0)]);
+    }
+
+    #[test]
+    fn bal_test_regr3() {
+        bal_test(vec![
+            (127, 0),
+            (3, 0),
+            (1, 0),
+            (4, 0),
+            (6, 0),
+            (2, 0),
+            (5, 0),
+            (127, 0),
+        ]);
     }
 
     #[test]
