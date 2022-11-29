@@ -414,6 +414,69 @@ where
     }
 }
 
+fn rm_leftmost<K, V>(root: &mut OptNode<K, V>) -> (Option<(K, V)>, i8)
+where
+    K: Clone + Ord,
+    V: Clone,
+{
+    let n = match root.as_mut() {
+        None => return ((None, 0)), // *** EARLY RETURN ***
+        Some(rc) => Rc::make_mut(rc),
+    };
+
+    if n.left.is_some() {
+        let (v, ht_delta) = rm_leftmost(&mut n.left);
+        (v, ht_delta)
+    } else {
+        let old_n = take_node(root);
+        *root = old_n.right;
+        (Some((old_n.key, old_n.val)), -1)
+    }
+}
+
+fn rm<K, V>(root: &mut OptNode<K, V>, k: &K) -> (Option<(K, V)>, i8)
+where
+    K: Clone + Ord,
+    V: Clone,
+{
+    let n = match root.as_mut() {
+        None => return ((None, 0)), // *** EARLY RETURN ***
+        Some(rc) => Rc::make_mut(rc),
+    };
+
+    match k.cmp(&n.key) {
+        Less => rm(&mut n.left, k),
+        Greater => rm(&mut n.right, k),
+        Equal => match (&n.left, &n.right) {
+            (None, None) => {
+                let old_n = take_node(root);
+                (Some((old_n.key, old_n.val)), -1)
+            }
+
+            (None, Some(_)) => {
+                let old_n = take_node(root);
+                *root = old_n.right;
+                (Some((old_n.key, old_n.val)), -1)
+            }
+
+            (Some(_), None) => {
+                let old_n = take_node(root);
+                *root = old_n.left;
+                (Some((old_n.key, old_n.val)), -1)
+            }
+
+            _ => {
+                // both children are populated
+                let (succ, ht_delta) = rm_leftmost(&mut n.right);
+                let (succ_key, succ_val) = succ.unwrap();
+                let old_key = replace(&mut n.key, succ_key);
+                let old_val = replace(&mut n.val, succ_val);
+                (Some((old_key, old_val)), ht_delta)
+            }
+        },
+    }
+}
+
 impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     pub fn new() -> Self {
         FunMap { len: 0, root: None }
@@ -436,60 +499,6 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         ret
     }
 
-    fn rm(root: &mut OptNode<K, V>, op: RmOp<K>) -> (Option<(K, V)>, bool) {
-        let n = match root.as_mut() {
-            None => return ((None, false)), // *** EARLY RETURN ***
-            Some(rc) => Rc::make_mut(rc),
-        };
-
-        match op {
-            RmOp::Leftmost => {
-                if n.left.is_some() {
-                    let (v, is_shorter) = Self::rm(&mut n.left, op);
-                    return (v, is_shorter && n.bal > 0);
-                } else {
-                    let old_n = take_node(root);
-                    *root = old_n.right;
-                    return (Some((old_n.key, old_n.val)), true);
-                }
-            }
-
-            RmOp::Key(k) => match k.cmp(&n.key) {
-                Less => Self::rm(&mut n.left, op),
-                Greater => Self::rm(&mut n.right, op),
-                Equal => match (&n.left, &n.right) {
-                    (None, None) => {
-                        let old_n = take_node(root);
-                        (Some((old_n.key, old_n.val)), true)
-                    }
-
-                    (None, Some(_)) => {
-                        let old_n = take_node(root);
-                        *root = old_n.right;
-                        (Some((old_n.key, old_n.val)), true)
-                    }
-
-                    (Some(_), None) => {
-                        let old_n = take_node(root);
-                        *root = old_n.left;
-                        (Some((old_n.key, old_n.val)), true)
-                    }
-
-                    _ => {
-                        // both children are populated
-                        let x = Self::rm(&mut n.right, RmOp::Leftmost);
-                        let (succ, mut is_shorter) = x;
-                        let (succ_key, succ_val) = succ.unwrap();
-                        let old_key = replace(&mut n.key, succ_key);
-                        let old_val = replace(&mut n.val, succ_val);
-                        is_shorter &= n.bal < 0;
-                        (Some((old_key, old_val)), is_shorter)
-                    }
-                },
-            },
-        }
-    }
-
     /// Removes a key from a map and returns the mapped value, if present.
     ///
     /// # Examples
@@ -503,9 +512,12 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     /// assert_eq!(fmap.remove(&2), None);
     /// ```
     pub fn remove(&mut self, k: &K) -> Option<V> {
-        let (ret, _) = Self::rm(&mut self.root, RmOp::Key(k));
-        self.len -= ret.is_some() as usize;
-        ret.map(|(_, v)| v)
+        if let (Some((_, v)), _) = rm(&mut self.root, k) {
+            self.len -= 1;
+            Some(v)
+        } else {
+            None
+        }
     }
 
     // TODO: generalize ala
