@@ -1,5 +1,3 @@
-#![allow(dead_code, unused)] // FIXME
-
 use std::cmp::Ordering::*;
 use std::fmt::{Debug, Formatter};
 use std::mem::replace;
@@ -80,11 +78,6 @@ fn take_node<K: Clone, V: Clone>(opt_node: &mut OptNode<K, V>) -> Node<K, V> {
         Ok(n) => n,
         Err(_) => panic!("Attempt to take a shared node"),
     }
-}
-
-enum RmOp<'a, K> {
-    Key(&'a K),
-    Leftmost,
 }
 
 fn rot_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) {
@@ -332,29 +325,6 @@ where
     -1 - root_bal
 }
 
-// Rebalances the node at root and returns the change in height.
-// The change in height will always be 0 or -1.
-fn rebal<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> i8 {
-    let n = match root.as_mut() {
-        None => return 0, // *** EARLY RETURN ***
-        Some(rc) => {
-            // check if balanced before potentially cloning
-            if -1 <= rc.bal && rc.bal <= 1 {
-                return 0; // *** EARLY RETURN ***
-            }
-            Rc::make_mut(rc)
-        }
-    };
-
-    if n.bal == -2 {
-        rebal_lf_to_rt(root)
-    } else if n.bal == 2 {
-        rebal_rt_to_lf(root)
-    } else {
-        unreachable!("Unexpected balance factor: {}", n.bal);
-    }
-}
-
 // Inserts (k,v) into the map rooted at r and returns the replaced value and
 // returns the change in height (0 or 1) after the insertion.
 fn ins<K, V>(root: &mut OptNode<K, V>, k: K, v: V) -> (Option<V>, i8)
@@ -467,7 +437,7 @@ where
     V: Clone,
 {
     let n = match root.as_mut() {
-        None => return ((None, 0)), // *** EARLY RETURN ***
+        None => return (None, 0), // *** EARLY RETURN ***
         Some(rc) => Rc::make_mut(rc),
     };
 
@@ -489,7 +459,7 @@ where
     V: Clone,
 {
     let n = match root.as_mut() {
-        None => return ((None, 0)), // *** EARLY RETURN ***
+        None => return (None, 0), // *** EARLY RETURN ***
         Some(rc) => Rc::make_mut(rc),
     };
 
@@ -530,7 +500,7 @@ where
                 // both children are populated
                 let (succ, ht_delta) = rm_leftmost(&mut n.right);
                 let (succ_key, succ_val) = succ.unwrap();
-                let old_key = replace(&mut n.key, succ_key);
+                n.key = succ_key;
                 let old_val = replace(&mut n.val, succ_val);
 
                 n.bal += ht_delta;
