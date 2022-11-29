@@ -371,6 +371,9 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     }
 
     // TODO: generalize ala https://doc.rust-lang.org/std/collections/struct.BTreeMap.html#method.get
+    // TODO: generalize ala
+    // https://doc.rust-lang.org/std/collections/struct.BTreeMap.html#method.get,
+    // specifically, using type Q for the key.
     pub fn get(&self, k: &K) -> Option<&V> {
         let mut curr = &self.root;
         while let Some(n) = curr {
@@ -382,6 +385,25 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         }
 
         None
+    }
+
+    // Generalize for other key types, ala get()?
+    pub fn get_mut(&mut self, k: &K) -> Option<&mut V> {
+        let mut curr = &mut self.root;
+        while let Some(rc) = curr {
+            let n = Rc::make_mut(rc);
+            match k.cmp(&n.key) {
+                Less => curr = &mut n.left,
+                Equal => return Some(&mut n.val),
+                Greater => curr = &mut n.right,
+            }
+        }
+
+        None
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
     }
 
     pub fn len(&self) -> usize {
