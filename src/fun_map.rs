@@ -289,7 +289,7 @@ fn rebal<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> i8 {
     let n = match root.as_mut() {
         Some(rc) => Rc::make_mut(rc),
         None => {
-            return 0;
+            return 0; // *** EARLY RETURN ***
         }
     };
 
@@ -328,86 +328,14 @@ fn rebal<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> i8 {
 }
 
 // Inserts (k,v) into the map rooted at r and returns the replaced value and
-// whether the tree is taller after the insertion.
-fn ins<K, V>(root: &mut OptNode<K, V>, k: K, v: V) -> (Option<V>, bool)
+// returns the change in height (0 or 1) after the insertion.
+fn ins<K, V>(root: &mut OptNode<K, V>, k: K, v: V) -> (Option<V>, i8)
 where
     K: Clone + Ord,
     V: Clone,
 {
-    match root.as_mut() {
-        Some(rc) => {
-            let n = Rc::make_mut(rc);
-            match k.cmp(&n.key) {
-                Equal => (Some(std::mem::replace(&mut n.val, v)), false),
-
-                Less => {
-                    let (old_v, is_taller) = ins(&mut n.left, k, v);
-
-                    if is_taller {
-                        match n.bal.cmp(&0) {
-                            Less => {
-                                // we were already left heavy
-                                if n.left.as_ref().unwrap().bal > 0 {
-                                    rot_lf_rt(root)
-                                } else {
-                                    rot_rt(root)
-                                }
-
-                                (old_v, false)
-                            }
-
-                            Equal => {
-                                // we were balanced
-                                n.bal = -1;
-                                (old_v, true)
-                            }
-
-                            Greater => {
-                                // we were right heavy
-                                n.bal = 0;
-                                (old_v, false)
-                            }
-                        }
-                    } else {
-                        (old_v, false)
-                    }
-                }
-
-                Greater => {
-                    let (old_v, is_taller) = ins(&mut n.right, k, v);
-
-                    if is_taller {
-                        match n.bal.cmp(&0) {
-                            Less => {
-                                // we were left heavy
-                                n.bal = 0;
-                                (old_v, false)
-                            }
-
-                            Equal => {
-                                // we were balanced
-                                n.bal = 1;
-                                (old_v, true)
-                            }
-
-                            Greater => {
-                                // we were already right heavy
-                                if n.right.as_ref().unwrap().bal < 0 {
-                                    rot_rt_lf(root)
-                                } else {
-                                    rot_lf(root)
-                                }
-
-                                (old_v, false)
-                            }
-                        }
-                    } else {
-                        (old_v, false)
-                    }
-                }
-            }
-        }
-
+    let n = match root.as_mut() {
+        Some(rc) => Rc::make_mut(rc),
         None => {
             *root = Some(Rc::new(Node {
                 key: k,
@@ -417,7 +345,38 @@ where
                 right: None,
             }));
 
-            (None, true)
+            return (None, 1); // *** EARLY RETURN ***
+        }
+    };
+
+    match k.cmp(&n.key) {
+        Equal => (Some(std::mem::replace(&mut n.val, v)), 0),
+
+        Less => {
+            let (old_v, ht_delta) = ins(&mut n.left, k, v);
+            assert!(ht_delta == 0 || ht_delta == 1);
+            n.bal -= ht_delta; // subtract b/c on left
+
+            if n.bal == -2 {
+                // rebalance may change height by 0 or -1; add that
+                // delta to ht_delta for the overall growth
+                (old_v, ht_delta + rebal(root))
+            } else {
+                // if n.bal == 0, the left grew to match the right.
+                // if n.bal == -1, we're now one taller (on left).
+                (old_v, -n.bal)
+            }
+        }
+
+        Greater => {
+            let (old_v, ht_delta) = ins(&mut n.right, k, v);
+            assert!(ht_delta == 0 || ht_delta == 1);
+            n.bal += ht_delta; // add b/c on right
+            if n.bal == 2 {
+                (old_v, ht_delta + rebal(root))
+            } else {
+                (old_v, n.bal)
+            }
         }
     }
 }
@@ -631,7 +590,7 @@ mod test {
         let mut fmap = FunMap::new();
         for &(k, v) in vs.iter() {
             fmap.insert(k, v);
-            // println!("{:?}", fmap);
+            println!("{:?}", fmap);
             chk_bal(&fmap.root);
             chk_sort(&fmap);
         }
@@ -662,6 +621,11 @@ mod test {
     #[test]
     fn bal_test_regr1() {
         bal_test(vec![(4, 0), (0, 0), (5, 0), (1, 0), (2, 0), (3, 0)]);
+    }
+
+    #[test]
+    fn bal_test_regr2() {
+        bal_test(vec![(3, 0), (0, 0), (1, 0), (2, 0), (4, 0)]);
     }
 
     #[test]
