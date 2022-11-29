@@ -402,3 +402,50 @@ impl<'a, K: Clone, V: Clone> Iterator for Iter<'a, K, V> {
         })
     }
 }
+
+#[cfg(test)]
+mod test {
+    extern crate quickcheck;
+    use super::*;
+    use quickcheck::quickcheck;
+
+    fn chk_bal<K: Clone, V: Clone>(root: &OptNode<K, V>) -> i8 {
+        match root {
+            None => 0,
+            Some(rc) => {
+                let rt_ht = chk_bal(&rc.right);
+                let lf_ht = chk_bal(&rc.left);
+                assert_eq!(rt_ht - lf_ht, rc.bal);
+                rt_ht.max(lf_ht) + 1
+            }
+        }
+    }
+
+    fn chk_sort<K: Clone + Ord, V: Clone>(fmap: &FunMap<K, V>) {
+        fmap.iter().reduce(|(k1, _), n @ (k2, _)| {
+            assert!(k1 < k2);
+            n
+        });
+    }
+
+    fn bal_test(vs: Vec<(u8, u32)>) {
+        let mut fmap = FunMap::new();
+        for &(k, v) in vs.iter() {
+            fmap.insert(k, v);
+            // println!("{:?}", fmap);
+            chk_bal(&fmap.root);
+            chk_sort(&fmap);
+        }
+    }
+
+    #[test]
+    fn bal_test_regr1() {
+        bal_test(vec![(4, 0), (0, 0), (5, 0), (1, 0), (2, 0), (3, 0)]);
+    }
+
+    quickcheck! {
+        fn qc_bal_test(vs: Vec<(u8, u32)>) -> () {
+            bal_test(vs);
+        }
+    }
+}
