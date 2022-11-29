@@ -16,10 +16,47 @@ struct Node<K: Clone, V: Clone> {
 
 type OptNode<K, V> = Option<Rc<Node<K, V>>>;
 
+impl<K: Clone + Debug, V: Clone + Debug> Debug for Node<K, V> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("(")?;
+        match &self.left {
+            None => f.write_str(".")?,
+            Some(lf) => lf.fmt(f)?,
+        }
+
+        f.write_fmt(format_args!(" {{{:?}: {:?}}}", self.key, self.val))?;
+
+        match self.bal.cmp(&0) {
+            Less => f.write_str(" > ")?,
+            Equal => f.write_str(" = ")?,
+            Greater => f.write_str(" < ")?,
+        }
+
+        match &self.right {
+            None => f.write_str(".")?,
+            Some(rt) => rt.fmt(f)?,
+        }
+
+        f.write_str(")")
+    }
+}
+
 #[derive(Clone)]
 pub struct FunMap<K: Clone, V: Clone> {
     len: usize,
     root: OptNode<K, V>,
+}
+
+impl<K: Clone + Debug, V: Clone + Debug> Debug for FunMap<K, V> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match &self.root {
+            None => f.write_str("FunMap(EMPTY)"),
+            Some(rc) => {
+                // use Node's Debug formatter
+                f.write_fmt(format_args!("FunMap(#{}, {:?}", self.len, rc))
+            }
+        }
+    }
 }
 
 impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
