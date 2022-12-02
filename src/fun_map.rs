@@ -600,6 +600,98 @@ fn join<K: Clone + Ord, V: Clone>(
     }
 }
 
+fn join2<K: Clone + Ord, V: Clone>(
+    opt_left: OptNode<K, V>,
+    opt_kv: Option<(K, V)>,
+    opt_right: OptNode<K, V>,
+) -> OptNode<K, V> {
+    if let Some(kv) = opt_kv {
+        join(opt_left, kv.0, kv.1, opt_right)
+    } else if opt_left.is_none() {
+        opt_right
+    } else if opt_right.is_none() {
+        opt_left
+    } else {
+        // temporarily wrap opt_right in a FunMap so we can take the least kv
+        let mut rhs = FunMap {
+            len: usize::MAX, // wrong, but safe
+            root: opt_right,
+        };
+        let k = rhs.first_key_value().unwrap().0.clone();
+        let v = rhs.remove(&k).unwrap();
+
+        let opt_right = rhs.root;
+
+        join(opt_left, k, v, opt_right)
+    }
+}
+
+// Algorithm for Union from wikipedia:
+//   if t1 = nil:
+//     return t2
+//   if t2 = nil:
+//     return t1
+//   (t<, b, t>) = Split(t2, t1.root)
+//   return Join(Union(left(t1), t<), t1.root, Union(right(t1), t>))
+fn intersect<K: Clone + Ord, V: Clone>(
+    opt_t1: OptNode<K, V>,
+    opt_t2: OptNode<K, V>,
+) -> OptNode<K, V> {
+    if opt_t1.is_none() || opt_t2.is_none() {
+        return None; // *** EARLY RETURN ***
+    }
+
+    if Rc::as_ptr(opt_t1.as_ref().unwrap())
+        == Rc::as_ptr(opt_t2.as_ref().unwrap())
+    {
+        return opt_t1;
+    }
+
+    let t1 = match Rc::try_unwrap(opt_t1.unwrap()) {
+        Ok(n) => n,
+        Err(rc) => (*rc).clone(),
+    };
+
+    let (t2_lt, old_kv, t2_gt) = split(opt_t2, &t1.key);
+    let lf_int = intersect(t1.left, t2_lt);
+    let rt_int = intersect(t1.right, t2_gt);
+    if old_kv.is_none() {
+        join2(lf_int, None, rt_int)
+    } else {
+        join(lf_int, t1.key, t1.val, rt_int)
+    }
+}
+
+fn diff<K: Clone + Ord, V: Clone>(
+    opt_t1: OptNode<K, V>,
+    opt_t2: OptNode<K, V>,
+) -> OptNode<K, V> {
+    if opt_t1.is_none() || opt_t2.is_none() {
+        return opt_t1; // *** EARLY RETURN ***
+    }
+
+    if Rc::as_ptr(opt_t1.as_ref().unwrap())
+        == Rc::as_ptr(opt_t2.as_ref().unwrap())
+    {
+        return None;
+    }
+
+    let t1 = match Rc::try_unwrap(opt_t1.unwrap()) {
+        Ok(n) => n,
+        Err(rc) => (*rc).clone(),
+    };
+
+    let (t2_lt, old_kv, t2_gt) = split(opt_t2, &t1.key);
+
+    let lf_diff = diff(t1.left, t2_lt);
+    let rt_diff = diff(t1.right, t2_gt);
+    if old_kv.is_none() {
+        join(lf_diff, t1.key, t1.val, rt_diff)
+    } else {
+        join2(lf_diff, None, rt_diff)
+    }
+}
+
 // Algorithm from wikipedia:
 //   if t1 = nil:
 //     return t2
@@ -615,6 +707,10 @@ fn union<K: Clone + Ord, V: Clone>(
         opt_t2
     } else if opt_t2.is_none() {
         opt_t1
+    } else if Rc::as_ptr(opt_t1.as_ref().unwrap())
+        == Rc::as_ptr(opt_t2.as_ref().unwrap())
+    {
+        return opt_t1;
     } else {
         let t1 = match Rc::try_unwrap(opt_t1.unwrap()) {
             Ok(n) => n,
@@ -848,17 +944,109 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         (lhs, orig_kv, rhs)
     }
 
-    /// Moves all entries of rhs in this map.
+    /// Removes entries with keys from the other map.
     ///
     /// # Examples
     /// ```
     /// use fun_collections::FunMap;
+    ///
+    /// let mut lhs = FunMap::from([(0,1), (1, 2)]);
+    /// let rhs = FunMap::from([(1,5), (3,4)]);
+    /// lhs.diff_with(rhs);
+    /// assert_eq!(lhs.get(&0), Some(&1));
+    /// assert_eq!(lhs.get(&1), None);
     /// ```
-    pub fn union_with(&mut self, mut rhs: Self) {
-        self.root = union(self.root.take(), rhs.root.take());
+    pub fn diff_with(&mut self, mut other: Self) {
+        self.root = diff(self.root.take(), other.root.take());
         self.len = len(&self.root);
     }
 
+    /// Builds a map with entries from the LHS map with keys that are not in the
+    /// RHS map.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunMap;
+    ///
+    /// let lhs = FunMap::from([(0,1), (1, 2)]);
+    /// let rhs = FunMap::from([(1,5), (3,4)]);
+    /// let d = FunMap::diff(&lhs, &rhs);
+    /// assert_eq!(d.get(&0), Some(&1));
+    /// assert_eq!(d.get(&1), None);
+    /// ```
+    pub fn diff(lhs: &Self, rhs: &Self) -> Self {
+        let mut lhs = lhs.clone();
+        lhs.diff_with(rhs.clone());
+        lhs
+    }
+
+    /// Discard entries that do not have a key from the other map.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunMap;
+    ///
+    /// let mut lhs = FunMap::from([(0,1), (1, 2)]);
+    /// let rhs = FunMap::from([(1,5), (3,4)]);
+    /// lhs.intersect_with(rhs);
+    /// assert_eq!(lhs.get(&0), None);
+    /// assert_eq!(lhs.get(&1), Some(&2));
+    /// ```
+    pub fn intersect_with(&mut self, mut other: Self) {
+        self.root = intersect(self.root.take(), other.root.take());
+        self.len = len(&self.root);
+    }
+
+    /// Creates a map with entries from the LHS that have keys in the RHS.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunMap;
+    ///
+    /// let lhs = FunMap::from([(0,1), (1, 2)]);
+    /// let rhs = FunMap::from([(1,5), (3,4)]);
+    /// let i = FunMap::intersect(&lhs, &rhs);
+    /// assert_eq!(i.get(&0), None);
+    /// assert_eq!(i.get(&1), Some(&2));
+    /// ```
+    pub fn intersect(lhs: &Self, rhs: &Self) -> Self {
+        let mut lhs = lhs.clone();
+        lhs.intersect_with(rhs.clone());
+        lhs
+    }
+
+    /// Adds the entries from other that don't have keys in this map.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunMap;
+    ///
+    /// let mut lhs = FunMap::from([(0,1), (1, 2)]);
+    /// let rhs = FunMap::from([(1,5), (3,4)]);
+    /// lhs.union_with(rhs);
+    /// assert_eq!(lhs.get(&0), Some(&1));
+    /// assert_eq!(lhs.get(&1), Some(&2));
+    /// assert_eq!(lhs.get(&3), Some(&4));
+    /// ```
+    pub fn union_with(&mut self, mut other: Self) {
+        self.root = union(self.root.take(), other.root.take());
+        self.len = len(&self.root);
+    }
+
+    /// Builds a map with entries from both maps, with entries from the LHS
+    /// taking precedence when a key appears in both maps.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunMap;
+    ///
+    /// let mut lhs = FunMap::from([(0,1), (1, 2)]);
+    /// let rhs = FunMap::from([(1,5), (3,4)]);
+    /// lhs.union_with(rhs);
+    /// assert_eq!(lhs.get(&0), Some(&1));
+    /// assert_eq!(lhs.get(&1), Some(&2));
+    /// assert_eq!(lhs.get(&3), Some(&4));
+    /// ```
     pub fn union(lhs: &Self, rhs: &Self) -> Self {
         let mut lhs = lhs.clone();
         lhs.union_with(rhs.clone());
