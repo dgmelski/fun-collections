@@ -469,6 +469,44 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         }
     }
 
+    /// Returns the key-value pair for the least key in the map
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunMap;
+    ///
+    /// let fmap = FunMap::from_iter([(2,0), (1,0)].into_iter());
+    /// assert_eq!(fmap.first_key_value(), Some((&1, &0)));
+    /// ```
+    pub fn first_key_value(&self) -> Option<(&K, &V)> {
+        let mut prev = &None;
+        let mut curr = &self.root;
+        while let Some(rc) = curr.as_ref() {
+            prev = curr;
+            curr = &rc.left;
+        }
+        prev.as_ref().map(|rc| (&rc.key, &rc.val))
+    }
+
+    /// Returns the key-value pair for the greatest key in the map
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunMap;
+    ///
+    /// let fmap = FunMap::from_iter([(2,0), (1,0)].into_iter());
+    /// assert_eq!(fmap.last_key_value(), Some((&2, &0)));
+    /// ```
+    pub fn last_key_value(&self) -> Option<(&K, &V)> {
+        let mut prev = &None;
+        let mut curr = &self.root;
+        while let Some(rc) = curr.as_ref() {
+            prev = curr;
+            curr = &rc.right;
+        }
+        prev.as_ref().map(|rc| (&rc.key, &rc.val))
+    }
+
     // TODO: generalize ala
     // https://doc.rust-lang.org/std/collections/struct.BTreeMap.html#method.get,
     // specifically, using type Q for the key.
