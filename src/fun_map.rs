@@ -511,13 +511,13 @@ impl<K: Clone + Ord, V: Clone> Default for FunMap<K, V> {
     }
 }
 
-pub struct Iter<'a, K: Clone, V: Clone> {
+pub struct Iter<'a, K, V> {
     // TODO: use FunStack for the spine. Vec will be more performant, but users
     // may expect our promise about "cheap cloning" to apply to the iterators.
     spine: Vec<&'a Rc<Node<K, V>>>,
 }
 
-impl<'a, K: Clone, V: Clone> Iterator for Iter<'a, K, V> {
+impl<'a, K, V> Iterator for Iter<'a, K, V> {
     type Item = (&'a K, &'a V);
 
     fn next(&mut self) -> Option<Self::Item> {
