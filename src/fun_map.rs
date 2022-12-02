@@ -631,17 +631,17 @@ enum NoMatchMergePolicy {
     Discard,
     Keep,
 }
-struct Merger<'a, K, V, F>
+struct Merger<K, V, F>
 where
     F: FnMut(Option<(K, V)>, Option<(K, V)>) -> Option<(K, V)>,
 {
     on_only_left: NoMatchMergePolicy,
     on_only_right: NoMatchMergePolicy,
-    merge_fn: &'a mut F,
-    entry_dummy: std::marker::PhantomData<(&'a K, &'a V)>,
+    deconflict: F,
+    entry_dummy: std::marker::PhantomData<(K, V)>,
 }
 
-impl<'a, K, V, F> Merger<'a, K, V, F>
+impl<K, V, F> Merger<K, V, F>
 where
     K: Clone + Ord,
     V: Clone,
@@ -669,8 +669,7 @@ where
         let (t2_lt, old_kv, t2_gt) = split(opt_t2, &t1.key);
         let lf_int = self.merge(t1.left, t2_lt);
         let rt_int = self.merge(t1.right, t2_gt);
-        let merge_fn = &mut self.merge_fn;
-        let old_kv = merge_fn(Some((t1.key, t1.val)), old_kv);
+        let old_kv = (self.deconflict)(Some((t1.key, t1.val)), old_kv);
         join2(lf_int, old_kv, rt_int)
     }
 }
@@ -682,7 +681,9 @@ fn intersect<K: Clone + Ord, V: Clone>(
     let mut merger = Merger {
         on_only_left: NoMatchMergePolicy::Discard,
         on_only_right: NoMatchMergePolicy::Discard,
-        merge_fn: &mut |lhs: Option<(K, V)>, rhs| rhs.and(lhs),
+        deconflict: &mut |lhs: Option<(K, V)>, rhs: Option<(K, V)>| {
+            rhs.and(lhs)
+        },
         entry_dummy: std::marker::PhantomData,
     };
 
@@ -696,7 +697,7 @@ fn diff<K: Clone + Ord, V: Clone>(
     let mut merger = Merger {
         on_only_left: NoMatchMergePolicy::Keep,
         on_only_right: NoMatchMergePolicy::Discard,
-        merge_fn: &mut |lhs: Option<(K, V)>, rhs| {
+        deconflict: &mut |lhs: Option<(K, V)>, rhs: Option<(K, V)>| {
             if rhs.is_none() {
                 lhs
             } else {
@@ -717,7 +718,7 @@ fn sym_diff<K: Clone + Ord, V: Clone>(
     let mut merger = Merger {
         on_only_left: NoMatchMergePolicy::Keep,
         on_only_right: NoMatchMergePolicy::Keep,
-        merge_fn: &mut |lhs: Option<(K, V)>, rhs| lhs.xor(rhs),
+        deconflict: &mut |lhs: Option<(K, V)>, rhs| lhs.xor(rhs),
         entry_dummy: std::marker::PhantomData,
     };
 
@@ -731,7 +732,7 @@ fn union<K: Clone + Ord, V: Clone>(
     let mut merger = Merger {
         on_only_left: NoMatchMergePolicy::Keep,
         on_only_right: NoMatchMergePolicy::Keep,
-        merge_fn: &mut |lhs: Option<(K, V)>, rhs| lhs.or(rhs),
+        deconflict: &mut |lhs: Option<(K, V)>, rhs| lhs.or(rhs),
         entry_dummy: std::marker::PhantomData,
     };
 
