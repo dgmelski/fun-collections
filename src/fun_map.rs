@@ -356,17 +356,18 @@ where
 
 // removes k from the map and returns the associated value and whether the
 // tree at root is shorter as a result of the deletion.
-fn rm<K, V>(root: &mut OptNode<K, V>, k: &K) -> (Option<V>, IsShorter)
+fn rm<K, V, Q>(root: &mut OptNode<K, V>, k: &Q) -> (Option<V>, IsShorter)
 where
-    K: Clone + Ord,
+    K: Borrow<Q> + Clone + Ord,
     V: Clone,
+    Q: Ord + ?Sized,
 {
     let n = match root.as_mut() {
         None => return (None, false), // *** EARLY RETURN ***
         Some(rc) => Rc::make_mut(rc),
     };
 
-    match k.cmp(&n.key) {
+    match k.cmp(n.key.borrow()) {
         Less => {
             let (v, is_shorter) = rm(&mut n.left, k);
             n.left_ht -= is_shorter as i8;
@@ -461,8 +462,12 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     /// assert_eq!(fmap.remove(&2), Some(3));
     /// assert_eq!(fmap.remove(&2), None);
     /// ```
-    pub fn remove(&mut self, k: &K) -> Option<V> {
-        if let (opt_v @ Some(_), _) = rm(&mut self.root, k) {
+    pub fn remove<Q>(&mut self, key: &Q) -> Option<V>
+    where
+        K: Borrow<Q> + Ord,
+        Q: Ord + ?Sized,
+    {
+        if let (opt_v @ Some(_), _) = rm(&mut self.root, key) {
             self.len -= 1;
             opt_v
         } else {
