@@ -19,23 +19,37 @@ struct Node<K, V> {
 }
 
 impl<K, V> Node<K, V> {
-    fn new(key: K, val: V) -> Self {
+    fn new(key: K, val: V, left: OptNode<K, V>, right: OptNode<K, V>) -> Self {
         Node {
             key,
             val,
-            left_ht: 0,
-            right_ht: 0,
-            left: None,
-            right: None,
+            left_ht: height(&left),
+            right_ht: height(&right),
+            left,
+            right,
         }
     }
 
-    #[inline]
+    fn opt_new(
+        k: K,
+        v: V,
+        l: OptNode<K, V>,
+        r: OptNode<K, V>,
+    ) -> OptNode<K, V> {
+        Some(Rc::new(Self::new(k, v, l, r)))
+    }
+
+    // Returns the "balance factor" of the node
     fn bal(&self) -> i8 {
         self.right_ht - self.left_ht
     }
 
-    #[inline]
+    // Is the given node balanced, that is -1 <= self.bal() <= 1 ?
+    fn is_bal(&self) -> bool {
+        // single-branch range inclusion check; requires unsigned wrap around
+        ((self.bal() + 1) as u8) < 2
+    }
+
     fn height(&self) -> i8 {
         self.left_ht.max(self.right_ht) + 1
     }
@@ -95,6 +109,10 @@ impl<K: Clone + Debug, V: Clone + Debug> Debug for FunMap<K, V> {
             }
         }
     }
+}
+
+fn height<K, V>(opt_node: &OptNode<K, V>) -> i8 {
+    opt_node.as_ref().map_or(0, |rc| rc.height())
 }
 
 // prerequisites:
@@ -293,7 +311,7 @@ where
 {
     let n = match root.as_mut() {
         None => {
-            *root = Some(Rc::new(Node::new(k, v)));
+            *root = Some(Rc::new(Node::new(k, v, None, None)));
             return (None, true); // *** EARLY RETURN ***
         }
 
