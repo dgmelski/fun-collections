@@ -600,6 +600,36 @@ fn join<K: Clone + Ord, V: Clone>(
     }
 }
 
+// Algorithm from wikipedia:
+//   if t1 = nil:
+//     return t2
+//   if t2 = nil:
+//     return t1
+//   (t<, b, t>) = Split(t2, t1.root)
+//   return Join(Union(left(t1), t<), t1.root, Union(right(t1), t>))
+fn union<K: Clone + Ord, V: Clone>(
+    opt_t1: OptNode<K, V>,
+    opt_t2: OptNode<K, V>,
+) -> OptNode<K, V> {
+    if opt_t1.is_none() {
+        opt_t2
+    } else if opt_t2.is_none() {
+        opt_t1
+    } else {
+        let t1 = match Rc::try_unwrap(opt_t1.unwrap()) {
+            Ok(n) => n,
+            Err(rc) => (*rc).clone(),
+        };
+        let (t2_lt, _, t2_gt) = split(opt_t2, &t1.key);
+        join(
+            union(t1.left, t2_lt),
+            t1.key,
+            t1.val,
+            union(t1.right, t2_gt),
+        )
+    }
+}
+
 fn split<K, V, Q>(
     opt_root: OptNode<K, V>,
     k: &Q,
@@ -816,6 +846,23 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         let mut lhs = map.clone();
         let (orig_kv, rhs) = lhs.split_off(key);
         (lhs, orig_kv, rhs)
+    }
+
+    /// Moves all entries of rhs in this map.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunMap;
+    /// ```
+    pub fn union_with(&mut self, mut rhs: Self) {
+        self.root = union(self.root.take(), rhs.root.take());
+        self.len = len(&self.root);
+    }
+
+    pub fn union(lhs: &Self, rhs: &Self) -> Self {
+        let mut lhs = lhs.clone();
+        lhs.union_with(rhs.clone());
+        lhs
     }
 
     /// Returns the key-value pair for the least key in the map
