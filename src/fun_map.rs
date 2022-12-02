@@ -140,6 +140,12 @@ fn height<K, V>(opt_node: &OptNode<K, V>) -> i8 {
     opt_node.as_ref().map_or(0, |rc| rc.height())
 }
 
+fn len<K, V>(opt_node: &OptNode<K, V>) -> usize {
+    opt_node
+        .as_ref()
+        .map_or(0, |r| len(&r.left) + 1 + len(&r.right))
+}
+
 // prerequisites:
 //   - opt_node.is_some()
 //   - opt_node.unwrap().get_mut().is_some() (the node is uniquely owned)
@@ -570,6 +576,42 @@ fn join<K: Clone + Ord, V: Clone>(
     }
 }
 
+fn split<K, V, Q>(
+    opt_root: OptNode<K, V>,
+    k: &Q,
+) -> (OptNode<K, V>, Option<(K, V)>, OptNode<K, V>)
+where
+    K: Borrow<Q> + Clone + Ord,
+    V: Clone,
+    Q: Ord,
+{
+    match opt_root {
+        None => (None, None, None),
+        Some(rc) => {
+            // To reuse the node, we'd have to pass it into join.  By moving
+            // pieces out of the node, we might avoid some cloning & Rc updates.
+            let n = match Rc::try_unwrap(rc) {
+                Ok(n) => n,
+                Err(rc) => (*rc).clone(),
+            };
+
+            match k.cmp(n.key.borrow()) {
+                Equal => (n.left, Some((n.key, n.val)), n.right),
+
+                Less => {
+                    let (l1, orig_kv, r1) = split(n.left, k);
+                    (l1, orig_kv, join(r1, n.key, n.val, n.right))
+                }
+
+                Greater => {
+                    let (l1, orig_kv, r1) = split(n.right, k);
+                    (join(n.left, n.key, n.val, l1), orig_kv, r1)
+                }
+            }
+        }
+    }
+}
+
 impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     pub fn new() -> Self {
         FunMap { len: 0, root: None }
@@ -653,6 +695,14 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         }
     }
 
+    pub fn join_with(&mut self, key: K, val: V, mut rhs: FunMap<K, V>) -> () {
+        assert!(self.last_key_value().map_or(true, |(k2, _)| *k2 < key));
+        assert!(rhs.first_key_value().map_or(true, |(k2, _)| key < *k2));
+
+        self.len += 1 + rhs.len();
+        self.root = join(self.root.take(), key, val, rhs.root.take());
+    }
+
     /// Build a map by joining with another map around a "pivot" key that is
     /// between our key values and the other maps key values.
     ///
@@ -683,12 +733,46 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         lhs
     }
 
-    pub fn join_with(&mut self, key: K, val: V, mut rhs: FunMap<K, V>) -> () {
-        assert!(self.last_key_value().map_or(true, |(k2, _)| *k2 < key));
-        assert!(rhs.first_key_value().map_or(true, |(k2, _)| key < *k2));
+    /// Moves all elements greater than a key into a new map and returns it and
+    /// the original key-value pair.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunMap;
+    ///
+    /// let mut fmap: FunMap<_, _> = (0..10).map(|i| (i, i * 2)).collect();
+    /// let (orig_kv, higher_fives) = fmap.split_off(&5);
+    /// assert_eq!(orig_kv, Some((5, 10)));
+    /// assert_eq!(fmap.get(&4), Some(&8));
+    /// assert_eq!(fmap.get(&6), None);
+    /// assert_eq!(higher_fives.get(&6), Some(&12));
+    /// ```
+    pub fn split_off<Q>(&mut self, key: &Q) -> (Option<(K, V)>, Self)
+    where
+        K: Borrow<Q>,
+        Q: Ord,
+    {
+        let (lhs, orig_kv, rhs) = split(self.root.take(), key);
+        self.len = len(&lhs);
+        self.root = lhs;
 
-        self.len += 1 + rhs.len();
-        self.root = join(self.root.take(), key, val, rhs.root.take());
+        let rhs_len = len(&rhs);
+        let rhs = FunMap {
+            len: rhs_len,
+            root: rhs,
+        };
+
+        (orig_kv, rhs)
+    }
+
+    pub fn make_split<Q>(&mut self, key: &Q) -> (Self, Option<(K, V)>, Self)
+    where
+        K: Borrow<Q>,
+        Q: Ord,
+    {
+        let mut lhs = self.clone();
+        let (orig_kv, rhs) = lhs.split_off(key);
+        (lhs, orig_kv, rhs)
     }
 
     /// Returns the key-value pair for the least key in the map
@@ -911,6 +995,15 @@ mod test {
         }
     }
 
+    fn split_test<K: Clone + Ord, V: Clone>(mut fmap: FunMap<K, V>, k: &K) {
+        let (kv, rhs) = fmap.split_off(&k);
+        chk_bal(&fmap.root);
+        chk_sort(&fmap);
+        assert!(kv.map_or(true, |(k2, _)| k2 == *k));
+        assert!(fmap.last_key_value().map_or(true, |(k2, _)| k2 < k));
+        assert!(rhs.first_key_value().map_or(true, |(k2, _)| k < k2));
+    }
+
     // systematically try deleting each element of fmap
     fn chk_all_removes(fmap: FunMap<u8, u8>) {
         for (k, v) in fmap.clone().iter() {
@@ -1033,6 +1126,28 @@ mod test {
             let f3 = f1.make_join(mid, 0, &f2);
             chk_bal(&f3.root);
             chk_sort(&f3);
+        }
+
+        fn qc_split_test(vs: Vec<(u8, u16)>) -> () {
+            let f1: FunMap<_, _> = vs.into_iter().collect();
+
+            // try extremum splits
+            split_test(f1.clone(), &u8::MIN);
+            split_test(f1.clone(), &u8::MAX);
+
+            if f1.is_empty() {
+                return;
+            }
+
+            let &lb = f1.first_key_value().unwrap().0;
+            let &ub = f1.last_key_value().unwrap().0;
+            for k in lb..=ub {
+                split_test(f1.clone(), &k);
+            }
+
+            // one final test on a map that has sole ownership of everything
+            let mid = lb + (ub - lb) / 2;
+            split_test(f1, &mid);
         }
     }
 }
