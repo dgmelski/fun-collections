@@ -1,5 +1,6 @@
 use std::cmp::Ordering::*;
 use std::fmt::{Debug, Formatter};
+use std::iter::FusedIterator;
 use std::mem::replace;
 use std::rc::Rc;
 
@@ -435,7 +436,10 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
             curr = n.left.as_ref();
         }
 
-        Iter { spine }
+        Iter {
+            spine,
+            len: self.len,
+        }
     }
 
     pub fn insert(&mut self, k: K, v: V) -> Option<V> {
@@ -515,6 +519,7 @@ pub struct Iter<'a, K, V> {
     // TODO: use FunStack for the spine. Vec will be more performant, but users
     // may expect our promise about "cheap cloning" to apply to the iterators.
     spine: Vec<&'a Rc<Node<K, V>>>,
+    len: usize,
 }
 
 impl<'a, K, V> Iterator for Iter<'a, K, V> {
@@ -522,6 +527,7 @@ impl<'a, K, V> Iterator for Iter<'a, K, V> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.spine.pop().map(|n| {
+            self.len -= 1;
             let entry = (&n.key, &n.val);
             let mut curr = n.right.as_ref();
             while let Some(m) = curr {
@@ -530,6 +536,12 @@ impl<'a, K, V> Iterator for Iter<'a, K, V> {
             }
             entry
         })
+    }
+}
+
+impl<'a, K, V> ExactSizeIterator for Iter<'a, K, V> {
+    fn len(&self) -> usize {
+        self.len
     }
 }
 
@@ -548,6 +560,8 @@ impl<K: Clone + Ord, V: Clone> FromIterator<(K, V)> for FunMap<K, V> {
         fmap
     }
 }
+
+impl<'a, K, V> FusedIterator for Iter<'a, K, V> {}
 
 #[cfg(test)]
 mod test {
@@ -694,6 +708,18 @@ mod test {
             (-14, 0),
             (-31, 0),
         ]);
+    }
+
+    #[test]
+    fn iter_len_test() {
+        let fmap: FunMap<_, _> = (0..10).map(|i| (i, ())).collect();
+
+        let mut iter = fmap.iter();
+        let mut cnt = 10;
+        while iter.next().is_some() {
+            assert_eq!(iter.len(), cnt - 1);
+            cnt -= 1;
+        }
     }
 
     quickcheck! {
