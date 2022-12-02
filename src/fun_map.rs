@@ -719,6 +719,11 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         }
     }
 
+    /// Join the RHS into this map.
+    ///
+    /// Requires:
+    ///    self.last_key_value().map_or(true, |(x,_)| x < key);
+    ///    rhs.first_key_value().map_or(true, |(y,_)| key < y);
     pub fn join_with(&mut self, key: K, val: V, mut rhs: FunMap<K, V>) -> () {
         assert!(self.last_key_value().map_or(true, |(k2, _)| *k2 < key));
         assert!(rhs.first_key_value().map_or(true, |(k2, _)| key < *k2));
@@ -727,32 +732,32 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         self.root = join(self.root.take(), key, val, rhs.root.take());
     }
 
-    /// Build a map by joining with another map around a "pivot" key that is
-    /// between our key values and the other maps key values.
+    /// Build a new map by joining two maps around a pivot key that divides the
+    /// entries of the maps.
     ///
-    /// The constructed map contains all our entries, all the other maps entries,
-    /// and the pivot key and the value provided for the pivot key.
+    /// The constructed map contains of the entries from both maps and the pivot
+    /// key and the value provided for the pivot key.
     ///
-    /// requires:
-    ///   self.last_key_value().map_or(true, |(m,_)| m < key);
-    ///   rhs.first_key_value().map_or(true, |(n,_)| key < n);
+    /// Requires:
+    ///    lhs.last_key_value().map_or(true, |(m,_)| m < key);
+    ///    rhs.first_key_value().map_or(true, |(n,_)| key < n);
     ///
     /// # Examples
     /// ```
     /// use fun_collections::FunMap;
     ///
-    /// let f3 = f1.make_join(2, 'c', &f2);
     /// let f1 = FunMap::from([(0, 'a'), (1, 'b')]);
     /// let f2 = FunMap::from([(3, 'd')]);
+    /// let f3 = FunMap::join(&f1, 2, 'c', &f2);
     /// assert_eq!(f3.get(&0), Some(&'a'));
     /// assert_eq!(f3.get(&2), Some(&'c'));
     /// assert_eq!(f3.get(&3), Some(&'d'));
     /// ```
-    pub fn make_join(&self, key: K, val: V, rhs: &FunMap<K, V>) -> Self {
-        assert!(self.last_key_value().map_or(true, |(k2, _)| *k2 < key));
+    pub fn join(lhs: &Self, key: K, val: V, rhs: &Self) -> Self {
+        assert!(lhs.last_key_value().map_or(true, |(k2, _)| *k2 < key));
         assert!(rhs.first_key_value().map_or(true, |(k2, _)| key < *k2));
 
-        let mut lhs = self.clone();
+        let mut lhs = lhs.clone();
         lhs.join_with(key, val, rhs.clone());
         lhs
     }
@@ -789,12 +794,26 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         (orig_kv, rhs)
     }
 
-    pub fn make_split<Q>(&mut self, key: &Q) -> (Self, Option<(K, V)>, Self)
+    /// Splits a map on a key returning one map with entries less than the key,
+    /// one map with entries greater than the key, and the entry corresponding
+    /// to the key.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunMap;
+    ///
+    /// let fmap = FunMap::from([(0,1),(1,2),(2,3)]);
+    /// let (lt, kv, gt) = FunMap::split(&fmap, &1);
+    /// assert_eq!(kv, Some((1, 2)));
+    /// assert_eq!(lt.get(&0), Some(&1));
+    /// assert_eq!(gt.get(&2), Some(&3));
+    /// ```
+    pub fn split<Q>(map: &Self, key: &Q) -> (Self, Option<(K, V)>, Self)
     where
         K: Borrow<Q>,
         Q: Ord,
     {
-        let mut lhs = self.clone();
+        let mut lhs = map.clone();
         let (orig_kv, rhs) = lhs.split_off(key);
         (lhs, orig_kv, rhs)
     }
@@ -1157,7 +1176,7 @@ mod test {
             let f1: FunMap<_, _> = v1.into_iter().enumerate().collect();
             let f2: FunMap<_, _> =
                 v2.into_iter().enumerate().map(|(i,v)| (i+mid+1, v)).collect();
-            let f3 = f1.make_join(mid, 0, &f2);
+            let f3 = FunMap::join(&f1, mid, 0, &f2);
             chk_bal(&f3.root);
             chk_sort(&f3);
         }
