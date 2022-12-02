@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::cmp::Ordering::*;
 use std::fmt::{Debug, Formatter};
 use std::iter::FusedIterator;
@@ -507,13 +508,25 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         prev.as_ref().map(|rc| (&rc.key, &rc.val))
     }
 
-    // TODO: generalize ala
-    // https://doc.rust-lang.org/std/collections/struct.BTreeMap.html#method.get,
-    // specifically, using type Q for the key.
-    pub fn get(&self, k: &K) -> Option<&V> {
+    /// Returns a reference to the value associated with k.
+    ///
+    /// # Example
+    /// ```
+    /// use fun_collections::FunMap;
+    ///
+    /// let mut fmap = FunMap::new();
+    /// fmap.insert(0, 100);
+    ///
+    /// assert_eq!(fmap.get(&0), Some(&100));
+    /// ```
+    pub fn get<Q>(&self, k: &Q) -> Option<&V>
+    where
+        K: Borrow<Q> + Ord,
+        Q: Ord + ?Sized,
+    {
         let mut curr = &self.root;
         while let Some(n) = curr {
-            match k.cmp(&n.key) {
+            match k.cmp(n.key.borrow()) {
                 Less => curr = &n.left,
                 Equal => return Some(&n.val),
                 Greater => curr = &n.right,
@@ -523,12 +536,27 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         None
     }
 
-    // Generalize for other key types, ala get()?
-    pub fn get_mut(&mut self, k: &K) -> Option<&mut V> {
+    /// Returns a reference to the value associated with k.
+    ///
+    /// # Example
+    /// ```
+    /// use fun_collections::FunMap;
+    ///
+    /// let mut fmap = FunMap::new();
+    /// fmap.insert(1, 7);
+    ///
+    /// *fmap.get_mut(&1).unwrap() = 2;
+    /// assert_eq!(fmap.get(&1), Some(&2));
+    /// ```
+    pub fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
+    where
+        K: Borrow<Q> + Ord,
+        Q: Ord + ?Sized,
+    {
         let mut curr = &mut self.root;
         while let Some(rc) = curr {
             let n = Rc::make_mut(rc);
-            match k.cmp(&n.key) {
+            match k.cmp(n.key.borrow()) {
                 Less => curr = &mut n.left,
                 Equal => return Some(&mut n.val),
                 Greater => curr = &mut n.right,
