@@ -9,6 +9,30 @@ type OptNode<K, V> = Option<Rc<Node<K, V>>>;
 type IsShorter = bool;
 type IsTaller = bool;
 
+/// Creates a FunMap from a list of tuples.
+///
+/// # Examples
+/// ```
+/// use fun_collections::{fun_map, FunMap};
+///
+/// let fmap = fun_map![(0,1), (2,7)];
+/// assert_eq!(fmap.get(&0), Some(&1));
+/// assert_eq!(fmap.get(&2), Some(&7));
+/// assert_eq!(fmap.get(&4), None);
+/// ```
+#[macro_export]
+macro_rules! fun_map {
+    ( $( $x:expr ),* ) => {
+        {
+            let mut fmap = FunMap::new();
+            $(
+                fmap.insert($x.0, $x.1);
+            )*
+            fmap
+        }
+    };
+}
+
 struct Node<K, V> {
     key: K,
     val: V,
@@ -717,9 +741,9 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     /// ```
     /// use fun_collections::FunMap;
     ///
-    /// let f1 = FunMap::from_iter([(0, 'a'), (1, 'b')]);
-    /// let f2 = FunMap::from_iter([(3, 'd')]);
     /// let f3 = f1.make_join(2, 'c', &f2);
+    /// let f1 = FunMap::from([(0, 'a'), (1, 'b')]);
+    /// let f2 = FunMap::from([(3, 'd')]);
     /// assert_eq!(f3.get(&0), Some(&'a'));
     /// assert_eq!(f3.get(&2), Some(&'c'));
     /// assert_eq!(f3.get(&3), Some(&'d'));
@@ -781,7 +805,7 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     /// ```
     /// use fun_collections::FunMap;
     ///
-    /// let fmap = FunMap::from_iter([(2,0), (1,0)].into_iter());
+    /// let fmap = FunMap::from([(2,0), (1,0)]);
     /// assert_eq!(fmap.first_key_value(), Some((&1, &0)));
     /// ```
     pub fn first_key_value(&self) -> Option<(&K, &V)> {
@@ -800,7 +824,7 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     /// ```
     /// use fun_collections::FunMap;
     ///
-    /// let fmap = FunMap::from_iter([(2,0), (1,0)].into_iter());
+    /// let fmap = FunMap::from([(2,0), (1,0)]);
     /// assert_eq!(fmap.last_key_value(), Some((&2, &0)));
     /// ```
     pub fn last_key_value(&self) -> Option<(&K, &V)> {
@@ -921,6 +945,16 @@ impl<K: Clone + Ord, V: Clone> Extend<(K, V)> for FunMap<K, V> {
         for (k, v) in iter {
             self.insert(k, v);
         }
+    }
+}
+
+impl<K, V, const N: usize> From<[(K, V); N]> for FunMap<K, V>
+where
+    K: Clone + Ord,
+    V: Clone,
+{
+    fn from(vs: [(K, V); N]) -> Self {
+        FunMap::from_iter(vs.into_iter())
     }
 }
 
