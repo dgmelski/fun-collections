@@ -10,7 +10,8 @@ type IsTaller = bool;
 struct Node<K, V> {
     key: K,
     val: V,
-    bal: i8, // "balance factor" = height(right) - height(left)
+    left_ht: i8,
+    right_ht: i8,
     left: OptNode<K, V>,
     right: OptNode<K, V>,
 }
@@ -20,10 +21,21 @@ impl<K, V> Node<K, V> {
         Node {
             key,
             val,
-            bal: 0,
+            left_ht: 0,
+            right_ht: 0,
             left: None,
             right: None,
         }
+    }
+
+    #[inline]
+    fn bal(&self) -> i8 {
+        self.right_ht - self.left_ht
+    }
+
+    #[inline]
+    fn height(&self) -> i8 {
+        self.left_ht.max(self.right_ht) + 1
     }
 }
 
@@ -32,7 +44,8 @@ impl<K: Clone, V: Clone> Clone for Node<K, V> {
         Node {
             key: self.key.clone(),
             val: self.val.clone(),
-            bal: self.bal,
+            left_ht: self.left_ht,
+            right_ht: self.right_ht,
             left: self.left.clone(),
             right: self.right.clone(),
         }
@@ -41,13 +54,12 @@ impl<K: Clone, V: Clone> Clone for Node<K, V> {
 
 impl<K: Clone + Debug, V: Clone + Debug> Debug for Node<K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("({{{:?}: {:?}}} ", self.key, self.val))?;
-
-        if self.bal == 0 {
-            f.write_str("=0 ")?;
-        } else {
-            f.write_fmt(format_args!("{:+} ", self.bal))?;
-        }
+        f.write_fmt(format_args!(
+            "(ht: {} {{{:?}: {:?}}} ",
+            self.height(),
+            self.key,
+            self.val
+        ))?;
 
         match &self.left {
             None => f.write_str(".")?,
@@ -107,21 +119,15 @@ fn rot_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> IsShorter {
     let b_rc = b_opt.as_mut().unwrap();
     let b = Rc::make_mut(b_rc);
 
-    // update the bal fields (while we have mutable access)
-    let b_was_bal = b.bal == 0;
-    if b.bal == 0 {
-        a.bal = 1;
-        b.bal = -1;
-    } else {
-        // b.bal == 1  -> ht(y) < ht(z)
-        a.bal = 0;
-        b.bal = 0;
-    }
+    // if b is balanced, the rotation will make a shorter tree
+    let b_was_bal = b.bal() == 0;
 
     // move y from b to a
+    a.right_ht = b.left_ht;
     a.right = b.left.take();
 
     // make a be b's left child
+    b.left_ht = a.height();
     b.left = a_opt;
 
     // install b as the new root
@@ -147,36 +153,6 @@ fn rot_rt_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> IsShorter {
     let c_rc = c_opt.as_mut().unwrap();
     let c = Rc::make_mut(c_rc);
 
-    // a right-left rotation is called for when:
-    //   * b is two taller than x
-    //   * c is one taller than w
-    // After the rotation, the final balances will depend on the heights
-    // of y and z.
-
-    // assert_eq!(
-    //     b.bal, -1,
-    //     "right-left rotation when .right.left child is not taller"
-    // );
-
-    // Update the bal fields while we have mutable access
-    match c.bal.cmp(&0) {
-        Equal => {
-            a.bal = 0;
-            b.bal = 0;
-        }
-
-        Greater => {
-            a.bal = -1;
-            b.bal = 0;
-        }
-
-        Less => {
-            a.bal = 0;
-            b.bal = 1;
-        }
-    }
-    c.bal = 0;
-
     // We need to take care not to overwrite any links before taking them.
     // With the unlinks we've done, we have
     //   a(x, None)
@@ -184,11 +160,17 @@ fn rot_rt_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> IsShorter {
     //   c(y, z)
 
     // move c's children to a and b
+    a.right_ht = c.left_ht;
     a.right = c.left.take();
+
+    b.left_ht = c.right_ht;
     b.left = c.right.take();
 
     // move a and b into c
+    c.left_ht = a.height();
     c.left = a_opt.take();
+
+    c.right_ht = b.height();
     c.right = b_opt.take();
 
     // install c as the new root
@@ -211,32 +193,18 @@ fn rot_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> IsShorter {
     let b_rc = b_opt.as_mut().unwrap();
     let b = Rc::make_mut(b_rc);
 
-    // Update the balances while we have mutable access.
-    // We are called when a.bal = -2, which means
-    //    ht(b) = ht(z) + 2
-    //    max(ht(x), ht(y)) + 1 = ht(z) + 2
-    //    max(ht(x), ht(y)) = ht(z) + 1
-    let b_was_bal = b.bal == 0;
-    if b.bal == 0 {
-        // ht(x) = ht(y) = ht(z) + 1
-        a.bal = -1; // because ht(y) > ht(z)
-        b.bal = 1; // because ht(a) = (ht(y) + 1) > ht(x) = ht(y)
-    } else {
-        // assert_eq!(b.bal, -1,);
-        // ht(x) = ht(y) + 1 = ht(z) + 1
-        // ht(y) = ht(z) < ht(x)
-        a.bal = 0;
-        b.bal = 0;
-    }
+    let b_was_bal = b.bal() == 0;
 
     // We have
     //   a(None, z)
     //   b(x, y)
 
     // move y from b to a
+    a.left_ht = b.right_ht;
     a.left = b.right.take();
 
     // move a into b
+    b.right_ht = a.height();
     b.right = a_opt.take();
 
     // install b as the new root
@@ -262,40 +230,21 @@ fn rot_lf_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> IsShorter {
     let c_rc = c_opt.as_mut().unwrap();
     let c = Rc::make_mut(c_rc);
 
-    // assert_eq!(b.bal, 1)
-    match c.bal.cmp(&0) {
-        Equal => {
-            a.bal = 0;
-            b.bal = 0;
-        }
-
-        Less => {
-            // ht(y) = ht(z) + 1
-            // ht(y) > ht(z)
-            // ht(x) = ht(y) = ht(w)
-            a.bal = 1;
-            b.bal = 0;
-        }
-
-        Greater => {
-            // ht(y) + 1 = ht(z)
-            // ht(y) < ht(z)
-            // ht(x) = ht(z) = ht(w)
-            a.bal = 0;
-            b.bal = -1;
-        }
-    }
-    c.bal = 0;
-
     // We have:
     //   a(None, w)
     //   b(x, None)
     //   c(y, z)
 
+    b.right_ht = c.left_ht;
     b.right = c.left.take(); // => b(x, y), c(None, z)
+
+    a.left_ht = c.right_ht;
     a.left = c.right.take(); // => a(z, w), c(None, None)
 
+    c.left_ht = b.height();
     c.left = b_opt; // => c(b(x, y), None)
+
+    c.right_ht = a.height();
     c.right = a_opt; // => c(b(x, y), a(z, w))
 
     *root = c_opt;
@@ -311,7 +260,7 @@ where
 {
     let n = Rc::get_mut(root.as_mut().unwrap()).unwrap();
 
-    if n.left.as_ref().unwrap().bal <= 0 {
+    if n.left.as_ref().unwrap().bal() <= 0 {
         rot_rt(root)
     } else {
         rot_lf_rt(root)
@@ -326,7 +275,7 @@ where
 {
     let n = Rc::get_mut(root.as_mut().unwrap()).unwrap();
 
-    if n.right.as_ref().unwrap().bal >= 0 {
+    if n.right.as_ref().unwrap().bal() >= 0 {
         rot_lf(root)
     } else {
         rot_rt_lf(root)
@@ -354,23 +303,23 @@ where
 
         Less => {
             let (old_v, is_taller) = ins(&mut n.left, k, v);
-            if is_taller && n.bal < 0 {
+            n.left_ht += is_taller as i8;
+            if is_taller && n.bal() < -1 {
                 rebal_lf_to_rt(root);
                 (old_v, false)
             } else {
-                n.bal -= is_taller as i8;
-                (old_v, is_taller && n.bal < 0)
+                (old_v, is_taller && n.bal() < 0)
             }
         }
 
         Greater => {
             let (old_v, is_taller) = ins(&mut n.right, k, v);
-            if is_taller && n.bal > 0 {
+            n.right_ht += is_taller as i8;
+            if is_taller && n.bal() > 1 {
                 rebal_rt_to_lf(root);
                 (old_v, false)
             } else {
-                n.bal += is_taller as i8;
-                (old_v, is_taller && n.bal > 0)
+                (old_v, is_taller && n.bal() > 0)
             }
         }
     }
@@ -390,11 +339,11 @@ where
 
     if n.left.is_some() {
         let (kv, is_shorter) = rm_leftmost(&mut n.left);
-        if is_shorter && n.bal > 0 {
+        n.left_ht -= is_shorter as i8;
+        if is_shorter && n.bal() > 1 {
             (kv, rebal_rt_to_lf(root))
         } else {
-            n.bal += is_shorter as i8;
-            (kv, is_shorter && n.bal == 0)
+            (kv, is_shorter && n.bal() == 0)
         }
     } else {
         let old_n = take_node(root);
@@ -418,21 +367,21 @@ where
     match k.cmp(&n.key) {
         Less => {
             let (v, is_shorter) = rm(&mut n.left, k);
-            if is_shorter && n.bal > 0 {
+            n.left_ht -= is_shorter as i8;
+            if is_shorter && n.bal() > 1 {
                 (v, rebal_rt_to_lf(root))
             } else {
-                n.bal += is_shorter as i8;
-                (v, is_shorter && n.bal == 0)
+                (v, is_shorter && n.bal() == 0)
             }
         }
 
         Greater => {
             let (v, is_shorter) = rm(&mut n.right, k);
-            if is_shorter && n.bal < 0 {
+            n.right_ht -= is_shorter as i8;
+            if is_shorter && n.bal() < -1 {
                 (v, rebal_lf_to_rt(root))
             } else {
-                n.bal -= is_shorter as i8;
-                (v, is_shorter && n.bal == 0)
+                (v, is_shorter && n.bal() == 0)
             }
         }
 
@@ -461,12 +410,12 @@ where
                 n.key = succ_key;
                 let old_val = replace(&mut n.val, succ_val);
 
-                if is_shorter && n.bal < 0 {
+                n.right_ht -= is_shorter as i8;
+                if is_shorter && n.bal() < -1 {
                     // we were taller on left and lost height on right
                     (Some(old_val), rebal_lf_to_rt(root))
                 } else {
-                    n.bal -= is_shorter as i8;
-                    (Some(old_val), is_shorter && n.bal == 0)
+                    (Some(old_val), is_shorter && n.bal() == 0)
                 }
             }
         },
@@ -610,10 +559,9 @@ mod test {
         match root {
             None => 0,
             Some(rc) => {
-                let rt_ht = chk_bal(&rc.right);
-                let lf_ht = chk_bal(&rc.left);
-                assert_eq!(rt_ht - lf_ht, rc.bal);
-                rt_ht.max(lf_ht) + 1
+                assert_eq!(rc.right_ht, chk_bal(&rc.right));
+                assert_eq!(rc.left_ht, chk_bal(&rc.left));
+                rc.height()
             }
         }
     }
@@ -629,7 +577,7 @@ mod test {
         let mut fmap = FunMap::new();
         for &(k, v) in vs.iter() {
             fmap.insert(k, v);
-            // println!("{:?}", fmap);
+            println!("{:?}", fmap);
             chk_bal(&fmap.root);
             chk_sort(&fmap);
         }
@@ -654,6 +602,7 @@ mod test {
                 }
             }
 
+            // println!("{:?}", fmap);
             assert!(fmap.iter().cmp(btree.iter()).is_eq());
             chk_bal(&fmap.root);
         }
@@ -729,6 +678,21 @@ mod test {
             (-102, 0),
             (10, 0),
             (-97, 0),
+        ]);
+    }
+
+    #[test]
+    fn rm_test_regr3() {
+        rm_test(vec![
+            (31, 0),
+            (14, 0),
+            (1, 0),
+            (15, 0),
+            (32, 0),
+            (16, 0),
+            (17, 0),
+            (-14, 0),
+            (-31, 0),
         ]);
     }
 
