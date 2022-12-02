@@ -53,6 +53,16 @@ impl<K, V> Node<K, V> {
     fn height(&self) -> i8 {
         self.left_ht.max(self.right_ht) + 1
     }
+
+    fn set_left(&mut self, rt: OptNode<K, V>) {
+        self.left_ht = height(&rt);
+        self.left = rt;
+    }
+
+    fn set_right(&mut self, rt: OptNode<K, V>) {
+        self.right_ht = height(&rt);
+        self.right = rt;
+    }
 }
 
 impl<K: Clone, V: Clone> Clone for Node<K, V> {
@@ -443,6 +453,111 @@ where
     }
 }
 
+#[allow(dead_code, unused)] // FIXME
+fn join_rt<K: Clone + Ord, V: Clone>(
+    left: &Rc<Node<K, V>>,
+    k: K,
+    v: V,
+    opt_right: &OptNode<K, V>,
+) -> OptNode<K, V> {
+    assert!(left.height() > height(opt_right) + 1);
+
+    // ultimately, we return a clone of left with the right branch replaced
+    let mut t2 = left.clone();
+    let t2n = Rc::make_mut(&mut t2);
+
+    let c = t2n.right.take();
+
+    if height(&c) <= height(opt_right) + 1 {
+        let opt_t1 = Node::opt_new(k, v, c, opt_right.clone());
+        t2n.set_right(opt_t1);
+
+        if t2n.is_bal() {
+            Some(t2)
+        } else {
+            if rot_rt(&mut t2n.right) {
+                t2n.right_ht -= 1;
+            }
+            let mut opt_t2 = Some(t2);
+            rot_lf(&mut opt_t2);
+            assert!(opt_t2.as_ref().unwrap().is_bal());
+            opt_t2
+        }
+    } else {
+        let opt_t1 = join_rt(c.as_ref().unwrap(), k, v, opt_right);
+        t2n.set_right(opt_t1);
+        let is_bal = t2n.is_bal();
+        let mut opt_t2 = Some(t2);
+        if !is_bal {
+            rot_lf(&mut opt_t2);
+        }
+
+        opt_t2
+    }
+}
+
+#[allow(dead_code, unused)] // FIXME
+fn join_lf<K: Clone + Ord, V: Clone>(
+    opt_left: &OptNode<K, V>,
+    k: K,
+    v: V,
+    right: &Rc<Node<K, V>>,
+) -> OptNode<K, V> {
+    assert!(right.height() > height(opt_left) + 1);
+
+    // ultimately, we return a clone of right with the left branch replaced
+    let mut t2 = right.clone();
+    let t2n = Rc::make_mut(&mut t2);
+
+    let c = t2n.left.take();
+
+    if height(&c) <= height(opt_left) + 1 {
+        let opt_t1 = Node::opt_new(k, v, opt_left.clone(), c);
+        t2n.set_left(opt_t1);
+
+        if t2n.is_bal() {
+            Some(t2)
+        } else {
+            if rot_lf(&mut t2n.left) {
+                t2n.left_ht -= 1;
+            }
+            let mut opt_t2 = Some(t2);
+            rot_rt(&mut opt_t2);
+            assert!(opt_t2.as_ref().unwrap().is_bal());
+            opt_t2
+        }
+    } else {
+        let opt_t1 = join_lf(opt_left, k, v, c.as_ref().unwrap());
+        t2n.set_left(opt_t1);
+        let is_bal = t2n.is_bal();
+        let mut opt_t2 = Some(t2);
+        if !is_bal {
+            rot_rt(&mut opt_t2);
+        }
+
+        opt_t2
+    }
+}
+
+// Creates a merge of disjoint trees and a key k that divides them.
+// Prereq: left.last_key() < k < right.first_key()
+#[allow(dead_code, unused)] // FIXME
+fn join<K: Clone + Ord, V: Clone>(
+    opt_left: &OptNode<K, V>,
+    k: K,
+    v: V,
+    opt_right: &OptNode<K, V>,
+) -> OptNode<K, V> {
+    let bal = height(opt_right) - height(opt_left);
+    if bal < -1 {
+        join_rt(opt_left.as_ref().unwrap(), k, v, opt_right)
+    } else if bal > 1 {
+        join_lf(opt_left, k, v, opt_right.as_ref().unwrap())
+    } else {
+        Node::opt_new(k, v, opt_left.clone(), opt_right.clone())
+    }
+}
+
 impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     pub fn new() -> Self {
         FunMap { len: 0, root: None }
@@ -490,6 +605,37 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
             opt_v
         } else {
             None
+        }
+    }
+
+    /// Build a map by joining with another map around a "pivot" key that is
+    /// between our key values and the other maps key values.
+    ///
+    /// The constructed map contains all our entries, all the other maps entries,
+    /// and the pivot key and the value provided for the pivot key.
+    ///
+    /// requires:
+    ///   self.last_key_value().map_or(true, |(m,_)| m < key);
+    ///   rhs.first_key_value().map_or(true, |(n,_)| key < n);
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunMap;
+    ///
+    /// let f1 = FunMap::from_iter([(0, 'a'), (1, 'b')]);
+    /// let f2 = FunMap::from_iter([(3, 'd')]);
+    /// let f3 = f1.join(2, 'c', &f2);
+    /// assert_eq!(f3.get(&0), Some(&'a'));
+    /// assert_eq!(f3.get(&2), Some(&'c'));
+    /// assert_eq!(f3.get(&3), Some(&'d'));
+    /// ```
+    pub fn join(&self, key: K, val: V, rhs: &FunMap<K, V>) -> Self {
+        assert!(self.last_key_value().map_or(true, |(k2, _)| *k2 < key));
+        assert!(rhs.first_key_value().map_or(true, |(k2, _)| key < *k2));
+
+        FunMap {
+            len: self.len() + 1 + rhs.len(),
+            root: join(&self.root, key, val, &rhs.root),
         }
     }
 
@@ -674,6 +820,8 @@ mod test {
             assert!(k1 < k2);
             n
         });
+
+        assert_eq!(fmap.iter().count(), fmap.len());
     }
 
     fn bal_test(vs: Vec<(u8, u32)>) {
@@ -823,6 +971,16 @@ mod test {
         fn qc_rm_test2(vs: Vec<(u8, u8)>) -> () {
             let fmap = vs.into_iter().collect();
             chk_all_removes(fmap);
+        }
+
+        fn qc_join_test(v1: Vec<u32>, v2: Vec<u32>) -> () {
+            let mid = v1.len();
+            let f1: FunMap<_, _> = v1.into_iter().enumerate().collect();
+            let f2: FunMap<_, _> =
+                v2.into_iter().enumerate().map(|(i,v)| (i+mid+1, v)).collect();
+            let f3 = f1.join(mid, 0, &f2);
+            chk_bal(&f3.root);
+            chk_sort(&f3);
         }
     }
 }
