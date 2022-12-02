@@ -63,6 +63,21 @@ impl<K, V> Node<K, V> {
         self.right_ht = height(&rt);
         self.right = rt;
     }
+
+    fn for_each_mut<F>(&mut self, g: &mut F) -> ()
+    where
+        K: Clone,
+        V: Clone,
+        F: FnMut(&K, &mut V),
+    {
+        self.left
+            .as_mut()
+            .map(|rc| Rc::make_mut(rc).for_each_mut(g));
+        g(&self.key, &mut self.val);
+        self.right
+            .as_mut()
+            .map(|rc| Rc::make_mut(rc).for_each_mut(g));
+    }
 }
 
 impl<K: Clone, V: Clone> Clone for Node<K, V> {
@@ -577,13 +592,46 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         }
     }
 
-    pub fn insert(&mut self, k: K, v: V) -> Option<V> {
-        let (ret, _) = ins(&mut self.root, k, v);
+    /// Applies a function to every key-value pair in the map.
+    ///
+    /// The passed function must take a reference to the key type and a mutable
+    /// reference to the value type.  Any shared nodes in the tree are cloned,
+    /// regardless of whether the contained values are mutated.
+    ///
+    /// This method provides partial compensation for the absence of iter_mut().
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunMap;
+    ///
+    /// let mut fmap = FunMap::new();
+    /// fmap.insert(0, "a");
+    /// fmap.for_each_mut(|_, v| *v = "b");
+    /// assert_eq!(fmap.get(&0), Some(&"b"));
+    /// ```
+    pub fn for_each_mut<F: FnMut(&K, &mut V)>(&mut self, mut f: F) -> () {
+        self.root
+            .as_mut()
+            .map(|rc| Rc::make_mut(rc).for_each_mut(&mut f));
+    }
+
+    /// Inserts a key-value pair in the map.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunMap;
+    ///
+    /// let mut fmap = FunMap::new();
+    /// fmap.insert(0, "a");
+    /// assert_eq!(fmap.get(&0), Some(&"a"));
+    /// ```
+    pub fn insert(&mut self, key: K, val: V) -> Option<V> {
+        let (ret, _) = ins(&mut self.root, key, val);
         self.len += ret.is_none() as usize;
         ret
     }
 
-    /// Removes a key from a map and returns the mapped value, if present.
+    /// Removes a key from a map and returns the unmapped value.
     ///
     /// # Examples
     /// ```
