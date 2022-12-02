@@ -626,104 +626,116 @@ fn join2<K: Clone + Ord, V: Clone>(
     }
 }
 
-// Algorithm for Union from wikipedia:
-//   if t1 = nil:
-//     return t2
-//   if t2 = nil:
-//     return t1
-//   (t<, b, t>) = Split(t2, t1.root)
-//   return Join(Union(left(t1), t<), t1.root, Union(right(t1), t>))
+#[derive(PartialEq, Eq)]
+enum NoMatchMergePolicy {
+    Discard,
+    Keep,
+}
+struct Merger<'a, K, V, F>
+where
+    F: FnMut(Option<(K, V)>, Option<(K, V)>) -> Option<(K, V)>,
+{
+    on_only_left: NoMatchMergePolicy,
+    on_only_right: NoMatchMergePolicy,
+    merge_fn: &'a mut F,
+    entry_dummy: std::marker::PhantomData<(&'a K, &'a V)>,
+}
+
+impl<'a, K, V, F> Merger<'a, K, V, F>
+where
+    K: Clone + Ord,
+    V: Clone,
+    F: FnMut(Option<(K, V)>, Option<(K, V)>) -> Option<(K, V)>,
+{
+    pub fn merge(
+        &mut self,
+        opt_t1: OptNode<K, V>,
+        opt_t2: OptNode<K, V>,
+    ) -> OptNode<K, V> {
+        use NoMatchMergePolicy::*;
+        match (&opt_t1, &opt_t2, &self.on_only_left, &self.on_only_right) {
+            (None, _, _, Keep) => return opt_t2,
+            (None, _, _, Discard) => return None,
+            (_, None, Keep, _) => return opt_t1,
+            (_, None, Discard, _) => return None,
+            _ => (),
+        }
+
+        let t1 = match Rc::try_unwrap(opt_t1.unwrap()) {
+            Ok(n) => n,
+            Err(rc) => (*rc).clone(),
+        };
+
+        let (t2_lt, old_kv, t2_gt) = split(opt_t2, &t1.key);
+        let lf_int = self.merge(t1.left, t2_lt);
+        let rt_int = self.merge(t1.right, t2_gt);
+        let merge_fn = &mut self.merge_fn;
+        let old_kv = merge_fn(Some((t1.key, t1.val)), old_kv);
+        join2(lf_int, old_kv, rt_int)
+    }
+}
+
 fn intersect<K: Clone + Ord, V: Clone>(
     opt_t1: OptNode<K, V>,
     opt_t2: OptNode<K, V>,
 ) -> OptNode<K, V> {
-    if opt_t1.is_none() || opt_t2.is_none() {
-        return None; // *** EARLY RETURN ***
-    }
-
-    if Rc::as_ptr(opt_t1.as_ref().unwrap())
-        == Rc::as_ptr(opt_t2.as_ref().unwrap())
-    {
-        return opt_t1;
-    }
-
-    let t1 = match Rc::try_unwrap(opt_t1.unwrap()) {
-        Ok(n) => n,
-        Err(rc) => (*rc).clone(),
+    let mut merger = Merger {
+        on_only_left: NoMatchMergePolicy::Discard,
+        on_only_right: NoMatchMergePolicy::Discard,
+        merge_fn: &mut |lhs: Option<(K, V)>, rhs| rhs.and(lhs),
+        entry_dummy: std::marker::PhantomData,
     };
 
-    let (t2_lt, old_kv, t2_gt) = split(opt_t2, &t1.key);
-    let lf_int = intersect(t1.left, t2_lt);
-    let rt_int = intersect(t1.right, t2_gt);
-    if old_kv.is_none() {
-        join2(lf_int, None, rt_int)
-    } else {
-        join(lf_int, t1.key, t1.val, rt_int)
-    }
+    merger.merge(opt_t1, opt_t2)
 }
 
 fn diff<K: Clone + Ord, V: Clone>(
     opt_t1: OptNode<K, V>,
     opt_t2: OptNode<K, V>,
 ) -> OptNode<K, V> {
-    if opt_t1.is_none() || opt_t2.is_none() {
-        return opt_t1; // *** EARLY RETURN ***
-    }
-
-    if Rc::as_ptr(opt_t1.as_ref().unwrap())
-        == Rc::as_ptr(opt_t2.as_ref().unwrap())
-    {
-        return None;
-    }
-
-    let t1 = match Rc::try_unwrap(opt_t1.unwrap()) {
-        Ok(n) => n,
-        Err(rc) => (*rc).clone(),
+    let mut merger = Merger {
+        on_only_left: NoMatchMergePolicy::Keep,
+        on_only_right: NoMatchMergePolicy::Discard,
+        merge_fn: &mut |lhs: Option<(K, V)>, rhs| {
+            if rhs.is_none() {
+                lhs
+            } else {
+                None
+            }
+        },
+        entry_dummy: std::marker::PhantomData,
     };
 
-    let (t2_lt, old_kv, t2_gt) = split(opt_t2, &t1.key);
-
-    let lf_diff = diff(t1.left, t2_lt);
-    let rt_diff = diff(t1.right, t2_gt);
-    if old_kv.is_none() {
-        join(lf_diff, t1.key, t1.val, rt_diff)
-    } else {
-        join2(lf_diff, None, rt_diff)
-    }
+    merger.merge(opt_t1, opt_t2)
 }
 
-// Algorithm from wikipedia:
-//   if t1 = nil:
-//     return t2
-//   if t2 = nil:
-//     return t1
-//   (t<, b, t>) = Split(t2, t1.root)
-//   return Join(Union(left(t1), t<), t1.root, Union(right(t1), t>))
+#[allow(dead_code)]
+fn sym_diff<K: Clone + Ord, V: Clone>(
+    opt_t1: OptNode<K, V>,
+    opt_t2: OptNode<K, V>,
+) -> OptNode<K, V> {
+    let mut merger = Merger {
+        on_only_left: NoMatchMergePolicy::Keep,
+        on_only_right: NoMatchMergePolicy::Keep,
+        merge_fn: &mut |lhs: Option<(K, V)>, rhs| lhs.xor(rhs),
+        entry_dummy: std::marker::PhantomData,
+    };
+
+    merger.merge(opt_t1, opt_t2)
+}
+
 fn union<K: Clone + Ord, V: Clone>(
     opt_t1: OptNode<K, V>,
     opt_t2: OptNode<K, V>,
 ) -> OptNode<K, V> {
-    if opt_t1.is_none() {
-        opt_t2
-    } else if opt_t2.is_none() {
-        opt_t1
-    } else if Rc::as_ptr(opt_t1.as_ref().unwrap())
-        == Rc::as_ptr(opt_t2.as_ref().unwrap())
-    {
-        return opt_t1;
-    } else {
-        let t1 = match Rc::try_unwrap(opt_t1.unwrap()) {
-            Ok(n) => n,
-            Err(rc) => (*rc).clone(),
-        };
-        let (t2_lt, _, t2_gt) = split(opt_t2, &t1.key);
-        join(
-            union(t1.left, t2_lt),
-            t1.key,
-            t1.val,
-            union(t1.right, t2_gt),
-        )
-    }
+    let mut merger = Merger {
+        on_only_left: NoMatchMergePolicy::Keep,
+        on_only_right: NoMatchMergePolicy::Keep,
+        merge_fn: &mut |lhs: Option<(K, V)>, rhs| lhs.or(rhs),
+        entry_dummy: std::marker::PhantomData,
+    };
+
+    merger.merge(opt_t1, opt_t2)
 }
 
 fn split<K, V, Q>(
@@ -1390,6 +1402,17 @@ mod test {
             assert_eq!(iter.len(), cnt - 1);
             cnt -= 1;
         }
+    }
+
+    #[test]
+    fn intersect_test() {
+        let mut lhs = FunMap::from([(0, 1), (1, 2)]);
+        let rhs = FunMap::from([(1, 5), (3, 4)]);
+        println!("{:?}", lhs);
+        println!("{:?}", rhs);
+        lhs.intersect_with(rhs);
+        assert_eq!(lhs.get(&0), None);
+        assert_eq!(lhs.get(&1), Some(&2));
     }
 
     quickcheck! {
