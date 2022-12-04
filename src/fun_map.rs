@@ -13,15 +13,15 @@ type IsTaller = bool;
 ///
 /// # Examples
 /// ```
-/// use fun_collections::{fun_map, FunMap};
+/// use fun_collections::{fmap, FunMap};
 ///
-/// let fmap = fun_map![(0,1), (2,7)];
+/// let fmap = fmap![(0,1), (2,7)];
 /// assert_eq!(fmap.get(&0), Some(&1));
 /// assert_eq!(fmap.get(&2), Some(&7));
 /// assert_eq!(fmap.get(&4), None);
 /// ```
 #[macro_export]
-macro_rules! fun_map {
+macro_rules! fmap {
     ( $( $x:expr ),* ) => {
         {
             let mut fmap = FunMap::new();
