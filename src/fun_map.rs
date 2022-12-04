@@ -71,7 +71,7 @@ impl<K, V> Node<K, V> {
     // Is the given node balanced, that is -1 <= self.bal() <= 1 ?
     fn is_bal(&self) -> bool {
         // single-branch range inclusion check; requires unsigned wrap around
-        ((self.bal() + 1) as u8) < 2
+        ((self.bal() + 1) as u8) <= 2
     }
 
     fn height(&self) -> i8 {
