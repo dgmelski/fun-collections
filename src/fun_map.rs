@@ -37,7 +37,7 @@ macro_rules! fmap {
 macro_rules! chk_node {
     ( $x:expr ) => {{
         let n = $x;
-        chk(&n);
+        chk(&n, None);
         n
     }};
 }
@@ -113,20 +113,29 @@ impl<K, V> Node<K, V> {
     }
 }
 
-impl<K: Ord, V> Node<K, V> {
+impl<K: Clone + Ord, V> Node<K, V> {
     #[cfg(test)]
-    fn chk(&self) -> usize {
-        // NB: These checks do not ensure proper ordering, but they're cheap.
-        // For example, you could have self.key < self.left.right.key.
-        self.left.as_ref().map(|r| assert!(r.key < self.key));
-        self.right.as_ref().map(|r| assert!(r.key > self.key));
+    fn chk(&self, greatest: Option<K>) -> (usize, Option<K>) {
+        // is our node in order with left-side ancestors?
+        assert!(greatest.iter().all(|k| k < &self.key));
 
+        // do we know the heights of our children?
         assert_eq!(height(&self.left), self.left_ht);
         assert_eq!(height(&self.right), self.right_ht);
 
+        // are we balanced?
         assert!(self.is_bal());
 
-        chk(&self.left) + chk(&self.right)
+        // are our left descendents okay?
+        let (lf_len, greatest) = chk(&self.left, greatest);
+
+        // are our left descendents all less than us?
+        assert!(greatest.iter().all(|k| k < &self.key));
+
+        // are our right descendents okay?
+        let (rt_len, greatest) = chk(&self.right, Some(self.key.clone()));
+
+        (lf_len + rt_len + 1, greatest)
     }
 
     #[allow(dead_code)]
@@ -201,12 +210,18 @@ fn len<K, V>(opt_node: &OptNode<K, V>) -> usize {
 }
 
 #[cfg(test)]
-fn chk<K: Ord, V>(opt_node: &OptNode<K, V>) -> usize {
-    opt_node.as_ref().map_or(0, |r| r.chk() + 1)
+fn chk<K: Clone + Ord, V>(
+    opt_node: &OptNode<K, V>,
+    greatest: Option<K>,
+) -> (usize, Option<K>) {
+    match opt_node.as_ref() {
+        None => (0, greatest),
+        Some(n) => n.chk(greatest),
+    }
 }
 
 #[cfg(not(test))]
-fn chk<K: Ord, V>(_: &OptNode<K, V>) -> () {}
+fn chk<K, V>(_: &OptNode<K, V>, _: Option<K>) -> () {}
 
 // prerequisites:
 //   - opt_node.is_some()
@@ -1043,6 +1058,7 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     pub fn intersect_with(&mut self, mut other: Self) {
         self.root = intersect(self.root.take(), other.root.take());
         self.len = len(&self.root);
+        self.chk();
     }
 
     /// Creates a map with entries from the LHS that have keys in the RHS.
@@ -1215,7 +1231,7 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
 
     #[cfg(test)]
     fn chk(&self) {
-        assert_eq!(self.len, chk(&self.root));
+        assert_eq!(self.len, chk(&self.root, None).0);
     }
 
     #[cfg(not(test))]
