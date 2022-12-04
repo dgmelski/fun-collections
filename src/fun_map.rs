@@ -697,7 +697,7 @@ enum NoMatchMergePolicy {
 }
 struct Merger<K, V, F>
 where
-    F: FnMut(Option<(K, V)>, Option<(K, V)>) -> Option<(K, V)>,
+    F: FnMut((K, V), (K, V)) -> Option<(K, V)>,
 {
     on_only_left: NoMatchMergePolicy,
     on_only_right: NoMatchMergePolicy,
@@ -709,7 +709,7 @@ impl<K, V, F> Merger<K, V, F>
 where
     K: Clone + Ord,
     V: Clone,
-    F: FnMut(Option<(K, V)>, Option<(K, V)>) -> Option<(K, V)>,
+    F: FnMut((K, V), (K, V)) -> Option<(K, V)>,
 {
     pub fn merge(
         &mut self,
@@ -730,10 +730,14 @@ where
             Err(rc) => (*rc).clone(),
         };
 
-        let (t2_lt, old_kv, t2_gt) = split(opt_t2, &t1.key);
+        let (t2_lt, t2_kv, t2_gt) = split(opt_t2, &t1.key);
         let lf_int = self.merge(t1.left, t2_lt);
         let rt_int = self.merge(t1.right, t2_gt);
-        let kv = (self.deconflict)(Some((t1.key, t1.val)), old_kv);
+        let kv = match (t2_kv, &self.on_only_left) {
+            (None, Keep) => Some((t1.key, t1.val)),
+            (None, Discard) => None,
+            (Some(t2_kv), _) => (self.deconflict)((t1.key, t1.val), t2_kv),
+        };
         join2(lf_int, kv, rt_int)
     }
 }
@@ -745,9 +749,7 @@ fn intersect<K: Clone + Ord, V: Clone>(
     let mut merger = Merger {
         on_only_left: NoMatchMergePolicy::Discard,
         on_only_right: NoMatchMergePolicy::Discard,
-        deconflict: &mut |lhs: Option<(K, V)>, rhs: Option<(K, V)>| {
-            rhs.and(lhs)
-        },
+        deconflict: &mut |lhs, _| Some(lhs),
         entry_dummy: std::marker::PhantomData,
     };
 
@@ -761,13 +763,7 @@ fn diff<K: Clone + Ord, V: Clone>(
     let mut merger = Merger {
         on_only_left: NoMatchMergePolicy::Keep,
         on_only_right: NoMatchMergePolicy::Discard,
-        deconflict: &mut |lhs: Option<(K, V)>, rhs: Option<(K, V)>| {
-            if rhs.is_none() {
-                lhs
-            } else {
-                None
-            }
-        },
+        deconflict: &mut |_, _| None,
         entry_dummy: std::marker::PhantomData,
     };
 
@@ -782,7 +778,7 @@ fn sym_diff<K: Clone + Ord, V: Clone>(
     let mut merger = Merger {
         on_only_left: NoMatchMergePolicy::Keep,
         on_only_right: NoMatchMergePolicy::Keep,
-        deconflict: &mut |lhs: Option<(K, V)>, rhs| lhs.xor(rhs),
+        deconflict: &mut |_, _| None,
         entry_dummy: std::marker::PhantomData,
     };
 
@@ -796,7 +792,7 @@ fn union<K: Clone + Ord, V: Clone>(
     let mut merger = Merger {
         on_only_left: NoMatchMergePolicy::Keep,
         on_only_right: NoMatchMergePolicy::Keep,
-        deconflict: &mut |lhs: Option<(K, V)>, rhs| lhs.or(rhs),
+        deconflict: &mut |lhs, _| Some(lhs),
         entry_dummy: std::marker::PhantomData,
     };
 
