@@ -662,16 +662,7 @@ fn join2<K: Clone + Ord, V: Clone>(
     } else if opt_right.is_none() {
         opt_left
     } else {
-        // temporarily wrap opt_right in a FunMap so we can take the least kv
-        let mut rhs = FunMap {
-            len: usize::MAX, // wrong, but safe
-            root: opt_right,
-        };
-        let k = rhs.first_key_value().unwrap().0.clone();
-        let v = rhs.remove(&k).unwrap();
-
-        let opt_right = rhs.root;
-
+        let (k, v) = rm_leftmost(&mut opt_right).0.unwrap();
         join(opt_left, k, v, opt_right)
     }
 }
@@ -1500,6 +1491,14 @@ mod test {
         let mut vs2 = vec![(9, 0), (1, 0), (10, 0), (11, 0), (12, 0), (3, 0)];
         vs2.extend([(4, 0), (13, 0), (6, 0), (2, 0), (7, 0), (8, 0), (5, 0)]);
         intersection_test(vs1, vs2)
+    }
+
+    #[test]
+    fn intersection_regr3() {
+        intersection_test(
+            vec![(1, 0), (255, 0), (0, 0)],
+            vec![(0, 0), (255, 0)],
+        );
     }
 
     quickcheck! {
