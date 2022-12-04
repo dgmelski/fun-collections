@@ -1495,6 +1495,34 @@ mod test {
         }
     }
 
+    fn union_test(v1: TestEntries, v2: TestEntries) -> () {
+        let f1 = FunMap::from_iter(v1.into_iter());
+        let f2 = FunMap::from_iter(v2.into_iter());
+        let either = FunMap::union(&f1, &f2);
+
+        assert!(either.iter().all(|(k, _)| f1.contains(k) || f2.contains(k)));
+        f1.iter()
+            .for_each(|(k, v)| assert_eq!(Some(v), either.get(k)));
+        f2.iter().for_each(|(k, _)| assert!(either.contains(k)));
+    }
+
+    fn diff_test(v1: TestEntries, v2: TestEntries) -> () {
+        let f1 = FunMap::from_iter(v1.into_iter());
+        let f2 = FunMap::from_iter(v2.into_iter());
+        let diff = FunMap::diff(&f1, &f2);
+
+        for (k, v) in diff.iter() {
+            assert_eq!(f1.get(k), Some(v));
+            assert!(!f2.contains(k));
+        }
+
+        for (k, v) in f1.iter() {
+            assert!(f2.contains(k) || diff.get(k) == Some(v));
+        }
+
+        assert!(f2.iter().all(|(k, _)| !diff.contains(k)));
+    }
+
     #[test]
     fn intersection_regr1() {
         let vs1 = vec![(5, 0), (6, 0)];
@@ -1567,7 +1595,15 @@ mod test {
         }
 
         fn qc_intersection_test(v1: TestEntries, v2: TestEntries) -> () {
-            intersection_test(v1, v2)
+            intersection_test(v1, v2);
+        }
+
+        fn qc_union_test(v1: TestEntries, v2: TestEntries) -> () {
+            union_test(v1, v2);
+        }
+
+        fn qc_diff_test(v1: TestEntries, v2: TestEntries) -> () {
+            diff_test(v1, v2);
         }
     }
 }
