@@ -33,12 +33,38 @@ macro_rules! fmap {
     };
 }
 
+#[cfg(test)]
 #[macro_export]
 macro_rules! chk_node {
     ( $x:expr ) => {{
         let n = $x;
         chk(&n, None);
         n
+    }};
+}
+
+#[cfg(test)]
+#[macro_export]
+macro_rules! chk_map {
+    ( $x:expr ) => {{
+        let n = $x;
+        let chk_len = chk(&n.root, None).0;
+        assert_eq!(chk_len, n.len);
+        n
+    }};
+}
+
+#[cfg(not(test))]
+macro_rules! chk_node {
+    ( $x:expr ) => {{
+        $x
+    }};
+}
+
+#[cfg(not(test))]
+macro_rules! chk_map {
+    ( $x: expr ) => {{
+        $x
     }};
 }
 
@@ -219,9 +245,6 @@ fn chk<K: Clone + Ord, V>(
         Some(n) => n.chk(greatest),
     }
 }
-
-#[cfg(not(test))]
-fn chk<K, V>(_: &OptNode<K, V>, _: Option<K>) -> () {}
 
 // prerequisites:
 //   - opt_node.is_some()
@@ -653,7 +676,7 @@ fn join<K: Clone + Ord, V: Clone>(
 fn join2<K: Clone + Ord, V: Clone>(
     opt_left: OptNode<K, V>,
     opt_kv: Option<(K, V)>,
-    opt_right: OptNode<K, V>,
+    mut opt_right: OptNode<K, V>,
 ) -> OptNode<K, V> {
     if let Some(kv) = opt_kv {
         join(opt_left, kv.0, kv.1, opt_right)
@@ -893,6 +916,7 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     {
         if let (opt_v @ Some(_), _) = rm(&mut self.root, key) {
             self.len -= 1;
+            chk_map!(&self);
             opt_v
         } else {
             None
@@ -1049,7 +1073,6 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     pub fn intersect_with(&mut self, mut other: Self) {
         self.root = intersect(self.root.take(), other.root.take());
         self.len = len(&self.root);
-        self.chk();
     }
 
     /// Creates a map with entries from the LHS that have keys in the RHS.
@@ -1224,9 +1247,6 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     fn chk(&self) {
         assert_eq!(self.len, chk(&self.root, None).0);
     }
-
-    #[cfg(not(test))]
-    fn chk(&self) {}
 }
 
 impl<K: Clone + Ord, V: Clone> Default for FunMap<K, V> {
