@@ -1104,6 +1104,14 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         prev.as_ref().map(|rc| (&rc.key, &rc.val))
     }
 
+    pub fn contains<Q>(&self, k: &Q) -> bool
+    where
+        K: Borrow<Q> + Ord,
+        Q: Ord + ?Sized,
+    {
+        self.get(k).is_some()
+    }
+
     /// Returns a reference to the value associated with k.
     ///
     /// # Example
