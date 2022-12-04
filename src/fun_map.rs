@@ -1054,6 +1054,44 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         lhs
     }
 
+    /// Removes entries with keys from the other map.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunMap;
+    ///
+    /// let mut lhs = FunMap::from([(0,1), (1, 2)]);
+    /// let rhs = FunMap::from([(1,5), (3,4)]);
+    /// lhs.sym_diff_with(rhs);
+    /// assert_eq!(lhs.get(&0), Some(&1));
+    /// assert_eq!(lhs.get(&1), None);
+    /// assert_eq!(lhs.get(&3), Some(&4));
+    /// ```
+    pub fn sym_diff_with(&mut self, mut other: Self) {
+        self.root = sym_diff(self.root.take(), other.root.take());
+        self.len = len(&self.root);
+    }
+
+    /// Builds a map with entries from the LHS map with keys that are not in the
+    /// RHS map.
+    ///
+    /// # Examples
+    /// ```
+    /// use fun_collections::FunMap;
+    ///
+    /// let lhs = FunMap::from([(0,1), (1, 2)]);
+    /// let rhs = FunMap::from([(1,5), (3,4)]);
+    /// let d = FunMap::sym_diff(&lhs, &rhs);
+    /// assert_eq!(d.get(&0), Some(&1));
+    /// assert_eq!(d.get(&1), None);
+    /// assert_eq!(d.get(&3), Some(&4));
+    /// ```
+    pub fn sym_diff(lhs: &Self, rhs: &Self) -> Self {
+        let mut lhs = lhs.clone();
+        lhs.sym_diff_with(rhs.clone());
+        lhs
+    }
+
     /// Discard entries that do not have a key from the other map.
     ///
     /// # Examples
@@ -1519,6 +1557,28 @@ mod test {
         assert!(f2.iter().all(|(k, _)| !diff.contains(k)));
     }
 
+    fn sym_diff_test(v1: TestEntries, v2: TestEntries) -> () {
+        let f1 = FunMap::from_iter(v1.into_iter());
+        let f2 = FunMap::from_iter(v2.into_iter());
+        let sym_diff = FunMap::sym_diff(&f1, &f2);
+
+        for (k, v) in sym_diff.iter() {
+            if !f2.contains(k) {
+                assert_eq!(f1.get(k), Some(v));
+            } else {
+                assert_eq!(f2.get(k), Some(v));
+            }
+        }
+
+        for (k, v) in f1.iter() {
+            assert!(f2.contains(k) || sym_diff.get(k) == Some(v));
+        }
+
+        for (k, v) in f2.iter() {
+            assert!(f1.contains(k) || sym_diff.get(k) == Some(v));
+        }
+    }
+
     #[test]
     fn intersection_regr1() {
         let vs1 = vec![(5, 0), (6, 0)];
@@ -1600,6 +1660,10 @@ mod test {
 
         fn qc_diff_test(v1: TestEntries, v2: TestEntries) -> () {
             diff_test(v1, v2);
+        }
+
+        fn qc_sym_diff_test(v1: TestEntries, v2: TestEntries) -> () {
+            sym_diff_test(v1, v2);
         }
     }
 }
