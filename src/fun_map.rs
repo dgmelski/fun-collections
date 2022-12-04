@@ -669,8 +669,8 @@ where
         let (t2_lt, old_kv, t2_gt) = split(opt_t2, &t1.key);
         let lf_int = self.merge(t1.left, t2_lt);
         let rt_int = self.merge(t1.right, t2_gt);
-        let old_kv = (self.deconflict)(Some((t1.key, t1.val)), old_kv);
-        join2(lf_int, old_kv, rt_int)
+        let kv = (self.deconflict)(Some((t1.key, t1.val)), old_kv);
+        join2(lf_int, kv, rt_int)
     }
 }
 
