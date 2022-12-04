@@ -1308,33 +1308,12 @@ mod test {
     use super::*;
     use quickcheck::quickcheck;
 
-    fn chk_bal<K: Clone, V: Clone>(root: &OptNode<K, V>) -> i8 {
-        match root {
-            None => 0,
-            Some(rc) => {
-                assert_eq!(rc.right_ht, chk_bal(&rc.right));
-                assert_eq!(rc.left_ht, chk_bal(&rc.left));
-                rc.height()
-            }
-        }
-    }
-
-    fn chk_sort<K: Clone + Ord, V: Clone>(fmap: &FunMap<K, V>) {
-        fmap.iter().reduce(|(k1, _), n @ (k2, _)| {
-            assert!(k1 < k2);
-            n
-        });
-
-        assert_eq!(fmap.iter().count(), fmap.len());
-    }
-
     fn bal_test(vs: Vec<(u8, u32)>) {
         let mut fmap = FunMap::new();
         for &(k, v) in vs.iter() {
             fmap.insert(k, v);
             println!("{:?}", fmap);
-            chk_bal(&fmap.root);
-            chk_sort(&fmap);
+            fmap.chk();
         }
     }
 
@@ -1359,14 +1338,14 @@ mod test {
 
             // println!("{:?}", fmap);
             assert!(fmap.iter().cmp(btree.iter()).is_eq());
-            chk_bal(&fmap.root);
+            fmap.chk();
         }
     }
 
     fn split_test<K: Clone + Ord, V: Clone>(mut fmap: FunMap<K, V>, k: &K) {
         let (kv, rhs) = fmap.split_off(&k);
-        chk_bal(&fmap.root);
-        chk_sort(&fmap);
+        fmap.chk();
+        rhs.chk();
         assert!(kv.map_or(true, |(k2, _)| k2 == *k));
         assert!(fmap.last_key_value().map_or(true, |(k2, _)| k2 < k));
         assert!(rhs.first_key_value().map_or(true, |(k2, _)| k < k2));
@@ -1377,8 +1356,7 @@ mod test {
         for (k, v) in fmap.clone().iter() {
             let mut fmap2 = fmap.clone();
             assert_eq!(fmap2.remove(k), Some(*v));
-            chk_bal(&fmap2.root);
-            chk_sort(&fmap2);
+            fmap2.chk();
         }
     }
 
@@ -1544,8 +1522,7 @@ mod test {
             let f2: FunMap<_, _> =
                 v2.into_iter().enumerate().map(|(i,v)| (i+mid+1, v)).collect();
             let f3 = FunMap::join(&f1, mid, 0, &f2);
-            chk_bal(&f3.root);
-            chk_sort(&f3);
+            f3.chk();
         }
 
         fn qc_split_test(vs: Vec<(u8, u16)>) -> () {
