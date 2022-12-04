@@ -1424,6 +1424,47 @@ mod test {
         assert_eq!(lhs.get(&1), Some(&2));
     }
 
+    type TestEntries = Vec<(u8, u16)>;
+
+    fn intersection_test(v1: TestEntries, v2: TestEntries) -> () {
+        let f1 = FunMap::from_iter(v1.into_iter());
+        let f2 = FunMap::from_iter(v2.into_iter());
+        let both = FunMap::intersect(&f1, &f2);
+
+        for (k, v) in both.iter() {
+            assert_eq!(f1.get(k), Some(v));
+            assert!(f2.contains(k));
+        }
+
+        for (k, v) in f1.iter() {
+            if f2.contains(k) {
+                assert_eq!(both.get(k), Some(v));
+            }
+        }
+
+        for (k, _) in f2.iter() {
+            assert_eq!(f1.contains(k), both.contains(k));
+        }
+    }
+
+    #[test]
+    fn intersection_regr1() {
+        let vs1 = vec![(5, 0), (6, 0)];
+        let mut vs2 = vec![(4, 0), (0, 0), (12, 0), (1, 0), (13, 0), (7, 0)];
+        vs2.extend([(8, 0), (2, 0), (3, 0), (15, 0), (5, 0), (16, 0), (14, 0)]);
+        vs2.extend([(9, 0), (17, 0), (10, 0), (18, 0), (6, 0)]);
+        vs2.extend([(11, 0), (19, 0)]);
+        intersection_test(vs1, vs2)
+    }
+
+    #[test]
+    fn intersection_regr2() {
+        let vs1 = vec![(11, 0), (12, 0), (0, 0), (5, 0)];
+        let mut vs2 = vec![(9, 0), (1, 0), (10, 0), (11, 0), (12, 0), (3, 0)];
+        vs2.extend([(4, 0), (13, 0), (6, 0), (2, 0), (7, 0), (8, 0), (5, 0)]);
+        intersection_test(vs1, vs2)
+    }
+
     quickcheck! {
         fn qc_bal_test(vs: Vec<(u8, u32)>) -> () {
             bal_test(vs);
@@ -1468,6 +1509,10 @@ mod test {
             // one final test on a map that has sole ownership of everything
             let mid = lb + (ub - lb) / 2;
             split_test(f1, &mid);
+        }
+
+        fn qc_intersection_test(v1: TestEntries, v2: TestEntries) -> () {
+            intersection_test(v1, v2)
         }
     }
 }
