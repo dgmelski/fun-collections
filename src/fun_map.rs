@@ -33,6 +33,15 @@ macro_rules! fmap {
     };
 }
 
+#[macro_export]
+macro_rules! chk_node {
+    ( $x:expr ) => {{
+        let n = $x;
+        chk(&n);
+        n
+    }};
+}
+
 struct Node<K, V> {
     key: K,
     val: V,
@@ -104,6 +113,27 @@ impl<K, V> Node<K, V> {
     }
 }
 
+impl<K: Ord, V> Node<K, V> {
+    #[cfg(test)]
+    fn chk(&self) -> usize {
+        // NB: These checks do not ensure proper ordering, but they're cheap.
+        // For example, you could have self.key < self.left.right.key.
+        self.left.as_ref().map(|r| assert!(r.key < self.key));
+        self.right.as_ref().map(|r| assert!(r.key > self.key));
+
+        assert_eq!(height(&self.left), self.left_ht);
+        assert_eq!(height(&self.right), self.right_ht);
+
+        assert!(self.is_bal());
+
+        chk(&self.left) + chk(&self.right)
+    }
+
+    #[allow(dead_code)]
+    #[cfg(not(test))]
+    fn chk(&self) -> () {}
+}
+
 impl<K: Clone, V: Clone> Clone for Node<K, V> {
     fn clone(&self) -> Self {
         Node {
@@ -169,6 +199,14 @@ fn len<K, V>(opt_node: &OptNode<K, V>) -> usize {
         .as_ref()
         .map_or(0, |r| len(&r.left) + 1 + len(&r.right))
 }
+
+#[cfg(test)]
+fn chk<K: Ord, V>(opt_node: &OptNode<K, V>) -> usize {
+    opt_node.as_ref().map_or(0, |r| r.chk() + 1)
+}
+
+#[cfg(not(test))]
+fn chk<K: Ord, V>(_: &OptNode<K, V>) -> () {}
 
 // prerequisites:
 //   - opt_node.is_some()
@@ -517,15 +555,14 @@ fn join_rt<K: Clone + Ord, V: Clone>(
         t2n.set_right(opt_t1);
 
         if t2n.is_bal() {
-            Some(t2)
+            chk_node!(Some(t2))
         } else {
             if rot_rt(&mut t2n.right) {
                 t2n.right_ht -= 1;
             }
             let mut opt_t2 = Some(t2);
             rot_lf(&mut opt_t2);
-            assert!(opt_t2.as_ref().unwrap().is_bal());
-            opt_t2
+            chk_node!(opt_t2)
         }
     } else {
         let opt_t1 = join_rt(c.unwrap(), k, v, opt_right);
@@ -535,8 +572,7 @@ fn join_rt<K: Clone + Ord, V: Clone>(
         if !is_bal {
             rot_lf(&mut opt_t2);
         }
-
-        opt_t2
+        chk_node!(opt_t2)
     }
 }
 
@@ -559,7 +595,7 @@ fn join_lf<K: Clone + Ord, V: Clone>(
         t2n.set_left(opt_t1);
 
         if t2n.is_bal() {
-            Some(t2)
+            chk_node!(Some(t2))
         } else {
             if rot_lf(&mut t2n.left) {
                 t2n.left_ht -= 1;
@@ -567,7 +603,7 @@ fn join_lf<K: Clone + Ord, V: Clone>(
             let mut opt_t2 = Some(t2);
             rot_rt(&mut opt_t2);
             assert!(opt_t2.as_ref().unwrap().is_bal());
-            opt_t2
+            chk_node!(opt_t2)
         }
     } else {
         let opt_t1 = join_lf(opt_left, k, v, c.unwrap());
@@ -577,8 +613,7 @@ fn join_lf<K: Clone + Ord, V: Clone>(
         if !is_bal {
             rot_rt(&mut opt_t2);
         }
-
-        opt_t2
+        chk_node!(opt_t2)
     }
 }
 
@@ -596,7 +631,7 @@ fn join<K: Clone + Ord, V: Clone>(
     } else if bal > 1 {
         join_lf(opt_left, k, v, opt_right.unwrap())
     } else {
-        Node::opt_new(k, v, opt_left.clone(), opt_right.clone())
+        chk_node!(Node::opt_new(k, v, opt_left.clone(), opt_right.clone()))
     }
 }
 
@@ -1177,6 +1212,14 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     pub fn len(&self) -> usize {
         self.len
     }
+
+    #[cfg(test)]
+    fn chk(&self) {
+        assert_eq!(self.len, chk(&self.root));
+    }
+
+    #[cfg(not(test))]
+    fn chk(&self) {}
 }
 
 impl<K: Clone + Ord, V: Clone> Default for FunMap<K, V> {
