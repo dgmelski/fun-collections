@@ -1280,6 +1280,16 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         None
     }
 
+    pub fn entry(&mut self, key: K) -> Entry<'_, K, V> {
+        // TODO: frustrating that this traverses the tree twice
+        if self.contains(&key) {
+            let val = self.get_mut(&key).unwrap();
+            Entry::Occupied(OccupiedEntry { key, val })
+        } else {
+            Entry::Vacant(VacantEntry { key, map: self })
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
@@ -1321,6 +1331,131 @@ impl<'a, K, V> Iterator for Iter<'a, K, V> {
             }
             entry
         })
+    }
+}
+
+pub struct OccupiedEntry<'a, K, V> {
+    key: K,
+    val: &'a mut V,
+}
+
+impl<'a, K, V: Clone> OccupiedEntry<'a, K, V> {
+    pub fn get(&self) -> &V {
+        self.val
+    }
+
+    pub fn get_mut(&mut self) -> &mut V {
+        self.val
+    }
+
+    pub fn insert(&mut self, new_val: V) -> V {
+        std::mem::replace(self.val, new_val)
+    }
+
+    pub fn into_mut(self) -> &'a mut V {
+        self.val
+    }
+
+    pub fn key(&self) -> &K {
+        &self.key
+    }
+
+    pub fn remove(self) -> V {
+        self.val.clone()
+    }
+
+    pub fn remove_entry(self) -> (K, V) {
+        (self.key, self.val.clone())
+    }
+}
+
+pub struct VacantEntry<'a, K, V> {
+    key: K,
+    map: &'a mut FunMap<K, V>,
+}
+
+impl<'a, K: Clone + Ord, V: Clone> VacantEntry<'a, K, V> {
+    pub fn insert(self, val: V) -> &'a mut V {
+        // TODO: the clone() here is lamentable
+        self.map.insert(self.key.clone(), val);
+        self.map.get_mut(&self.key).unwrap()
+    }
+
+    pub fn into_key(self) -> K {
+        self.key
+    }
+
+    pub fn key(&self) -> &K {
+        &self.key
+    }
+}
+
+pub enum Entry<'a, K, V> {
+    Occupied(OccupiedEntry<'a, K, V>),
+    Vacant(VacantEntry<'a, K, V>),
+}
+
+impl<'a, K, V: Clone> Entry<'a, K, V> {
+    pub fn and_modify<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(&mut V),
+    {
+        if let Entry::Occupied(occ) = &mut self {
+            f(occ.val);
+        }
+
+        self
+    }
+
+    pub fn key(&self) -> &K {
+        match self {
+            Entry::Occupied(x) => &x.key,
+            Entry::Vacant(x) => &x.key,
+        }
+    }
+
+    pub fn or_default(self) -> &'a mut V
+    where
+        K: Clone + Ord,
+        V: Clone + Default,
+    {
+        match self {
+            Entry::Occupied(x) => x.into_mut(),
+            Entry::Vacant(x) => x.insert(V::default()),
+        }
+    }
+
+    pub fn or_insert(self, default: V) -> &'a mut V
+    where
+        K: Clone + Ord,
+    {
+        match self {
+            Entry::Occupied(x) => x.into_mut(),
+            Entry::Vacant(x) => x.insert(default),
+        }
+    }
+
+    pub fn or_insert_with<F: FnOnce() -> V>(self, default: F) -> &'a mut V
+    where
+        K: Clone + Ord,
+    {
+        match self {
+            Entry::Occupied(x) => x.into_mut(),
+            Entry::Vacant(x) => x.insert(default()),
+        }
+    }
+
+    pub fn or_insert_with_key<F: FnOnce(&K) -> V>(self, default: F) -> &'a mut V
+    where
+        K: Clone + Ord,
+    {
+        match self {
+            Entry::Occupied(x) => x.into_mut(),
+            Entry::Vacant(x) => {
+                let v = default(&x.key);
+                x.insert(v)
+            }
+        }
     }
 }
 
