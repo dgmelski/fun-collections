@@ -1,9 +1,19 @@
 //! Microbenchmarks of FunMap against BTreeMap and HashMap.
 //!
-//! Invoke with `cargo bench [partial_test_name] --test fun_map_benchmarks`.
+//! Invoke with
+//! ```
+//!     cargo +nightly bench [partial_test_name] --test fun_map_benchmarks \
+//!         --features enable_bench
+//! ```
+//!
+//! The "enable_bench" feature is a feature we introduced in the cargo.toml to
+//! use as a gate that controls when the benchmark code is built.  This was
+//! necessary because `#[bench]` requires `#![feature(test)]` which requires
+//! nightly, but GitHub doesn't provide nightly (at least by default).
+//!
 //! If "partial_test_name" is excluded, all benchmarks are run.  If given, any
 //! test name that contains partial_test_name will run.
-
+#![cfg(feature = "enable_bench")]
 #![feature(test)]
 
 extern crate test;
