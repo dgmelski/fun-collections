@@ -123,19 +123,21 @@ impl<K, V> Node<K, V> {
         self.right = rt;
     }
 
-    fn for_each_mut<F>(&mut self, g: &mut F) -> ()
+    fn for_each_mut<F>(&mut self, g: &mut F)
     where
         K: Clone,
         V: Clone,
         F: FnMut(&K, &mut V),
     {
-        self.left
-            .as_mut()
-            .map(|rc| Rc::make_mut(rc).for_each_mut(g));
+        if let Some(rc) = self.left.as_mut() {
+            Rc::make_mut(rc).for_each_mut(g);
+        }
+
         g(&self.key, &mut self.val);
-        self.right
-            .as_mut()
-            .map(|rc| Rc::make_mut(rc).for_each_mut(g));
+
+        if let Some(rc) = self.right.as_mut() {
+            Rc::make_mut(rc).for_each_mut(g);
+        }
     }
 }
 
@@ -166,7 +168,7 @@ impl<K: Clone + Ord, V> Node<K, V> {
 
     #[allow(dead_code)]
     #[cfg(not(test))]
-    fn chk(&self) -> () {}
+    fn chk(&self) {}
 }
 
 impl<K: Clone, V: Clone> Clone for Node<K, V> {
@@ -589,7 +591,7 @@ fn join_rt<K: Clone + Ord, V: Clone>(
     let c = t2n.right.take();
 
     if height(&c) <= height(&opt_right) + 1 {
-        let opt_t1 = Node::opt_new(k, v, c, opt_right.clone());
+        let opt_t1 = Node::opt_new(k, v, c, opt_right);
         t2n.set_right(opt_t1);
 
         if t2n.is_bal() {
@@ -629,7 +631,7 @@ fn join_lf<K: Clone + Ord, V: Clone>(
     let c = t2n.left.take();
 
     if height(&c) <= height(&opt_left) + 1 {
-        let opt_t1 = Node::opt_new(k, v, opt_left.clone(), c);
+        let opt_t1 = Node::opt_new(k, v, opt_left, c);
         t2n.set_left(opt_t1);
 
         if t2n.is_bal() {
@@ -669,7 +671,7 @@ fn join<K: Clone + Ord, V: Clone>(
     } else if bal > 1 {
         join_lf(opt_left, k, v, opt_right.unwrap())
     } else {
-        chk_node!(Node::opt_new(k, v, opt_left.clone(), opt_right.clone()))
+        chk_node!(Node::opt_new(k, v, opt_left, opt_right))
     }
 }
 
@@ -799,6 +801,7 @@ fn union<K: Clone + Ord, V: Clone>(
     merger.merge(opt_t1, opt_t2)
 }
 
+#[allow(clippy::type_complexity)]
 fn split<K, V, Q>(
     opt_root: OptNode<K, V>,
     k: &Q,
@@ -871,10 +874,10 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     /// fmap.for_each_mut(|_, v| *v = "b");
     /// assert_eq!(fmap.get(&0), Some(&"b"));
     /// ```
-    pub fn for_each_mut<F: FnMut(&K, &mut V)>(&mut self, mut f: F) -> () {
-        self.root
-            .as_mut()
-            .map(|rc| Rc::make_mut(rc).for_each_mut(&mut f));
+    pub fn for_each_mut<F: FnMut(&K, &mut V)>(&mut self, mut f: F) {
+        if let Some(rc) = self.root.as_mut() {
+            Rc::make_mut(rc).for_each_mut(&mut f);
+        }
     }
 
     /// Inserts a key-value pair in the map.
@@ -924,7 +927,7 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     /// Requires:
     ///    self.last_key_value().map_or(true, |(x,_)| x < key);
     ///    rhs.first_key_value().map_or(true, |(y,_)| key < y);
-    pub fn join_with(&mut self, key: K, val: V, mut rhs: FunMap<K, V>) -> () {
+    pub fn join_with(&mut self, key: K, val: V, mut rhs: FunMap<K, V>) {
         assert!(self.last_key_value().map_or(true, |(k2, _)| *k2 < key));
         assert!(rhs.first_key_value().map_or(true, |(k2, _)| key < *k2));
 
