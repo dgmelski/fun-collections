@@ -209,10 +209,18 @@ impl<K: Clone + Debug, V: Clone + Debug> Debug for Node<K, V> {
     }
 }
 
-#[derive(Clone)]
-pub struct FunMap<K: Clone, V: Clone> {
+pub struct FunMap<K, V> {
     len: usize,
     root: OptNode<K, V>,
+}
+
+impl<K: Clone, V: Clone> Clone for FunMap<K, V> {
+    fn clone(&self) -> Self {
+        FunMap {
+            len: self.len,
+            root: self.root.clone(),
+        }
+    }
 }
 
 impl<K: Clone + Debug, V: Clone + Debug> Debug for FunMap<K, V> {
