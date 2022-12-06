@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"macro":[["fmap","Creates a FunMap from a list of tuples."]],"struct":[["FunMap",""],["FunStack","Implements a stack with constant time `push`, `pop`, and `clone` operations."]]};
