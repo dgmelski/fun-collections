@@ -18,191 +18,162 @@
 
 extern crate test;
 
-use fun_collections::FunMap;
-use std::collections::BTreeMap;
-use std::collections::HashMap;
-use test::Bencher;
+// An xmacro that takes the name of another macro and invokes it once for each
+// of the map types we are testing: BTreeMap, FunMap, and HashMap.  The passed
+// argument should produce a benchmark function.
+//
+// We sidestep the issue that rust does not (easily) support token concatenation
+// by creating submodules.  We reuse (abuse) the name of the macro parameter to
+// create a separate namespace to separate the other instantiations.  Similarly,
+// we create namespaces for each map type to separate the function instances,
+// which typically have an short name like 'f'.
+macro_rules! for_each_map_type {
+    ( $macro_name:ident ) => {
+        mod $macro_name {
+            mod btree {
+                use std::collections::BTreeMap;
+                use test::Bencher;
 
-const N: usize = 1000;
+                $macro_name!(BTreeMap);
+            }
 
-#[bench]
-fn time_build_btreemap(b: &mut Bencher) {
-    b.iter(|| {
-        let mut m = BTreeMap::new();
-        for i in 0..N {
-            m.insert(i, i);
-        }
-        m.len()
-    });
-}
+            mod funmap {
+                use fun_collections::FunMap;
+                use test::Bencher;
 
-#[bench]
-fn time_build_funmap(b: &mut Bencher) {
-    b.iter(|| {
-        let mut m = FunMap::new();
-        for i in 0..N {
-            m.insert(i, i);
-        }
-        m.len()
-    });
-}
+                $macro_name!(FunMap);
+            }
 
-#[bench]
-fn time_build_hashmap(b: &mut Bencher) {
-    b.iter(|| {
-        let mut m = HashMap::new();
-        for i in 0..N {
-            m.insert(i, i);
-        }
-        m.len()
-    });
-}
+            mod hashmap {
+                use std::collections::HashMap;
+                use test::Bencher;
 
-#[bench]
-fn time_clone_btreemap(b: &mut Bencher) {
-    let m: BTreeMap<_, _> = (0..N).map(|x| (x, x)).collect();
-    b.iter(|| {
-        let m = m.clone();
-        m.len()
-    });
-}
-
-#[bench]
-fn time_clone_funmap(b: &mut Bencher) {
-    let m: FunMap<_, _> = (0..N).map(|x| (x, x)).collect();
-    b.iter(|| {
-        let m = m.clone();
-        m.len()
-    });
-}
-
-#[bench]
-fn time_clone_hashmap(b: &mut Bencher) {
-    let m: HashMap<_, _> = (0..N).map(|x| (x, x)).collect();
-    b.iter(|| {
-        let m = m.clone();
-        m.len()
-    });
-}
-
-#[bench]
-fn time_get_btreemap(b: &mut Bencher) {
-    let m: BTreeMap<_, _> = (0..N).map(|x| (x, x)).collect();
-    b.iter(|| {
-        let mut s = 0;
-        for i in 0..N {
-            s += m.get(&i).unwrap();
-        }
-        s
-    });
-}
-
-#[bench]
-fn time_get_funmap(b: &mut Bencher) {
-    let m: FunMap<_, _> = (0..N).map(|x| (x, x)).collect();
-    b.iter(|| {
-        let mut s = 0;
-        for i in 0..N {
-            s += m.get(&i).unwrap();
-        }
-        s
-    });
-}
-
-#[bench]
-fn time_get_hashmap(b: &mut Bencher) {
-    let m: HashMap<_, _> = (0..N).map(|x| (x, x)).collect();
-    b.iter(|| {
-        let mut s = 0;
-        for i in 0..N {
-            s += m.get(&i).unwrap();
-        }
-        s
-    });
-}
-
-#[bench]
-fn time_remove_btreemap(b: &mut Bencher) {
-    let m: BTreeMap<_, _> = (0..N).map(|x| (x, x)).collect();
-    b.iter(|| {
-        let mut s = 0;
-        let mut m = m.clone();
-        for i in 0..N {
-            s += m.remove(&i).unwrap();
-        }
-        s
-    });
-}
-
-#[bench]
-fn time_remove_funmap(b: &mut Bencher) {
-    let m: FunMap<_, _> = (0..N).map(|x| (x, x)).collect();
-    b.iter(|| {
-        let mut s = 0;
-        let mut m = m.clone();
-        for i in 0..N {
-            s += m.remove(&i).unwrap();
-        }
-        s
-    });
-}
-
-#[bench]
-fn time_remove_hashmap(b: &mut Bencher) {
-    let m: HashMap<_, _> = (0..N).map(|x| (x, x)).collect();
-    b.iter(|| {
-        let mut s = 0;
-        let mut m = m.clone();
-        for i in 0..N {
-            s += m.remove(&i).unwrap();
-        }
-        s
-    });
-}
-
-const V_LEN: usize = 20;
-
-#[bench]
-fn time_clone10_update_funmap(b: &mut Bencher) {
-    let m: FunMap<_, _> = (0..N).map(|x| (x, format!("{x}"))).collect();
-    b.iter(|| {
-        let mut s = 0;
-        let mut v = vec![m.clone(); V_LEN];
-        for i in 0..(N / V_LEN) {
-            for j in 1..V_LEN {
-                s += v[j].remove(&(i * V_LEN + j)).unwrap().len();
+                $macro_name!(HashMap);
             }
         }
-        s
-    });
+    };
 }
 
-#[bench]
-fn time_clone10_update_btreemap(b: &mut Bencher) {
-    let m: BTreeMap<_, _> = (0..N).map(|x| (x, format!("{x}"))).collect();
-    b.iter(|| {
-        let mut s = 0;
-        let mut v = vec![m.clone(); V_LEN];
-        for i in 0..(N / V_LEN) {
-            for j in 1..V_LEN {
-                s += v[j].remove(&(i * V_LEN + j)).unwrap().len();
-            }
+macro_rules! build_500_elems {
+    ( $map_t:ident ) => {
+        #[bench]
+        fn f(b: &mut Bencher) {
+            b.iter(|| {
+                let mut m = $map_t::new();
+                for i in 0..500 {
+                    m.insert(i, i);
+                }
+                m
+            });
         }
-        s
-    });
+    };
 }
 
-#[bench]
-fn time_clone10_update_hashmap(b: &mut Bencher) {
-    let m: HashMap<_, _> = (0..N).map(|x| (x, format!("{x}"))).collect();
-    b.iter(|| {
-        let mut s = 0;
-        let mut v = vec![m.clone(); V_LEN];
-        for i in 0..(N / V_LEN) {
-            for j in 1..V_LEN {
-                s += v[j].remove(&(i * V_LEN + j)).unwrap().len();
-            }
+for_each_map_type!(build_500_elems);
+
+macro_rules! clone_1000_elems {
+    ( $map_t:ident ) => {
+        #[bench]
+        fn f(b: &mut Bencher) {
+            let m: $map_t<_, _> = (0..1000).map(|x| (x, x)).collect();
+            b.iter(|| m.clone());
         }
-        s
-    });
+    };
 }
+
+for_each_map_type!(clone_1000_elems);
+
+macro_rules! get_500_elems {
+    ( $map_t:ident ) => {
+        const MAP_LEN: usize = 500;
+
+        #[bench]
+        fn f(b: &mut Bencher) {
+            let m: $map_t<_, _> = (0..MAP_LEN).map(|x| (x, x)).collect();
+            b.iter(|| {
+                let mut s = 0;
+                for i in 0..MAP_LEN {
+                    s += m.get(&i).unwrap();
+                }
+                s
+            });
+        }
+    };
+}
+
+for_each_map_type!(get_500_elems);
+
+macro_rules! remove_1000_elems {
+    ( $map_t: ident ) => {
+        const MAP_LEN: usize = 1000;
+
+        #[bench]
+        fn f(b: &mut Bencher) {
+            let m: $map_t<_, _> = (0..MAP_LEN).map(|x| (x, x)).collect();
+            b.iter(|| {
+                let mut s = 0;
+                let mut m = m.clone();
+                for i in 0..MAP_LEN {
+                    s += m.remove(&i).unwrap();
+                }
+                (s, m)
+            });
+        }
+    };
+}
+
+for_each_map_type!(remove_1000_elems);
+
+macro_rules! clone_and_removes_string_map {
+    ( $map_t:ident ) => {
+        const MAP_LEN: usize = 500;
+        const CNT_CLONES: usize = 20;
+
+        #[bench]
+        fn f(b: &mut Bencher) {
+            let m: $map_t<_, _> =
+                (0..MAP_LEN).map(|x| (x, format!("{x}"))).collect();
+
+            b.iter(|| {
+                let mut s = 0;
+                let mut v = vec![m.clone(); CNT_CLONES];
+                for i in 0..(MAP_LEN / CNT_CLONES) {
+                    for j in 1..CNT_CLONES {
+                        s += v[j].remove(&(i * CNT_CLONES + j)).unwrap().len();
+                    }
+                }
+                s
+            });
+        }
+    };
+}
+
+for_each_map_type!(clone_and_removes_string_map);
+
+macro_rules! clone_and_updates_rc_map {
+    ( $map_t:ident ) => {
+        use std::rc::Rc;
+
+        const MAP_LEN: usize = 1000;
+        const CNT_CLONES: usize = 100;
+        const CNT_UPDATES: usize = 20;
+
+        #[bench]
+        fn f(b: &mut Bencher) {
+            let m: $map_t<_, _> =
+                (0..MAP_LEN).map(|x| (x, Rc::new(x))).collect();
+            b.iter(|| {
+                let mut s = 0;
+                let mut vs = vec![m.clone(); CNT_CLONES];
+                for v in vs.iter_mut() {
+                    for idx in 0..CNT_UPDATES {
+                        s += *v.insert(idx, Rc::new(idx)).unwrap();
+                    }
+                }
+                (s, vs)
+            });
+        }
+    };
+}
+
+for_each_map_type!(clone_and_updates_rc_map);
