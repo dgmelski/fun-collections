@@ -946,7 +946,7 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     /// Build a new map by joining two maps around a pivot key that divides the
     /// entries of the maps.
     ///
-    /// The constructed map contains of the entries from both maps and the pivot
+    /// The constructed map contains the entries from both maps and the pivot
     /// key and the value provided for the pivot key.
     ///
     /// Requires:
@@ -973,8 +973,8 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         lhs
     }
 
-    /// Moves all elements greater than a key into a new map and returns it and
-    /// the original key-value pair.
+    /// Moves all elements greater than a key into a new map returns the
+    /// original key-value pair (if present) and the new map.
     ///
     /// # Examples
     /// ```
@@ -1065,7 +1065,8 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         lhs
     }
 
-    /// Removes entries with keys from the other map.
+    /// Removes entries with keys from the other map and adds entries from the
+    /// other map that have keys that are not in self.
     ///
     /// # Examples
     /// ```
@@ -1083,8 +1084,8 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         self.len = len(&self.root);
     }
 
-    /// Builds a map with entries from the LHS map with keys that are not in the
-    /// RHS map.
+    /// Builds a map with entries from the LHS and RHS maps that have keys that
+    /// occur in only one of the maps and not the other.
     ///
     /// # Examples
     /// ```
@@ -1250,7 +1251,7 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         None
     }
 
-    /// Returns a reference to the value associated with k.
+    /// Returns a mutable reference to the value associated with k.
     ///
     /// # Example
     /// ```

@@ -1813,6 +1813,7 @@
 <a href="#1813" id="1813">1813</a>
 <a href="#1814" id="1814">1814</a>
 <a href="#1815" id="1815">1815</a>
+<a href="#1816" id="1816">1816</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::borrow::Borrow;
 <span class="kw">use </span>std::cmp::Ordering::<span class="kw-2">*</span>;
 <span class="kw">use </span>std::fmt::{Debug, Formatter};
@@ -2761,7 +2762,7 @@
     <span class="doccomment">/// Build a new map by joining two maps around a pivot key that divides the
     /// entries of the maps.
     ///
-    /// The constructed map contains of the entries from both maps and the pivot
+    /// The constructed map contains the entries from both maps and the pivot
     /// key and the value provided for the pivot key.
     ///
     /// Requires:
@@ -2788,8 +2789,8 @@
         lhs
     }
 
-    <span class="doccomment">/// Moves all elements greater than a key into a new map and returns it and
-    /// the original key-value pair.
+    <span class="doccomment">/// Moves all elements greater than a key into a new map returns the
+    /// original key-value pair (if present) and the new map.
     ///
     /// # Examples
     /// ```
@@ -2880,7 +2881,8 @@
         lhs
     }
 
-    <span class="doccomment">/// Removes entries with keys from the other map.
+    <span class="doccomment">/// Removes entries with keys from the other map and adds entries from the
+    /// other map that have keys that are not in self.
     ///
     /// # Examples
     /// ```
@@ -2898,8 +2900,8 @@
         <span class="self">self</span>.len = len(<span class="kw-2">&amp;</span><span class="self">self</span>.root);
     }
 
-    <span class="doccomment">/// Builds a map with entries from the LHS map with keys that are not in the
-    /// RHS map.
+    <span class="doccomment">/// Builds a map with entries from the LHS and RHS maps that have keys that
+    /// occur in only one of the maps and not the other.
     ///
     /// # Examples
     /// ```
@@ -3065,7 +3067,7 @@
         <span class="prelude-val">None
     </span>}
 
-    <span class="doccomment">/// Returns a reference to the value associated with k.
+    <span class="doccomment">/// Returns a mutable reference to the value associated with k.
     ///
     /// # Example
     /// ```
