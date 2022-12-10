@@ -235,6 +235,42 @@ impl<K: Clone + Debug, V: Clone + Debug> Debug for FunMap<K, V> {
     }
 }
 
+fn eq<K, V>(lhs: &OptNode<K, V>, rhs: &OptNode<K, V>) -> bool
+where
+    K: PartialEq,
+    V: PartialEq,
+{
+    match (lhs, rhs) {
+        (Some(x), Some(y)) => {
+            Rc::ptr_eq(x, y)
+                || (x.key == y.key
+                    && x.val == y.val
+                    && eq(&x.left, &y.left)
+                    && eq(&x.right, &y.right))
+        }
+
+        _ => false,
+    }
+}
+
+impl<K: Clone + Ord, V: Clone> PartialEq for FunMap<K, V>
+where
+    K: PartialEq,
+    V: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.len() == other.len() && eq(&self.root, &other.root)
+    }
+}
+
+impl<K: Clone + Eq + Ord, V: Clone + Eq> Eq for FunMap<K, V> {}
+
+// impl<K, V> PartialOrd for FunMap<K, V> {
+//     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+//         self.iter().partial_cmp(other.iter())
+//     }
+// }
+
 fn height<K, V>(opt_node: &OptNode<K, V>) -> i8 {
     opt_node.as_ref().map_or(0, |rc| rc.height())
 }

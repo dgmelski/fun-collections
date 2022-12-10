@@ -58,8 +58,8 @@ We also have not yet implemented `iter_mut`.
 ** TODO Types eagerly implement common traits ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-common-traits][C-COMMON-TRAITS]])
 *** N/A Copy
 *** DONE Clone
-*** TODO Eq
-*** TODO PartialEq
+*** DONE Eq
+*** DONE PartialEq
 *** TODO Ord
 *** TODO PartialOrd
 *** TODO Hash
