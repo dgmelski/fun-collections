@@ -42,17 +42,22 @@ The following line adds "N/A" (Not Applicable) to to-do status options.
 #+TODO: TODO | DONE N/A
 
 * TODO Naming (crate aligns with Rust naming conventions)
-** TODO Casing conforms to RFC 430 ([[https://rust-lang.github.io/api-guidelines/naming.html#c-case][C-CASE]])
-** TODO Ad-hoc conversions follow as_, to_, into_ conventions ([[https://rust-lang.github.io/api-guidelines/naming.html#c-conv][C-CONV]])
-** TODO Getter names follow Rust convention ([[https://rust-lang.github.io/api-guidelines/naming.html#c-getter][C-GETTER]])
-** TODO Methods on collections that produce iterators follow iter, iter_mut, into_iter ([[https://rust-lang.github.io/api-guidelines/naming.html#c-iter][C-ITER]])
-** TODO Iterator type names match the methods that produce them ([[https://rust-lang.github.io/api-guidelines/naming.html#c-iter-ty][C-ITER-TY]])
+** DONE Casing conforms to RFC 430 ([[https://rust-lang.github.io/api-guidelines/naming.html#c-case][C-CASE]])
+** N/A Ad-hoc conversions follow as_, to_, into_ conventions ([[https://rust-lang.github.io/api-guidelines/naming.html#c-conv][C-CONV]])
+** DONE Getter names follow Rust convention ([[https://rust-lang.github.io/api-guidelines/naming.html#c-getter][C-GETTER]])
+** DONE Methods on collections that produce iterators follow iter, iter_mut, into_iter ([[https://rust-lang.github.io/api-guidelines/naming.html#c-iter][C-ITER]])
+For the standard Iterator, we use `Item = (&'a K, &'a V)`, as BTreeMap does.
+BTreeMap::iter is offered as an example, though technically, this item seems to
+call for `Item = &'a (K, V)`.
+
+We also have not yet implemented `iter_mut`.
+** DONE Iterator type names match the methods that produce them ([[https://rust-lang.github.io/api-guidelines/naming.html#c-iter-ty][C-ITER-TY]])
 ** TODO Feature names are free of placeholder words ([[https://rust-lang.github.io/api-guidelines/naming.html#c-feature][C-FEATURE]])
-** TODO Names use a consistent word order ([[https://rust-lang.github.io/api-guidelines/naming.html#c-word-order][C-WORD-ORDER]])
+** DONE Names use a consistent word order ([[https://rust-lang.github.io/api-guidelines/naming.html#c-word-order][C-WORD-ORDER]])
 * TODO Interoperability (crate interacts nicely with other library functionality)
 ** TODO Types eagerly implement common traits ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-common-traits][C-COMMON-TRAITS]])
-*** TODO Copy
-*** TODO Clone
+*** N/A Copy
+*** DONE Clone
 *** TODO Eq
 *** TODO PartialEq
 *** TODO Ord
