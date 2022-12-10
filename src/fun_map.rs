@@ -141,11 +141,11 @@ impl<K, V> Node<K, V> {
     }
 }
 
-impl<K: Clone + Ord, V> Node<K, V> {
+impl<K: Ord, V> Node<K, V> {
     #[cfg(test)]
-    fn chk(&self, greatest: Option<K>) -> (usize, Option<K>) {
+    fn chk(&self, greatest: Option<&K>) -> (usize, Option<&K>) {
         // is our node in order with left-side ancestors?
-        assert!(greatest.iter().all(|k| k < &self.key));
+        assert!(greatest.iter().all(|&k| k < &self.key));
 
         // do we know the heights of our children?
         assert_eq!(height(&self.left), self.left_ht);
@@ -158,10 +158,10 @@ impl<K: Clone + Ord, V> Node<K, V> {
         let (lf_len, greatest) = chk(&self.left, greatest);
 
         // are our left descendents all less than us?
-        assert!(greatest.iter().all(|k| k < &self.key));
+        assert!(greatest.iter().all(|&k| k < &self.key));
 
         // are our right descendents okay?
-        let (rt_len, greatest) = chk(&self.right, Some(self.key.clone()));
+        let (rt_len, greatest) = chk(&self.right, Some(&self.key));
 
         (lf_len + rt_len + 1, greatest)
     }
@@ -246,10 +246,10 @@ fn len<K, V>(opt_node: &OptNode<K, V>) -> usize {
 }
 
 #[cfg(test)]
-fn chk<K: Clone + Ord, V>(
-    opt_node: &OptNode<K, V>,
-    greatest: Option<K>,
-) -> (usize, Option<K>) {
+fn chk<'a, K: Ord, V>(
+    opt_node: &'a OptNode<K, V>,
+    greatest: Option<&'a K>,
+) -> (usize, Option<&'a K>) {
     match opt_node.as_ref() {
         None => (0, greatest),
         Some(n) => n.chk(greatest),
