@@ -177,3 +177,58 @@ macro_rules! clone_and_updates_rc_map {
 }
 
 for_each_map_type!(clone_and_updates_rc_map);
+
+macro_rules! symex_sim {
+    ( $map_t: ident ) => {
+        use std::collections::VecDeque;
+        use std::rc::Rc;
+
+        const MAX_WORK: usize = 1000;
+        const MAP_LEN: usize = 1000;
+
+        #[bench]
+        fn f(b: &mut Bencher) {
+            // In symbolic execution, we would have a map from memory locations
+            // to symbolic expressions.  The symbolic expressions would be a
+            // reference counted data structure (with shared representation of
+            // common subexpressions).  Here, we use a reference-counted usize
+            // as a proxy for the reference-counted symbolic expression.  Each
+            // clone of the map has to maintain the reference counts of the
+            // "expressions."
+            let m: $map_t<_, _> =
+                (0..MAP_LEN).map(|x| (x, Rc::new(x))).collect();
+
+            b.iter(|| {
+                // Our symbolic execution engine will use a deque to do a
+                // breadth-first search of reachable symbolic states.
+                let mut w = VecDeque::new();
+                w.push_back(m.clone());
+
+                let mut addr = 0;
+                while w.len() < MAX_WORK {
+                    // get the current "symbolic (memory) state"
+                    let mut m = w.pop_front().unwrap();
+
+                    // update the state for the current basic block; modeled as
+                    // updates of some symbolic locations
+                    for a in addr..(addr + 8) {
+                        let x = m.get_mut(&(a % m.len())).unwrap();
+                        *x = Rc::new(**x + 1);
+                    }
+                    addr = (addr + 8) % m.len();
+
+                    // Split the state for the branch at the end of the block.
+                    // Normally, the states would get complementary constraints,
+                    // but that's separate from the symbolic memory we're
+                    // modeling.
+                    let m1 = m.clone();
+                    w.push_back(m);
+                    w.push_back(m1);
+                }
+                w
+            });
+        }
+    };
+}
+
+for_each_map_type!(symex_sim);
