@@ -1,68 +1,97 @@
 **Rust API Guidelines Checklist**
-* Naming (crate aligns with Rust naming conventions)
-** TODO Casing conforms to RFC 430 (C-CASE)
-** TODO Ad-hoc conversions follow as_, to_, into_ conventions (C-CONV)
-** TODO Getter names follow Rust convention (C-GETTER)
-** TODO Methods on collections that produce iterators follow iter, iter_mut, into_iter (C-ITER)
-** TODO Iterator type names match the methods that produce them (C-ITER-TY)
-** TODO Feature names are free of placeholder words (C-FEATURE)
-** TODO Names use a consistent word order (C-WORD-ORDER)
-* Interoperability (crate interacts nicely with other library functionality)
-** TODO Types eagerly implement common traits (C-COMMON-TRAITS)
-* Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display, Default
-** TODO Conversions use the standard traits From, AsRef, AsMut (C-CONV-TRAITS)
-** TODO Collections implement FromIterator and Extend (C-COLLECT)
-** TODO Data structures implement Serde's Serialize, Deserialize (C-SERDE)
-** TODO Types are Send and Sync where possible (C-SEND-SYNC)
-** TODO Error types are meaningful and well-behaved (C-GOOD-ERR)
-** TODO Binary number types provide Hex, Octal, Binary formatting (C-NUM-FMT)
-** TODO Generic reader/writer functions take R: Read and W: Write by value (C-RW-VALUE)
-* Macros (crate presents well-behaved macros)
-** TODO Input syntax is evocative of the output (C-EVOCATIVE)
-** TODO Macros compose well with attributes (C-MACRO-ATTR)
-** TODO Item macros work anywhere that items are allowed (C-ANYWHERE)
-** TODO Item macros support visibility specifiers (C-MACRO-VIS)
-** TODO Type fragments are flexible (C-MACRO-TY)
-* Documentation (crate is abundantly documented)
-** TODO Crate level docs are thorough and include examples (C-CRATE-DOC)
-** TODO All items have a rustdoc example (C-EXAMPLE)
-** TODO Examples use ?, not try!, not unwrap (C-QUESTION-MARK)
-** TODO Function docs include error, panic, and safety considerations (C-FAILURE)
-** TODO Prose contains hyperlinks to relevant things (C-LINK)
-** TODO Cargo.toml includes all common metadata (C-METADATA)
-* authors, description, license, homepage, documentation, repository, keywords, categories
-** TODO Release notes document all significant changes (C-RELNOTES)
-** TODO Rustdoc does not show unhelpful implementation details (C-HIDDEN)
-* Predictability (crate enables legible code that acts how it looks)
-** TODO Smart pointers do not add inherent methods (C-SMART-PTR)
-** TODO Conversions live on the most specific type involved (C-CONV-SPECIFIC)
-** TODO Functions with a clear receiver are methods (C-METHOD)
-** TODO Functions do not take out-parameters (C-NO-OUT)
-** TODO Operator overloads are unsurprising (C-OVERLOAD)
-** TODO Only smart pointers implement Deref and DerefMut (C-DEREF)
-** TODO Constructors are static, inherent methods (C-CTOR)
-* Flexibility (crate supports diverse real-world use cases)
-** TODO Functions expose intermediate results to avoid duplicate work (C-INTERMEDIATE)
-** TODO Caller decides where to copy and place data (C-CALLER-CONTROL)
-** TODO Functions minimize assumptions about parameters by using generics (C-GENERIC)
-** TODO Traits are object-safe if they may be useful as a trait object (C-OBJECT)
-* Type safety (crate leverages the type system effectively)
-** TODO Newtypes provide static distinctions (C-NEWTYPE)
-** TODO Arguments convey meaning through types, not bool or Option (C-CUSTOM-TYPE)
-** TODO Types for a set of flags are bitflags, not enums (C-BITFLAG)
-** TODO Builders enable construction of complex values (C-BUILDER)
-* Dependability (crate is unlikely to do the wrong thing)
-** TODO Functions validate their arguments (C-VALIDATE)
-** TODO Destructors never fail (C-DTOR-FAIL)
-** TODO Destructors that may block have alternatives (C-DTOR-BLOCK)
-* Debuggability (crate is conducive to easy debugging)
-** TODO All public types implement Debug (C-DEBUG)
-** TODO Debug representation is never empty (C-DEBUG-NONEMPTY)
-* Future proofing (crate is free to improve without breaking users' code)
-** TODO Sealed traits protect against downstream implementations (C-SEALED)
-** TODO Structs have private fields (C-STRUCT-PRIVATE)
-** TODO Newtypes encapsulate implementation details (C-NEWTYPE-HIDE)
-** TODO Data structures do not duplicate derived trait bounds (C-STRUCT-BOUNDS)
-* Necessities (to whom they matter, they really matter)
-** TODO Public dependencies of a stable crate are stable (C-STABLE)
-** TODO Crate and its dependencies have a permissive license (C-PERMISSIVE)
+This checklist is taken from [[https://rust-lang.github.io/api-guidelines/about.html][Rust API Guidelines]] ([[https://github.com/rust-lang/api-guidelines/blob/master/LICENSE-MIT][license]]).
+* TODO Naming (crate aligns with Rust naming conventions)
+** TODO Casing conforms to RFC 430 ([[https://rust-lang.github.io/api-guidelines/naming.html#c-case][C-CASE]])
+** TODO Ad-hoc conversions follow as_, to_, into_ conventions ([[https://rust-lang.github.io/api-guidelines/naming.html#c-conv][C-CONV]])
+** TODO Getter names follow Rust convention ([[https://rust-lang.github.io/api-guidelines/naming.html#c-getter][C-GETTER]])
+** TODO Methods on collections that produce iterators follow iter, iter_mut, into_iter ([[https://rust-lang.github.io/api-guidelines/naming.html#c-iter][C-ITER]])
+** TODO Iterator type names match the methods that produce them ([[https://rust-lang.github.io/api-guidelines/naming.html#c-iter-ty][C-ITER-TY]])
+** TODO Feature names are free of placeholder words ([[https://rust-lang.github.io/api-guidelines/naming.html#c-feature][C-FEATURE]])
+** TODO Names use a consistent word order ([[https://rust-lang.github.io/api-guidelines/naming.html#c-word-order][C-WORD-ORDER]])
+* TODO Interoperability (crate interacts nicely with other library functionality)
+** TODO Types eagerly implement common traits ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-common-traits][C-COMMON-TRAITS]])
+*** TODO Copy
+*** TODO Clone
+*** TODO Eq
+*** TODO PartialEq
+*** TODO Ord
+*** TODO PartialOrd
+*** TODO Hash
+*** TODO Debug
+*** TODO Display
+*** TODO Default
+** TODO Conversions use the standard traits From, AsRef, AsMut ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-conv-traits][C-CONV-TRAITS]])
+*** TODO From
+*** TODO AsRef
+*** TODO AsMut
+** TODO Collections implement FromIterator and Extend ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-collect][C-COLLECT]])
+*** TODO FromIterator
+*** TODO Extend
+** TODO Data structures implement Serde's Serialize, Deserialize ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-serde][C-SERDE]])
+*** TODO Serialize
+*** TODO Deserialize
+** TODO Types are Send and Sync where possible ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-send-sync][C-SEND-SYNC]])
+*** TODO Send
+*** TODO Sync
+** TODO Error types are meaningful and well-behaved ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-good-err][C-GOOD-ERR]])
+** TODO Binary number types provide Hex, Octal, Binary formatting ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-num-fmt][C-NUM-FMT]])
+*** TODO Hex formatting
+*** TODO Octal formatting
+*** TODO Binary formatting
+** TODO Generic reader/writer functions take R: Read and W: Write by value ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-rw-value][C-RW-VALUE]])
+* TODO Macros (crate presents well-behaved macros)
+** TODO Input syntax is evocative of the output ([[https://rust-lang.github.io/api-guidelines/macros.html#c-evocative][C-EVOCATIVE]])
+** TODO Macros compose well with attributes ([[https://rust-lang.github.io/api-guidelines/macros.html#c-macro-attr][C-MACRO-ATTR]])
+** TODO Item macros work anywhere that items are allowed ([[https://rust-lang.github.io/api-guidelines/macros.html#c-anywhere][C-ANYWHERE]])
+** TODO Item macros support visibility specifiers ([[https://rust-lang.github.io/api-guidelines/macros.html#c-macro-vis][C-MACRO-VIS]])
+** TODO Type fragments are flexible ([[https://rust-lang.github.io/api-guidelines/macros.html#c-macro-ty][C-MACRO-TY]])
+* TODO Documentation (crate is abundantly documented)
+** TODO Crate level docs are thorough and include examples ([[https://rust-lang.github.io/api-guidelines/documentation.html#c-crate-doc][C-CRATE-DOC]])
+** TODO All items have a rustdoc example ([[https://rust-lang.github.io/api-guidelines/documentation.html#c-example][C-EXAMPLE]])
+** TODO Examples use ?, not try!, not unwrap ([[https://rust-lang.github.io/api-guidelines/documentation.html#c-question-mark][C-QUESTION-MARK]])
+** TODO Function docs include error, panic, and safety considerations ([[https://rust-lang.github.io/api-guidelines/documentation.html#c-failure][C-FAILURE]])
+** TODO Prose contains hyperlinks to relevant things ([[https://rust-lang.github.io/api-guidelines/documentation.html#c-link][C-LINK]])
+** TODO Cargo.toml includes all common metadata ([[https://rust-lang.github.io/api-guidelines/documentation.html#c-metadata][C-METADATA]])
+*** TODO authors
+*** TODO description
+*** TODO license
+*** TODO homepage
+*** TODO documentation
+*** TODO repository
+*** TODO keywords
+*** TODO categories
+** TODO Release notes document all significant changes ([[https://rust-lang.github.io/api-guidelines/documentation.html#c-relnotes][C-RELNOTES]])
+** TODO Rustdoc does not show unhelpful implementation details ([[https://rust-lang.github.io/api-guidelines/documentation.html#c-hidden][C-HIDDEN]])
+* TODO Predictability (crate enables legible code that acts how it looks)
+** TODO Smart pointers do not add inherent methods ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-smart-ptr][C-SMART-PTR]])
+** TODO Conversions live on the most specific type involved ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-conv-specific][C-CONV-SPECIFIC]])
+** TODO Functions with a clear receiver are methods ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-method][C-METHOD]])
+** TODO Functions do not take out-parameters ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-no-out][C-NO-OUT]])
+** TODO Operator overloads are unsurprising ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-overload][C-OVERLOAD]])
+** TODO Only smart pointers implement Deref and DerefMut ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-deref][C-DEREF]])
+** TODO Constructors are static, inherent methods ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-ctor][C-CTOR]])
+* TODO Flexibility (crate supports diverse real-world use cases)
+** TODO Functions expose intermediate results to avoid duplicate work ([[https://rust-lang.github.io/api-guidelines/flexability.html#c-intermediate][C-INTERMEDIATE]])
+** TODO Caller decides where to copy and place data ([[https://rust-lang.github.io/api-guidelines/flexability.html#c-caller-control][C-CALLER-CONTROL]])
+** TODO Functions minimize assumptions about parameters by using generics ([[https://rust-lang.github.io/api-guidelines/flexability.html#c-generic][C-GENERIC]])
+** TODO Traits are object-safe if they may be useful as a trait object ([[https://rust-lang.github.io/api-guidelines/flexability.html#c-object][C-OBJECT]])
+* TODO Type safety (crate leverages the type system effectively)
+** TODO Newtypes provide static distinctions ([[https://rust-lang.github.io/api-guidelines/type-safety.html#c-newtype][C-NEWTYPE]])
+** TODO Arguments convey meaning through types, not bool or Option ([[https://rust-lang.github.io/api-guidelines/type-safety.html#c-custom-type][C-CUSTOM-TYPE]])
+** TODO Types for a set of flags are bitflags, not enums ([[https://rust-lang.github.io/api-guidelines/type-safety.html#c-bitflag][C-BITFLAG]])
+** TODO Builders enable construction of complex values ([[https://rust-lang.github.io/api-guidelines/type-safety.html#c-builder][C-BUILDER]])
+* TODO Dependability (crate is unlikely to do the wrong thing)
+** TODO Functions validate their arguments ([[https://rust-lang.github.io/api-guidelines/dependability.html#c-validate][C-VALIDATE]])
+** TODO Destructors never fail ([[https://rust-lang.github.io/api-guidelines/dependability.html#c-dtor-fail][C-DTOR-FAIL]])
+** TODO Destructors that may block have alternatives ([[https://rust-lang.github.io/api-guidelines/dependability.html#c-dtor-block][C-DTOR-BLOCK]])
+* TODO Debuggability (crate is conducive to easy debugging)
+** TODO All public types implement Debug ([[https://rust-lang.github.io/api-guidelines/debuggability.html#c-debug][C-DEBUG]])
+** TODO Debug representation is never empty ([[https://rust-lang.github.io/api-guidelines/debuggability.html#c-debug-nonempty][C-DEBUG-NONEMPTY]])
+* TODO Future proofing (crate is free to improve without breaking users' code)
+** TODO Sealed traits protect against downstream implementations ([[https://rust-lang.github.io/api-guidelines/future-proofing.html#c-sealed][C-SEALED]])
+** TODO Structs have private fields ([[https://rust-lang.github.io/api-guidelines/future-proofing.html#c-struct-private][C-STRUCT-PRIVATE]])
+** TODO Newtypes encapsulate implementation details ([[https://rust-lang.github.io/api-guidelines/future-proofing.html#c-newtype-hide][C-NEWTYPE-HIDE]])
+** TODO Data structures do not duplicate derived trait bounds ([[https://rust-lang.github.io/api-guidelines/future-proofing.html#c-struct-bounds][C-STRUCT-BOUNDS]])
+* TODO Necessities (to whom they matter, they really matter)
+** TODO Public dependencies of a stable crate are stable ([[https://rust-lang.github.io/api-guidelines/necessities.html#c-stable][C-STABLE]])
+** TODO Crate and its dependencies have a permissive license ([[https://rust-lang.github.io/api-guidelines/necessities.html#c-permissive][C-PERMISSIVE]])
