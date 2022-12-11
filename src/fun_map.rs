@@ -282,11 +282,25 @@ where
 
 impl<K: Clone + Eq + Ord, V: Clone + Eq> Eq for FunMap<K, V> {}
 
-// impl<K, V> PartialOrd for FunMap<K, V> {
-//     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-//         self.iter().partial_cmp(other.iter())
-//     }
-// }
+impl<K, V> PartialOrd for FunMap<K, V>
+where
+    K: Clone + Ord,
+    V: Clone + PartialOrd,
+{
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.iter().partial_cmp(other.iter())
+    }
+}
+
+impl<K, V> Ord for FunMap<K, V>
+where
+    K: Clone + Ord,
+    V: Clone + Ord,
+{
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.iter().cmp(other.iter())
+    }
+}
 
 fn height<K, V>(opt_node: &OptNode<K, V>) -> i8 {
     opt_node.as_ref().map_or(0, |rc| rc.height())

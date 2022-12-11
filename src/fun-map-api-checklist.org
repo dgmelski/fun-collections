@@ -60,8 +60,8 @@ We also have not yet implemented `iter_mut`.
 *** DONE Clone
 *** DONE Eq
 *** DONE PartialEq
-*** TODO Ord
-*** TODO PartialOrd
+*** DONE Ord
+*** DONE PartialOrd
 *** TODO Hash
 *** TODO Debug
 *** TODO Display
