@@ -66,21 +66,22 @@ We also have not yet implemented `iter_mut`.
 *** DONE Debug
 *** N/A Display
 *** DONE Default
-** TODO Conversions use the standard traits From, AsRef, AsMut ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-conv-traits][C-CONV-TRAITS]])
-*** TODO From
-*** TODO AsRef
-*** TODO AsMut
-** TODO Collections implement FromIterator and Extend ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-collect][C-COLLECT]])
-*** TODO FromIterator
-*** TODO Extend
+** DONE Conversions use the standard traits From, AsRef, AsMut ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-conv-traits][C-CONV-TRAITS]])
+*** DONE From
+- From<[(K, V); N]>, as with BTreeMap
+*** N/A AsRef
+*** N/A AsMut
+** DONE Collections implement FromIterator and Extend ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-collect][C-COLLECT]])
+*** DONE FromIterator
+*** DONE Extend
 ** TODO Data structures implement Serde's Serialize, Deserialize ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-serde][C-SERDE]])
 *** TODO Serialize
 *** TODO Deserialize
 ** TODO Types are Send and Sync where possible ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-send-sync][C-SEND-SYNC]])
 *** TODO Send
 *** TODO Sync
-** TODO Error types are meaningful and well-behaved ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-good-err][C-GOOD-ERR]])
-** TODO Binary number types provide Hex, Octal, Binary formatting ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-num-fmt][C-NUM-FMT]])
+** DONE Error types are meaningful and well-behaved ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-good-err][C-GOOD-ERR]])
+** N/A Binary number types provide Hex, Octal, Binary formatting ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-num-fmt][C-NUM-FMT]])
 *** TODO Hex formatting
 *** TODO Octal formatting
 *** TODO Binary formatting
@@ -109,27 +110,36 @@ We also have not yet implemented `iter_mut`.
 ** TODO Release notes document all significant changes ([[https://rust-lang.github.io/api-guidelines/documentation.html#c-relnotes][C-RELNOTES]])
 ** TODO Rustdoc does not show unhelpful implementation details ([[https://rust-lang.github.io/api-guidelines/documentation.html#c-hidden][C-HIDDEN]])
 * TODO Predictability (crate enables legible code that acts how it looks)
-** TODO Smart pointers do not add inherent methods ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-smart-ptr][C-SMART-PTR]])
-** TODO Conversions live on the most specific type involved ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-conv-specific][C-CONV-SPECIFIC]])
+** N/A Smart pointers do not add inherent methods ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-smart-ptr][C-SMART-PTR]])
+** N/A Conversions live on the most specific type involved ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-conv-specific][C-CONV-SPECIFIC]])
 ** TODO Functions with a clear receiver are methods ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-method][C-METHOD]])
-** TODO Functions do not take out-parameters ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-no-out][C-NO-OUT]])
-** TODO Operator overloads are unsurprising ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-overload][C-OVERLOAD]])
-** TODO Only smart pointers implement Deref and DerefMut ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-deref][C-DEREF]])
-** TODO Constructors are static, inherent methods ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-ctor][C-CTOR]])
-* TODO Flexibility (crate supports diverse real-world use cases)
-** TODO Functions expose intermediate results to avoid duplicate work ([[https://rust-lang.github.io/api-guidelines/flexability.html#c-intermediate][C-INTERMEDIATE]])
-** TODO Caller decides where to copy and place data ([[https://rust-lang.github.io/api-guidelines/flexability.html#c-caller-control][C-CALLER-CONTROL]])
-** TODO Functions minimize assumptions about parameters by using generics ([[https://rust-lang.github.io/api-guidelines/flexability.html#c-generic][C-GENERIC]])
-** TODO Traits are object-safe if they may be useful as a trait object ([[https://rust-lang.github.io/api-guidelines/flexability.html#c-object][C-OBJECT]])
-* TODO Type safety (crate leverages the type system effectively)
-** TODO Newtypes provide static distinctions ([[https://rust-lang.github.io/api-guidelines/type-safety.html#c-newtype][C-NEWTYPE]])
-** TODO Arguments convey meaning through types, not bool or Option ([[https://rust-lang.github.io/api-guidelines/type-safety.html#c-custom-type][C-CUSTOM-TYPE]])
-** TODO Types for a set of flags are bitflags, not enums ([[https://rust-lang.github.io/api-guidelines/type-safety.html#c-bitflag][C-BITFLAG]])
-** TODO Builders enable construction of complex values ([[https://rust-lang.github.io/api-guidelines/type-safety.html#c-builder][C-BUILDER]])
-* TODO Dependability (crate is unlikely to do the wrong thing)
-** TODO Functions validate their arguments ([[https://rust-lang.github.io/api-guidelines/dependability.html#c-validate][C-VALIDATE]])
-** TODO Destructors never fail ([[https://rust-lang.github.io/api-guidelines/dependability.html#c-dtor-fail][C-DTOR-FAIL]])
-** TODO Destructors that may block have alternatives ([[https://rust-lang.github.io/api-guidelines/dependability.html#c-dtor-block][C-DTOR-BLOCK]])
+For many of the set operation functions, I have both a method and a function
+version:
+
+- `m.union_with(n)` updates 'm' to be the union of 'm' and 'n'.
+- `FunMap::union(&m, &n)` returns a new map that is the union of 'm' and 'n',
+  which are unchanged.
+
+By this rule, I think the later are frowned upon, though I think it makes it
+more clear that the lhs is not updated.
+** DONE Functions do not take out-parameters ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-no-out][C-NO-OUT]])
+** DONE Operator overloads are unsurprising ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-overload][C-OVERLOAD]])
+** DONE Only smart pointers implement Deref and DerefMut ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-deref][C-DEREF]])
+** DONE Constructors are static, inherent methods ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-ctor][C-CTOR]])
+* DONE Flexibility (crate supports diverse real-world use cases)
+** DONE Functions expose intermediate results to avoid duplicate work ([[https://rust-lang.github.io/api-guidelines/flexability.html#c-intermediate][C-INTERMEDIATE]])
+** DONE Caller decides where to copy and place data ([[https://rust-lang.github.io/api-guidelines/flexability.html#c-caller-control][C-CALLER-CONTROL]])
+** DONE Functions minimize assumptions about parameters by using generics ([[https://rust-lang.github.io/api-guidelines/flexability.html#c-generic][C-GENERIC]])
+** DONE Traits are object-safe if they may be useful as a trait object ([[https://rust-lang.github.io/api-guidelines/flexability.html#c-object][C-OBJECT]])
+* DONE Type safety (crate leverages the type system effectively)
+** DONE Newtypes provide static distinctions ([[https://rust-lang.github.io/api-guidelines/type-safety.html#c-newtype][C-NEWTYPE]])
+** DONE Arguments convey meaning through types, not bool or Option ([[https://rust-lang.github.io/api-guidelines/type-safety.html#c-custom-type][C-CUSTOM-TYPE]])
+** N/A Types for a set of flags are bitflags, not enums ([[https://rust-lang.github.io/api-guidelines/type-safety.html#c-bitflag][C-BITFLAG]])
+** N/A Builders enable construction of complex values ([[https://rust-lang.github.io/api-guidelines/type-safety.html#c-builder][C-BUILDER]])
+* DONE Dependability (crate is unlikely to do the wrong thing)
+** DONE Functions validate their arguments ([[https://rust-lang.github.io/api-guidelines/dependability.html#c-validate][C-VALIDATE]])
+** DONE Destructors never fail ([[https://rust-lang.github.io/api-guidelines/dependability.html#c-dtor-fail][C-DTOR-FAIL]])
+** DONE Destructors that may block have alternatives ([[https://rust-lang.github.io/api-guidelines/dependability.html#c-dtor-block][C-DTOR-BLOCK]])
 * TODO Debuggability (crate is conducive to easy debugging)
 ** TODO All public types implement Debug ([[https://rust-lang.github.io/api-guidelines/debuggability.html#c-debug][C-DEBUG]])
 ** TODO Debug representation is never empty ([[https://rust-lang.github.io/api-guidelines/debuggability.html#c-debug-nonempty][C-DEBUG-NONEMPTY]])
