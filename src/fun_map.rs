@@ -302,6 +302,19 @@ where
     }
 }
 
+impl<K, V> std::hash::Hash for FunMap<K, V>
+where
+    K: Clone + std::hash::Hash + Ord,
+    V: Clone + std::hash::Hash,
+{
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.for_each(|(k, v)| {
+            k.hash(state);
+            v.hash(state);
+        });
+    }
+}
+
 fn height<K, V>(opt_node: &OptNode<K, V>) -> i8 {
     opt_node.as_ref().map_or(0, |rc| rc.height())
 }

@@ -62,7 +62,7 @@ We also have not yet implemented `iter_mut`.
 *** DONE PartialEq
 *** DONE Ord
 *** DONE PartialOrd
-*** TODO Hash
+*** DONE Hash
 *** TODO Debug
 *** TODO Display
 *** TODO Default
