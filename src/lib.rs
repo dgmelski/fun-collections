@@ -12,3 +12,6 @@ pub use fun_stack::FunStack;
 
 mod fun_map;
 pub use fun_map::FunMap;
+
+mod btree_map;
+pub use btree_map::BTreeMap;
