@@ -55,7 +55,7 @@ We also have not yet implemented `iter_mut`.
 ** TODO Feature names are free of placeholder words ([[https://rust-lang.github.io/api-guidelines/naming.html#c-feature][C-FEATURE]])
 ** DONE Names use a consistent word order ([[https://rust-lang.github.io/api-guidelines/naming.html#c-word-order][C-WORD-ORDER]])
 * TODO Interoperability (crate interacts nicely with other library functionality)
-** TODO Types eagerly implement common traits ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-common-traits][C-COMMON-TRAITS]])
+** DONE Types eagerly implement common traits ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-common-traits][C-COMMON-TRAITS]])
 *** N/A Copy
 *** DONE Clone
 *** DONE Eq
@@ -63,9 +63,9 @@ We also have not yet implemented `iter_mut`.
 *** DONE Ord
 *** DONE PartialOrd
 *** DONE Hash
-*** TODO Debug
-*** TODO Display
-*** TODO Default
+*** DONE Debug
+*** N/A Display
+*** DONE Default
 ** TODO Conversions use the standard traits From, AsRef, AsMut ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-conv-traits][C-CONV-TRAITS]])
 *** TODO From
 *** TODO AsRef
