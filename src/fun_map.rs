@@ -123,17 +123,34 @@ impl<K, V> Node<K, V> {
         self.right = rt;
     }
 
+    fn for_each<F>(&self, g: &mut F)
+    where
+        K: Clone,
+        V: Clone,
+        F: FnMut((&K, &V)),
+    {
+        if let Some(rc) = self.left.as_ref() {
+            rc.for_each(g);
+        }
+
+        g((&self.key, &self.val));
+
+        if let Some(rc) = self.right.as_ref() {
+            rc.for_each(g);
+        }
+    }
+
     fn for_each_mut<F>(&mut self, g: &mut F)
     where
         K: Clone,
         V: Clone,
-        F: FnMut(&K, &mut V),
+        F: FnMut((&K, &mut V)),
     {
         if let Some(rc) = self.left.as_mut() {
             Rc::make_mut(rc).for_each_mut(g);
         }
 
-        g(&self.key, &mut self.val);
+        g((&self.key, &mut self.val));
 
         if let Some(rc) = self.right.as_mut() {
             Rc::make_mut(rc).for_each_mut(g);
@@ -901,6 +918,12 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         }
     }
 
+    pub fn for_each<F: FnMut((&K, &V))>(&self, mut f: F) {
+        if let Some(rc) = self.root.as_ref() {
+            rc.for_each(&mut f);
+        }
+    }
+
     /// Applies a function to every key-value pair in the map.
     ///
     /// The passed function must take a reference to the key type and a mutable
@@ -915,10 +938,10 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     ///
     /// let mut fmap = FunMap::new();
     /// fmap.insert(0, "a");
-    /// fmap.for_each_mut(|_, v| *v = "b");
+    /// fmap.for_each_mut(|(_, v)| *v = "b");
     /// assert_eq!(fmap.get(&0), Some(&"b"));
     /// ```
-    pub fn for_each_mut<F: FnMut(&K, &mut V)>(&mut self, mut f: F) {
+    pub fn for_each_mut<F: FnMut((&K, &mut V))>(&mut self, mut f: F) {
         if let Some(rc) = self.root.as_mut() {
             Rc::make_mut(rc).for_each_mut(&mut f);
         }
