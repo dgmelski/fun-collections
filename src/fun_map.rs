@@ -315,6 +315,22 @@ where
     }
 }
 
+impl<K, Q, V> std::ops::Index<&Q> for FunMap<K, V>
+where
+    K: Borrow<Q> + Clone + Ord,
+    V: Clone,
+    Q: Ord + ?Sized,
+{
+    type Output = V;
+
+    fn index(&self, index: &Q) -> &Self::Output {
+        match self.get(index) {
+            Some(v) => v,
+            None => panic!("Key not found in FunMap"),
+        }
+    }
+}
+
 fn height<K, V>(opt_node: &OptNode<K, V>) -> i8 {
     opt_node.as_ref().map_or(0, |rc| rc.height())
 }
