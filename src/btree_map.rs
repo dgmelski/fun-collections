@@ -64,6 +64,36 @@ impl<K, V, const N: usize> Node<K, V, N> {
         self.right.as_ref().and_then(|n| n.get(key))
     }
 
+    fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
+    where
+        K: Borrow<Q> + Clone,
+        V: Clone,
+        Q: Ord,
+    {
+        for (left, k, v) in self.elems.iter_mut() {
+            match key.cmp((*k).borrow()) {
+                Less => {
+                    if let Some(rc) = left.as_mut() {
+                        let n = Rc::make_mut(rc);
+                        return n.get_mut(key);
+                    } else {
+                        return None;
+                    }
+                }
+
+                Equal => return Some(v),
+                Greater => (),
+            }
+        }
+
+        if let Some(rc) = self.right.as_mut() {
+            let n = Rc::make_mut(rc);
+            return n.get_mut(key);
+        } else {
+            return None;
+        }
+    }
+
     fn insert(&mut self, key: K, val: V) -> InsertResult<K, V, N>
     where
         K: Clone + Ord,
@@ -350,6 +380,19 @@ pub struct BTreeMap<K, V, const N: usize = 2> {
     root: NodePtr<K, V, N>,
 }
 
+impl<K, V, const N: usize> Clone for BTreeMap<K, V, N>
+where
+    K: Clone,
+    V: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            len: self.len,
+            root: self.root.clone(),
+        }
+    }
+}
+
 impl<K, V, const N: usize> BTreeMap<K, V, N> {
     /// Retrieves the value associated with the given key, if it is in the map.
     ///
@@ -368,6 +411,20 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         Q: Ord,
     {
         self.root.as_ref().and_then(|n| n.get(key))
+    }
+
+    pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
+    where
+        K: Borrow<Q> + Clone,
+        V: Clone,
+        Q: Ord,
+    {
+        if let Some(rc) = self.root.as_mut() {
+            let n = Rc::make_mut(rc);
+            n.get_mut(key)
+        } else {
+            None
+        }
     }
 
     /// Associates 'val' with 'key' and returns the value previously associated

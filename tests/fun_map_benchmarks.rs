@@ -232,3 +232,10 @@ macro_rules! symex_sim {
 }
 
 for_each_map_type!(symex_sim);
+
+mod shared_btree {
+    type BTreeMap<K, V> = fun_collections::BTreeMap<K, V, 2>;
+    use test::Bencher;
+
+    symex_sim!(BTreeMap);
+}
