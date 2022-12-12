@@ -45,8 +45,8 @@ struct NeedsRebal(bool);
 
 impl<K, V, const N: usize> Node<K, V, N> {
     // minimum and maximum element counts for non-root nodes
-    const MIN_CNT_ELEMS: usize = N;
-    const MAX_CNT_ELEMS: usize = 2 * N;
+    const MIN_OCCUPANCY: usize = N;
+    const MAX_OCCUPANCY: usize = 2 * N;
 
     fn get<Q>(&self, key: &Q) -> Option<&V>
     where
@@ -101,11 +101,11 @@ impl<K, V, const N: usize> Node<K, V, N> {
         if let Split(s) = res {
             // TODO: split before insert to reduce memmove
             self.elems.insert(ub_x, s);
-            if self.elems.len() <= Self::MAX_CNT_ELEMS {
+            if self.elems.len() <= Self::MAX_OCCUPANCY {
                 return Absorbed;
             }
 
-            let mut other_half = self.elems.split_off(Self::MIN_CNT_ELEMS + 1);
+            let mut other_half = self.elems.split_off(Self::MIN_OCCUPANCY + 1);
             std::mem::swap(&mut self.elems, &mut other_half);
             let (lf_kid, k, v) = other_half.pop().unwrap();
             let lefts = Some(Rc::new(Node {
@@ -140,7 +140,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
 
         let right = right.as_mut().unwrap();
         assert!(
-            right.elems.len() > Self::MIN_CNT_ELEMS,
+            right.elems.len() > Self::MIN_OCCUPANCY,
             "rot_lf from an impovershed child"
         );
 
@@ -156,7 +156,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
         // push the old separator to the end of left
         let mut piv_child = pivot.0.as_mut().unwrap();
         assert!(
-            piv_child.elems.len() < Self::MIN_CNT_ELEMS,
+            piv_child.elems.len() < Self::MIN_OCCUPANCY,
             "rot_lf into a rich child"
         );
 
@@ -236,14 +236,14 @@ impl<K, V, const N: usize> Node<K, V, N> {
     {
         if at > 0 {
             let sz = self.elems[at - 1].0.as_ref().unwrap().elems.len();
-            if sz > Self::MIN_CNT_ELEMS {
+            if sz > Self::MIN_OCCUPANCY {
                 self.rot_rt(at - 1);
             } else {
                 self.merge_kids(at - 1);
             }
         } else if self.elems.len() > 1 {
             let sz = self.elems[at + 1].0.as_ref().unwrap().elems.len();
-            if sz > Self::MIN_CNT_ELEMS {
+            if sz > Self::MIN_OCCUPANCY {
                 self.rot_lf(at);
             } else {
                 self.merge_kids(at);
@@ -251,14 +251,14 @@ impl<K, V, const N: usize> Node<K, V, N> {
         } else {
             // we must be the root
             let sz = self.right.as_ref().unwrap().elems.len();
-            if sz > Self::MIN_CNT_ELEMS {
+            if sz > Self::MIN_OCCUPANCY {
                 self.rot_lf(at);
             } else {
                 self.merge_kids(at);
             }
         }
 
-        NeedsRebal(self.elems.len() < Self::MIN_CNT_ELEMS)
+        NeedsRebal(self.elems.len() < Self::MIN_OCCUPANCY)
     }
 
     fn rm_greatest(&mut self) -> (K, V, NeedsRebal)
@@ -278,7 +278,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
         } else {
             // self is a leaf
             let (_, k, v) = self.elems.pop().unwrap();
-            (k, v, NeedsRebal(self.elems.len() < Self::MIN_CNT_ELEMS))
+            (k, v, NeedsRebal(self.elems.len() < Self::MIN_OCCUPANCY))
         }
     }
 
@@ -310,7 +310,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
                         let old_v = self.elems.remove(i).2;
                         return (
                             Some(old_v),
-                            NeedsRebal(self.elems.len() < Self::MIN_CNT_ELEMS),
+                            NeedsRebal(self.elems.len() < Self::MIN_OCCUPANCY),
                         );
                     }
 
@@ -345,7 +345,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
     }
 }
 
-pub struct BTreeMap<K, V, const N: usize> {
+pub struct BTreeMap<K, V, const N: usize = 2> {
     len: usize,
     root: NodePtr<K, V, N>,
 }
