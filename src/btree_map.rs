@@ -398,7 +398,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
     ///
     /// # Examples
     /// ```
-    /// type BTreeMap<K, V> = fun_collections::BTreeMap<K, V, 2>;
+    /// use fun_collections::BTreeMap;
     ///
     /// let mut m = BTreeMap::new();
     /// m.insert(0, 1);
@@ -432,7 +432,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
     ///
     /// # Examples
     /// ```
-    /// type BTreeMap<K, V> = fun_collections::BTreeMap<K, V, 2>;
+    /// use fun_collections::BTreeMap;
     ///
     /// let mut m = BTreeMap::new();
     /// assert_eq!(m.insert(0, 1), None);
@@ -483,7 +483,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
     ///
     /// # Examples
     /// ```
-    /// type BTreeMap<K, V> = fun_collections::BTreeMap<K, V, 2>;
+    /// use fun_collections::BTreeMap;
     ///
     /// let mut m = BTreeMap::new();
     /// m.insert(0, 'a');

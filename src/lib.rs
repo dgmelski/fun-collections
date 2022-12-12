@@ -14,4 +14,4 @@ mod fun_map;
 pub use fun_map::FunMap;
 
 mod btree_map;
-pub use btree_map::BTreeMap;
+pub type BTreeMap<K, V> = btree_map::BTreeMap<K, V, 8>;
