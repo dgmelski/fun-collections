@@ -5,12 +5,16 @@ use std::cmp::Ordering::*;
 use std::mem::replace;
 use std::rc::Rc;
 
-type NodePtr<K, V, const N: usize> = Option<Rc<Node<K, V, N>>>;
-type ChildAndElem<K, V, const N: usize> = (NodePtr<K, V, N>, K, V);
+type OptNodePtr<K, V, const N: usize> = Option<Rc<Node<K, V, N>>>;
+type ChildAndElem<K, V, const N: usize> = (OptNodePtr<K, V, N>, K, V);
 
 struct Node<K, V, const N: usize> {
+    // Each entry in elems holds a key, its associated value, and a link to the
+    // subtree with entries less than the key but greater than the previous key.
     elems: Vec<ChildAndElem<K, V, N>>,
-    right: NodePtr<K, V, N>,
+
+    // right holds the subtree for keys greater than the last key in elems.
+    right: OptNodePtr<K, V, N>,
 }
 
 impl<K: Clone, V: Clone, const N: usize> Clone for Node<K, V, N> {
@@ -28,7 +32,9 @@ enum InsertResult<K, V, const N: usize> {
     Absorbed,
 }
 
-fn unwrap_or_clone<K, V, const N: usize>(n: NodePtr<K, V, N>) -> Node<K, V, N>
+fn unwrap_or_clone<K, V, const N: usize>(
+    n: OptNodePtr<K, V, N>,
+) -> Node<K, V, N>
 where
     K: Clone,
     V: Clone,
@@ -48,15 +54,67 @@ impl<K, V, const N: usize> Node<K, V, N> {
     const MIN_OCCUPANCY: usize = N;
     const MAX_OCCUPANCY: usize = 2 * N;
 
+    fn child(&self, i: usize) -> Option<&Rc<Self>> {
+        if i < self.elems.len() {
+            self.elems[i].0.as_ref()
+        } else {
+            assert_eq!(i, self.elems.len(), "out-of-bounds access");
+            self.right.as_ref()
+        }
+    }
+
+    fn child_mut(&mut self, i: usize) -> Option<&mut Rc<Self>> {
+        if i < self.elems.len() {
+            self.elems[i].0.as_mut()
+        } else {
+            assert_eq!(i, self.elems.len(), "out-of-bounds access");
+            self.right.as_mut()
+        }
+    }
+
+    fn set_child(&mut self, i: usize, rhs: Option<Rc<Self>>) {
+        if i < self.elems.len() {
+            self.elems[i].0 = rhs;
+        } else {
+            assert_eq!(i, self.elems.len(), "out-of-bounds access");
+            self.right = rhs;
+        }
+    }
+
+    fn take_child(&mut self, i: usize) -> Option<Rc<Self>> {
+        if i < self.elems.len() {
+            self.elems[i].0.take()
+        } else {
+            assert_eq!(i, self.elems.len(), "out-of-bounds access");
+            self.right.take()
+        }
+    }
+
+    fn key(&self, i: usize) -> &K {
+        &self.elems[i].1
+    }
+
+    fn val(&self, i: usize) -> &V {
+        &self.elems[i].2
+    }
+
+    fn val_mut(&mut self, i: usize) -> &mut V {
+        &mut self.elems[i].2
+    }
+
+    fn len(&self) -> usize {
+        self.elems.len()
+    }
+
     fn get<Q>(&self, key: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
         Q: Ord,
     {
-        for (left, k, v) in self.elems.iter() {
-            match key.cmp(k.borrow()) {
-                Less => return left.as_ref().and_then(|n| n.get(key)),
-                Equal => return Some(v),
+        for i in 0..self.len() {
+            match key.cmp(self.key(i).borrow()) {
+                Less => return self.child(i).and_then(|n| n.get(key)),
+                Equal => return Some(self.val(i)),
                 Greater => (),
             }
         }
@@ -70,10 +128,10 @@ impl<K, V, const N: usize> Node<K, V, N> {
         V: Clone,
         Q: Ord,
     {
-        for (left, k, v) in self.elems.iter_mut() {
-            match key.cmp((*k).borrow()) {
+        for i in 0..self.len() {
+            match key.cmp(self.key(i).borrow()) {
                 Less => {
-                    if let Some(rc) = left.as_mut() {
+                    if let Some(rc) = self.child_mut(i) {
                         let n = Rc::make_mut(rc);
                         return n.get_mut(key);
                     } else {
@@ -81,7 +139,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
                     }
                 }
 
-                Equal => return Some(v),
+                Equal => return Some(self.val_mut(i)),
                 Greater => (),
             }
         }
@@ -102,10 +160,10 @@ impl<K, V, const N: usize> Node<K, V, N> {
         use InsertResult::*;
 
         let mut ub_x = 0;
-        for (_, k, v) in self.elems.iter_mut() {
-            match key.cmp(k) {
+        while ub_x < self.len() {
+            match key.cmp(self.key(ub_x)) {
                 Less => break,
-                Equal => return Replaced(std::mem::replace(v, val)),
+                Equal => return Replaced(replace(self.val_mut(ub_x), val)),
                 Greater => (),
             }
 
@@ -115,16 +173,9 @@ impl<K, V, const N: usize> Node<K, V, N> {
         // Recurse to the appropriate child if it exists (we're not a leaf).
         // If we are a leaf, pretend that we visited a child and it resulted in
         // needing to insert a new separator at this level.
-        let res = if ub_x < self.elems.len() {
-            match self.elems[ub_x].0.as_mut() {
-                Some(n) => Rc::make_mut(n).insert(key, val),
-                None => Split((None, key, val)),
-            }
-        } else {
-            match self.right.as_mut() {
-                Some(n) => Rc::make_mut(n).insert(key, val),
-                None => Split((None, key, val)),
-            }
+        let res = match self.child_mut(ub_x) {
+            Some(n) => Rc::make_mut(n).insert(key, val),
+            None => Split((None, key, val)),
         };
 
         // update for a node split at the next level down
@@ -162,13 +213,8 @@ impl<K, V, const N: usize> Node<K, V, N> {
         assert!(self.right.is_some(), "cannot rotate a leaf's children");
 
         // extract the new separator (k2 and v2) from child on right of idx
-        let right = if idx < self.elems.len() - 1 {
-            &mut self.elems[idx + 1].0
-        } else {
-            &mut self.right
-        };
+        let right = self.child_mut(idx + 1).unwrap();
 
-        let right = right.as_mut().unwrap();
         assert!(
             right.elems.len() > Self::MIN_OCCUPANCY,
             "rot_lf from an impovershed child"
@@ -219,14 +265,8 @@ impl<K, V, const N: usize> Node<K, V, N> {
         let v1 = std::mem::replace(&mut self.elems[idx].2, v0);
 
         // move k1 and v1 down and to the right of the pivot
-        let right = if idx < self.elems.len() - 1 {
-            &mut self.elems[idx + 1].0
-        } else {
-            &mut self.right
-        };
-        let mut right = right.as_mut().unwrap();
+        let mut right = self.child_mut(idx + 1).unwrap();
         let right = Rc::make_mut(&mut right);
-
         right.elems.insert(0, (k0_to_k1, k1, v1));
     }
 
@@ -239,11 +279,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
         let (lhs, k, v) = self.elems.remove(at);
         let mut lhs = unwrap_or_clone(lhs);
 
-        let rhs = if at < self.elems.len() {
-            self.elems[at].0.take()
-        } else {
-            self.right.take()
-        };
+        let rhs = self.take_child(at);
         let mut rhs = unwrap_or_clone(rhs);
 
         let lt_k = replace(&mut lhs.right, rhs.right.take());
@@ -251,11 +287,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
         lhs.elems.push((lt_k, k, v));
         lhs.elems.extend(rhs.elems);
 
-        if at < self.elems.len() {
-            self.elems[at].0 = Some(Rc::new(lhs));
-        } else {
-            self.right = Some(Rc::new(lhs));
-        }
+        self.set_child(at, Some(Rc::new(lhs)));
     }
 
     // rebalances when the self.elems[at] is underpopulated
@@ -377,7 +409,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
 
 pub struct BTreeMap<K, V, const N: usize = 2> {
     len: usize,
-    root: NodePtr<K, V, N>,
+    root: OptNodePtr<K, V, N>,
 }
 
 impl<K, V, const N: usize> Clone for BTreeMap<K, V, N>
@@ -554,7 +586,7 @@ where
 
 #[cfg(test)]
 fn chk_node_ptr<'a, K: Ord, V, const N: usize>(
-    n: &'a NodePtr<K, V, N>,
+    n: Option<&'a Rc<Node<K, V, N>>>,
     prev: Option<&'a K>,
 ) -> (usize, Option<&'a K>) {
     match n {
@@ -573,18 +605,18 @@ impl<K: Ord, V, const N: usize> Node<K, V, N> {
     fn chk(&self, prev: Option<&K>) -> (usize, Option<&K>) {
         assert!(self.elems.len() > 0, "no entries");
 
-        let (ht, prev) = chk_node_ptr(&self.elems[0].0, prev);
-        prev.map(|k| assert!(k < &self.elems[0].1, "order violation"));
-        let mut prev = Some(&self.elems[0].1);
+        let (ht, prev) = chk_node_ptr(self.child(0), prev);
+        prev.map(|k| assert!(k < self.key(0), "order violation"));
+        let mut prev = Some(self.key(0));
 
-        for entry in self.elems.iter().skip(1) {
-            let curr = chk_node_ptr(&entry.0, prev);
+        for i in 1..self.len() {
+            let curr = chk_node_ptr(self.child(i), prev);
             assert_eq!(ht, curr.0, "uneven branches");
-            assert!(prev.unwrap() < &entry.1, "order violation");
-            prev = Some(&entry.1);
+            assert!(prev.unwrap() < self.key(i), "order violation");
+            prev = Some(self.key(i));
         }
 
-        let curr = chk_node_ptr(&self.right, prev);
+        let curr = chk_node_ptr(self.right.as_ref(), prev);
         assert_eq!(ht, curr.0, "uneven branches");
         (ht + 1, curr.1)
     }
