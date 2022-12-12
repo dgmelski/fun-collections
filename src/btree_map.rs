@@ -518,6 +518,40 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
     }
 }
 
+impl<K, V, const N: usize> Extend<(K, V)> for BTreeMap<K, V, N>
+where
+    K: Clone + Ord,
+    V: Clone,
+{
+    fn extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) {
+        for (k, v) in iter {
+            self.insert(k, v);
+        }
+    }
+}
+
+impl<K, V, const N: usize> From<[(K, V); N]> for BTreeMap<K, V, N>
+where
+    K: Clone + Ord,
+    V: Clone,
+{
+    fn from(vs: [(K, V); N]) -> Self {
+        BTreeMap::from_iter(vs.into_iter())
+    }
+}
+
+impl<K, V, const N: usize> FromIterator<(K, V)> for BTreeMap<K, V, N>
+where
+    K: Clone + Ord,
+    V: Clone,
+{
+    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
+        let mut fmap = BTreeMap::new();
+        fmap.extend(iter);
+        fmap
+    }
+}
+
 #[cfg(test)]
 fn chk_node_ptr<'a, K: Ord, V, const N: usize>(
     n: &'a NodePtr<K, V, N>,
