@@ -4,7 +4,7 @@ use std::mem::replace;
 use std::rc::Rc;
 
 type NodePtr<K, V, const N: usize> = Rc<Node<K, V, N>>;
-type TreePath = std::collections::VecDeque<u16>;
+type TreePath = Vec<u16>;
 
 struct Node<K, V, const N: usize> {
     elems: Vec<(K, V)>,
@@ -76,7 +76,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
                 match key.cmp(curr.key(i).borrow()) {
                     Less => break,
                     Equal => {
-                        path.push_back(i as u16);
+                        path.push(i as u16);
                         return Ok(path);
                     }
                     Greater => i += 1,
@@ -85,7 +85,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
 
             // either we're pushing the next branch index, or we're pushing
             // the insertion point
-            path.push_back(i as u16);
+            path.push(i as u16);
 
             match curr.child(i) {
                 None => return Err(path),
