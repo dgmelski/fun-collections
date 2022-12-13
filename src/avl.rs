@@ -1726,6 +1726,12 @@ impl<K: Clone + Ord> AvlSet<K> {
     }
 }
 
+impl<K: Clone + Ord> Default for AvlSet<K> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod test {
     extern crate quickcheck;
