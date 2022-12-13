@@ -419,6 +419,33 @@ impl<K, V, const N: usize> Default for BTreeMap<K, V, N> {
 }
 
 impl<K, V, const N: usize> BTreeMap<K, V, N> {
+    pub fn contains_key<Q>(&self, key: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: Ord,
+    {
+        let mut curr = match self.root.as_ref() {
+            None => return false,
+            Some(rc) => rc.as_ref(),
+        };
+
+        loop {
+            let mut i = 0;
+            while i < curr.len() {
+                match key.cmp(curr.key(i).borrow()) {
+                    Less => break,
+                    Equal => return true,
+                    Greater => i += 1,
+                }
+            }
+
+            match curr.child(i) {
+                None => return false,
+                Some(rc) => curr = rc.as_ref(),
+            }
+        }
+    }
+
     /// Retrieves the value associated with the given key, if it is in the map.
     ///
     /// # Examples
@@ -693,6 +720,7 @@ mod test {
         for (k, v) in elems {
             assert_eq!(m1.insert(k, v), m2.insert(k, v));
             assert_eq!(m1.len(), m2.len());
+            assert!(m1.contains_key(&k));
             m1.chk();
         }
 
