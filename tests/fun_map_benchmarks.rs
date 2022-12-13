@@ -50,6 +50,13 @@ macro_rules! for_each_map_type {
 
                 $macro_name!(HashMap);
             }
+
+            mod shared_btree {
+                use fun_collections::BTreeMap;
+                use test::Bencher;
+
+                $macro_name!(BTreeMap);
+            }
         }
     };
 }
@@ -232,10 +239,3 @@ macro_rules! symex_sim {
 }
 
 for_each_map_type!(symex_sim);
-
-mod symex_sim_shared_btree {
-    use fun_collections::BTreeMap;
-    use test::Bencher;
-
-    symex_sim!(BTreeMap);
-}
