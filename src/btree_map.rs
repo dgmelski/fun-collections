@@ -1,5 +1,3 @@
-#![allow(dead_code)] // FIXME
-
 use std::borrow::Borrow;
 use std::cmp::Ordering::*;
 use std::mem::replace;
@@ -55,24 +53,6 @@ impl<K, V, const N: usize> Node<K, V, N> {
         } else {
             assert_eq!(i, self.elems.len(), "out-of-bounds access");
             self.right.as_mut()
-        }
-    }
-
-    fn set_child(&mut self, i: usize, rhs: Option<Rc<Self>>) {
-        if i < self.elems.len() {
-            self.elems[i].0 = rhs;
-        } else {
-            assert_eq!(i, self.elems.len(), "out-of-bounds access");
-            self.right = rhs;
-        }
-    }
-
-    fn take_child(&mut self, i: usize) -> Option<Rc<Self>> {
-        if i < self.elems.len() {
-            self.elems[i].0.take()
-        } else {
-            assert_eq!(i, self.elems.len(), "out-of-bounds access");
-            self.right.take()
         }
     }
 
@@ -132,9 +112,9 @@ impl<K, V, const N: usize> Node<K, V, N> {
 
         if let Some(rc) = self.right.as_mut() {
             let n = Rc::make_mut(rc);
-            return n.get_mut(key);
+            n.get_mut(key)
         } else {
-            return None;
+            None
         }
     }
 
@@ -180,10 +160,10 @@ impl<K, V, const N: usize> Node<K, V, N> {
                 right: lf_kid,
             }));
 
-            return Split((lefts, k, v));
+            Split((lefts, k, v))
         } else {
             // res is Replaced(v) or Absorbed
-            return res;
+            res
         }
     }
 
@@ -216,13 +196,13 @@ impl<K, V, const N: usize> Node<K, V, N> {
         let v1 = std::mem::replace(&mut pivot.2, v2);
 
         // push the old separator to the end of left
-        let mut piv_child = pivot.0.as_mut().unwrap();
+        let piv_child = pivot.0.as_mut().unwrap();
         assert!(
             piv_child.elems.len() < Self::MIN_OCCUPANCY,
             "rot_lf into a rich child"
         );
 
-        let piv_child = Rc::make_mut(&mut piv_child);
+        let piv_child = Rc::make_mut(piv_child);
         let lt_k1 = std::mem::replace(&mut piv_child.right, k1_to_k2);
         piv_child.elems.push((lt_k1, k1, v1));
     }
@@ -236,13 +216,13 @@ impl<K, V, const N: usize> Node<K, V, N> {
 
         // idx holds the current separator, k1.  Get the pieces that will rotate
         // in to replace k1 & v1.
-        let mut left = self.elems[idx].0.as_mut().unwrap();
+        let left = self.elems[idx].0.as_mut().unwrap();
         assert!(
             left.elems.len() > N / 2 - 1,
             "rot_rt from impoverished child"
         );
 
-        let left = Rc::make_mut(&mut left);
+        let left = Rc::make_mut(left);
         let (lt_k0, k0, v0) = left.elems.pop().unwrap();
         let k0_to_k1 = std::mem::replace(&mut left.right, lt_k0);
 
@@ -251,8 +231,8 @@ impl<K, V, const N: usize> Node<K, V, N> {
         let v1 = std::mem::replace(&mut self.elems[idx].2, v0);
 
         // move k1 and v1 down and to the right of the pivot
-        let mut right = self.child_mut(idx + 1).unwrap();
-        let right = Rc::make_mut(&mut right);
+        let right = self.child_mut(idx + 1).unwrap();
+        let right = Rc::make_mut(right);
         right.elems.insert(0, (k0_to_k1, k1, v1));
     }
 
@@ -349,8 +329,8 @@ impl<K, V, const N: usize> Node<K, V, N> {
                         return (None, NeedsRebal(false));
                     }
 
-                    let mut lt_k = self.elems[i].0.as_mut().unwrap();
-                    let lt_k = Rc::make_mut(&mut lt_k);
+                    let lt_k = self.elems[i].0.as_mut().unwrap();
+                    let lt_k = Rc::make_mut(lt_k);
                     let ret = lt_k.remove(key);
                     if let &(_, NeedsRebal(true)) = &ret {
                         return (ret.0, self.rebal(i));
@@ -368,8 +348,8 @@ impl<K, V, const N: usize> Node<K, V, N> {
                         );
                     }
 
-                    let mut lt_k = self.elems[i].0.as_mut().unwrap();
-                    let lt_k = Rc::make_mut(&mut lt_k);
+                    let lt_k = self.elems[i].0.as_mut().unwrap();
+                    let lt_k = Rc::make_mut(lt_k);
                     let (k, v, needs_rebal) = lt_k.rm_greatest();
                     self.elems[i].1 = k;
                     let old_v = replace(&mut self.elems[i].2, v);
@@ -388,13 +368,13 @@ impl<K, V, const N: usize> Node<K, V, N> {
             return (None, NeedsRebal(false));
         }
 
-        let mut gt_k = self.right.as_mut().unwrap();
-        let gt_k = Rc::make_mut(&mut gt_k);
+        let gt_k = self.right.as_mut().unwrap();
+        let gt_k = Rc::make_mut(gt_k);
         let ret = gt_k.remove(key);
         if let &(_, NeedsRebal(true)) = &ret {
-            return (ret.0, self.rebal(self.elems.len()));
+            (ret.0, self.rebal(self.elems.len()))
         } else {
-            return ret;
+            ret
         }
     }
 }
@@ -414,6 +394,12 @@ where
             len: self.len,
             root: self.root.clone(),
         }
+    }
+}
+
+impl<K, V, const N: usize> Default for BTreeMap<K, V, N> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -542,13 +528,13 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
                 self.len -= 1;
             }
 
-            if needs_rebal.0 && n.elems.len() == 0 {
+            if needs_rebal.0 && n.elems.is_empty() {
                 self.root = n.right.take();
             }
 
             old_v
         } else {
-            return None;
+            None
         }
     }
 }
@@ -663,16 +649,6 @@ impl<K: Ord, V, const N: usize> BTreeMap<K, V, N> {
     fn chk(&self) {
         self.root.as_ref().map(|n| n.chk(None));
     }
-}
-
-#[cfg(not(test))]
-impl<K: Ord, V, const N: usize> Node<K, V, N> {
-    fn chk(&self, _: Option<&K>) {}
-}
-
-#[cfg(not(test))]
-impl<K: Ord, V, const N: usize> BTreeMap<K, V, N> {
-    fn chk(&self) {}
 }
 
 #[cfg(test)]
