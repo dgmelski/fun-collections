@@ -4,30 +4,24 @@ use std::mem::replace;
 use std::rc::Rc;
 
 type NodePtr<K, V, const N: usize> = Rc<Node<K, V, N>>;
-type OptNodePtr<K, V, const N: usize> = Option<NodePtr<K, V, N>>;
-type ChildAndElem<K, V, const N: usize> = (OptNodePtr<K, V, N>, K, V);
 
 struct Node<K, V, const N: usize> {
-    // Each entry in elems holds a key, its associated value, and a link to the
-    // subtree with entries less than the key but greater than the previous key.
-    elems: Vec<ChildAndElem<K, V, N>>,
-
-    // right holds the subtree for keys greater than the last key in elems.
-    right: OptNodePtr<K, V, N>,
+    elems: Vec<(K, V)>,
+    kids: Vec<NodePtr<K, V, N>>,
 }
 
 impl<K: Clone, V: Clone, const N: usize> Clone for Node<K, V, N> {
     fn clone(&self) -> Self {
         Self {
             elems: self.elems.clone(),
-            right: self.right.clone(),
+            kids: self.kids.clone(),
         }
     }
 }
 
 enum InsertResult<K, V, const N: usize> {
     Replaced(V),
-    Split(ChildAndElem<K, V, N>),
+    Split((Option<NodePtr<K, V, N>>, K, V)),
     Absorbed,
 }
 
@@ -39,33 +33,27 @@ impl<K, V, const N: usize> Node<K, V, N> {
     const MAX_OCCUPANCY: usize = 2 * N;
 
     fn child(&self, i: usize) -> Option<&Rc<Self>> {
-        if i < self.elems.len() {
-            self.elems[i].0.as_ref()
-        } else {
-            assert_eq!(i, self.elems.len(), "out-of-bounds access");
-            self.right.as_ref()
-        }
+        self.kids.get(i)
     }
 
     fn child_mut(&mut self, i: usize) -> Option<&mut Rc<Self>> {
-        if i < self.elems.len() {
-            self.elems[i].0.as_mut()
-        } else {
-            assert_eq!(i, self.elems.len(), "out-of-bounds access");
-            self.right.as_mut()
-        }
+        self.kids.get_mut(i)
     }
 
     fn key(&self, i: usize) -> &K {
-        &self.elems[i].1
+        &self.elems[i].0
+    }
+
+    fn key_mut(&mut self, i: usize) -> &mut K {
+        &mut self.elems[i].0
     }
 
     fn val(&self, i: usize) -> &V {
-        &self.elems[i].2
+        &self.elems[i].1
     }
 
     fn val_mut(&mut self, i: usize) -> &mut V {
-        &mut self.elems[i].2
+        &mut self.elems[i].1
     }
 
     fn len(&self) -> usize {
@@ -85,7 +73,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
             }
         }
 
-        self.right.as_ref().and_then(|n| n.get(key))
+        self.kids.last().and_then(|n| n.get(key))
     }
 
     fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
@@ -110,7 +98,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
             }
         }
 
-        if let Some(rc) = self.right.as_mut() {
+        if let Some(rc) = self.kids.last_mut() {
             let n = Rc::make_mut(rc);
             n.get_mut(key)
         } else {
@@ -145,30 +133,54 @@ impl<K, V, const N: usize> Node<K, V, N> {
         };
 
         // update for a node split at the next level down
-        if let Split(s) = res {
+        if let Split((child, k, v)) = res {
             // TODO: split before insert to reduce memmove
-            self.elems.insert(ub_x, s);
+
+            self.elems.insert(ub_x, (k, v));
+            if let Some(rc) = child {
+                self.kids.insert(ub_x, rc);
+            }
+
             if self.elems.len() <= Self::MAX_OCCUPANCY {
                 return Absorbed;
             }
 
-            let mut other_half = self.elems.split_off(Self::MIN_OCCUPANCY + 1);
-            std::mem::swap(&mut self.elems, &mut other_half);
-            let (lf_kid, k, v) = other_half.pop().unwrap();
-            let lefts = Some(Rc::new(Node {
-                elems: other_half,
-                right: lf_kid,
+            // split this overcrowded node
+
+            // take the top half from the existing node
+            let mut other_elems = self.elems.split_off(Self::MIN_OCCUPANCY + 1);
+            let mut other_kids = if self.kids.is_empty() {
+                Vec::new()
+            } else {
+                self.kids.split_off(Self::MIN_OCCUPANCY + 1)
+            };
+
+            // swap the top half into the existing node
+            std::mem::swap(&mut self.elems, &mut other_elems);
+            std::mem::swap(&mut self.kids, &mut other_kids);
+
+            // take the separator between the divided sides
+            let (mid_k, mid_v) = other_elems.pop().unwrap();
+
+            // make a node for the lhs
+            let lhs = Some(Rc::new(Node {
+                elems: other_elems,
+                kids: other_kids,
             }));
 
-            Split((lefts, k, v))
+            Split((lhs, mid_k, mid_v))
         } else {
             // res is Replaced(v) or Absorbed
             res
         }
     }
 
+    fn is_branch(&self) -> bool {
+        !self.kids.is_empty()
+    }
+
     fn is_leaf(&self) -> bool {
-        self.right.is_none()
+        self.kids.is_empty()
     }
 
     fn rot_lf(&mut self, idx: usize)
@@ -176,7 +188,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
         K: Clone,
         V: Clone,
     {
-        assert!(self.right.is_some(), "cannot rotate a leaf's children");
+        assert!(self.is_branch(), "cannot rotate a leaf's children");
 
         // extract the new separator (k2 and v2) from child on right of idx
         let right = self.child_mut(idx + 1).unwrap();
@@ -188,23 +200,29 @@ impl<K, V, const N: usize> Node<K, V, N> {
 
         let n = Rc::make_mut(right);
 
-        let (k1_to_k2, k2, v2) = n.elems.remove(0);
+        let (k2, v2) = n.elems.remove(0);
+        let k1_to_k2 = if n.kids.is_empty() {
+            None
+        } else {
+            Some(n.kids.remove(0))
+        };
 
         // replace (and take) the old separator (k1 and v1)
-        let pivot = &mut self.elems[idx];
-        let k1 = std::mem::replace(&mut pivot.1, k2);
-        let v1 = std::mem::replace(&mut pivot.2, v2);
+        let k1 = std::mem::replace(self.key_mut(idx), k2);
+        let v1 = std::mem::replace(self.val_mut(idx), v2);
 
         // push the old separator to the end of left
-        let piv_child = pivot.0.as_mut().unwrap();
+        let left = self.child_mut(idx).unwrap();
         assert!(
-            piv_child.elems.len() < Self::MIN_OCCUPANCY,
+            left.elems.len() < Self::MIN_OCCUPANCY,
             "rot_lf into a rich child"
         );
 
-        let piv_child = Rc::make_mut(piv_child);
-        let lt_k1 = std::mem::replace(&mut piv_child.right, k1_to_k2);
-        piv_child.elems.push((lt_k1, k1, v1));
+        let left = Rc::make_mut(left);
+        left.elems.push((k1, v1));
+        if let Some(k1_to_k2) = k1_to_k2 {
+            left.kids.push(k1_to_k2);
+        }
     }
 
     fn rot_rt(&mut self, idx: usize)
@@ -212,28 +230,31 @@ impl<K, V, const N: usize> Node<K, V, N> {
         K: Clone,
         V: Clone,
     {
-        assert!(self.right.is_some(), "cannot rotate a leaf's children");
+        assert!(self.is_branch(), "cannot rotate a leaf's children");
 
         // idx holds the current separator, k1.  Get the pieces that will rotate
         // in to replace k1 & v1.
-        let left = self.elems[idx].0.as_mut().unwrap();
+        let left = self.child_mut(idx).unwrap();
         assert!(
-            left.elems.len() > N / 2 - 1,
+            left.elems.len() > Self::MIN_OCCUPANCY,
             "rot_rt from impoverished child"
         );
 
         let left = Rc::make_mut(left);
-        let (lt_k0, k0, v0) = left.elems.pop().unwrap();
-        let k0_to_k1 = std::mem::replace(&mut left.right, lt_k0);
+        let (k0, v0) = left.elems.pop().unwrap();
+        let k0_to_k1 = left.kids.pop();
 
         // move k0 and v0 into the pivot position
-        let k1 = std::mem::replace(&mut self.elems[idx].1, k0);
-        let v1 = std::mem::replace(&mut self.elems[idx].2, v0);
+        let k1 = replace(self.key_mut(idx), k0);
+        let v1 = replace(self.val_mut(idx), v0);
 
         // move k1 and v1 down and to the right of the pivot
         let right = self.child_mut(idx + 1).unwrap();
         let right = Rc::make_mut(right);
-        right.elems.insert(0, (k0_to_k1, k1, v1));
+        right.elems.insert(0, (k1, v1));
+        if let Some(k0_to_k1) = k0_to_k1 {
+            right.kids.insert(0, k0_to_k1);
+        }
     }
 
     // merge the subtree self.index[at].0 and the one to its right
@@ -243,23 +264,27 @@ impl<K, V, const N: usize> Node<K, V, N> {
         V: Clone,
     {
         // take the left child and the separator key & val
-        let (lhs_opt, k, v) = self.elems.remove(at);
-        let mut lhs_n = match Rc::try_unwrap(lhs_opt.unwrap()) {
+        let (mid_k, mid_v) = self.elems.remove(at);
+        let lhs_rc: NodePtr<K, V, N> = self.kids.remove(at);
+        let mut lhs_n = match Rc::try_unwrap(lhs_rc) {
             Ok(n) => n,
             Err(rc) => (*rc).clone(),
         };
 
         // put the separator key & val into the lhs
-        lhs_n.elems.push((lhs_n.right.take(), k, v));
+        lhs_n.elems.push((mid_k, mid_v));
 
         // get a private copy of the rhs
         let rhs_rc = self.child_mut(at).unwrap();
         let rhs_ref = Rc::make_mut(rhs_rc);
 
         // We own & can take from lhs_n, but we want rhs's elements at the end.
-        // Swap the elem vecs so we can use a cheaper append for merging.
+        // Swap lhs & rhs vecs so we can use a cheaper append for merging.
         std::mem::swap(&mut lhs_n.elems, &mut rhs_ref.elems);
         rhs_ref.elems.extend(lhs_n.elems);
+
+        std::mem::swap(&mut lhs_n.kids, &mut rhs_ref.kids);
+        rhs_ref.kids.extend(lhs_n.kids);
     }
 
     // rebalances when the self.elems[at] is underpopulated
@@ -268,28 +293,18 @@ impl<K, V, const N: usize> Node<K, V, N> {
         K: Clone,
         V: Clone,
     {
+        assert!(self.is_branch(), "cannot rebalance a leaf");
+
         if at > 0 {
-            let sz = self.elems[at - 1].0.as_ref().unwrap().elems.len();
-            if sz > Self::MIN_OCCUPANCY {
+            if self.kids[at - 1].elems.len() > Self::MIN_OCCUPANCY {
                 self.rot_rt(at - 1);
             } else {
                 self.merge_kids(at - 1);
             }
-        } else if self.elems.len() > 1 {
-            let sz = self.elems[at + 1].0.as_ref().unwrap().elems.len();
-            if sz > Self::MIN_OCCUPANCY {
-                self.rot_lf(at);
-            } else {
-                self.merge_kids(at);
-            }
+        } else if self.kids[at + 1].elems.len() > Self::MIN_OCCUPANCY {
+            self.rot_lf(at);
         } else {
-            // we must be the root
-            let sz = self.right.as_ref().unwrap().elems.len();
-            if sz > Self::MIN_OCCUPANCY {
-                self.rot_lf(at);
-            } else {
-                self.merge_kids(at);
-            }
+            self.merge_kids(at);
         }
 
         NeedsRebal(self.elems.len() < Self::MIN_OCCUPANCY)
@@ -300,7 +315,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
         K: Clone,
         V: Clone,
     {
-        if let Some(rt) = self.right.as_mut() {
+        if let Some(rt) = self.kids.last_mut() {
             // self is a branch; recurse to the rightmost child
             let rt = Rc::make_mut(rt);
             let ret = rt.rm_greatest();
@@ -311,7 +326,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
             }
         } else {
             // self is a leaf
-            let (_, k, v) = self.elems.pop().unwrap();
+            let (k, v) = self.elems.pop().unwrap();
             (k, v, NeedsRebal(self.elems.len() < Self::MIN_OCCUPANCY))
         }
     }
@@ -323,13 +338,13 @@ impl<K, V, const N: usize> Node<K, V, N> {
         Q: Ord,
     {
         for i in 0..(self.elems.len()) {
-            match key.cmp(self.elems[i].1.borrow()) {
+            match key.cmp(self.key(i).borrow()) {
                 Less => {
                     if self.is_leaf() {
                         return (None, NeedsRebal(false));
                     }
 
-                    let lt_k = self.elems[i].0.as_mut().unwrap();
+                    let lt_k = self.child_mut(i).unwrap();
                     let lt_k = Rc::make_mut(lt_k);
                     let ret = lt_k.remove(key);
                     if let &(_, NeedsRebal(true)) = &ret {
@@ -341,18 +356,18 @@ impl<K, V, const N: usize> Node<K, V, N> {
 
                 Equal => {
                     if self.is_leaf() {
-                        let old_v = self.elems.remove(i).2;
+                        let old_v = self.elems.remove(i).1;
                         return (
                             Some(old_v),
                             NeedsRebal(self.elems.len() < Self::MIN_OCCUPANCY),
                         );
                     }
 
-                    let lt_k = self.elems[i].0.as_mut().unwrap();
+                    let lt_k = self.child_mut(i).unwrap();
                     let lt_k = Rc::make_mut(lt_k);
                     let (k, v, needs_rebal) = lt_k.rm_greatest();
-                    self.elems[i].1 = k;
-                    let old_v = replace(&mut self.elems[i].2, v);
+                    *self.key_mut(i) = k;
+                    let old_v = replace(self.val_mut(i), v);
                     if let NeedsRebal(true) = needs_rebal {
                         return (Some(old_v), self.rebal(i));
                     } else {
@@ -368,10 +383,10 @@ impl<K, V, const N: usize> Node<K, V, N> {
             return (None, NeedsRebal(false));
         }
 
-        let gt_k = self.right.as_mut().unwrap();
+        let gt_k = self.kids.last_mut().unwrap();
         let gt_k = Rc::make_mut(gt_k);
         let ret = gt_k.remove(key);
-        if let &(_, NeedsRebal(true)) = &ret {
+        if let &NeedsRebal(true) = &ret.1 {
             (ret.0, self.rebal(self.elems.len()))
         } else {
             ret
@@ -381,7 +396,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
 
 pub struct BTreeMap<K, V, const N: usize = 2> {
     len: usize,
-    root: OptNodePtr<K, V, N>,
+    root: Option<NodePtr<K, V, N>>,
 }
 
 impl<K, V, const N: usize> Clone for BTreeMap<K, V, N>
@@ -457,11 +472,11 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
             match Rc::make_mut(r).insert(key, val) {
                 InsertResult::Replaced(v) => Some(v),
 
-                InsertResult::Split(s) => {
+                InsertResult::Split((lhs, k, v)) => {
                     self.len += 1;
                     self.root = Some(Rc::new(Node {
-                        elems: vec![s],
-                        right: self.root.take(),
+                        elems: vec![(k, v)],
+                        kids: vec![lhs.unwrap(), self.root.take().unwrap()],
                     }));
                     None
                 }
@@ -474,8 +489,8 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         } else {
             self.len = 1;
             self.root = Some(Rc::new(Node {
-                elems: vec![(None, key, val)],
-                right: None,
+                elems: vec![(key, val)],
+                kids: Vec::new(),
             }));
             None
         }
@@ -529,7 +544,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
             }
 
             if needs_rebal.0 && n.elems.is_empty() {
-                self.root = n.right.take();
+                self.root = n.kids.pop();
             }
 
             old_v
@@ -589,7 +604,7 @@ impl<'a, K, V, const N: usize> Iterator for Iter<'a, K, V, N> {
             let mut curr = if *i < n.len() {
                 n.child(*i)
             } else {
-                let curr = n.right.as_ref();
+                let curr = n.kids.last();
                 self.w.pop();
                 curr
             };
@@ -638,7 +653,7 @@ impl<K: Ord, V, const N: usize> Node<K, V, N> {
             prev = Some(self.key(i));
         }
 
-        let curr = chk_node_ptr(self.right.as_ref(), prev);
+        let curr = chk_node_ptr(self.kids.last(), prev);
         assert_eq!(ht, curr.0, "uneven branches");
         (ht + 1, curr.1)
     }
@@ -656,7 +671,9 @@ mod test {
     extern crate quickcheck;
     use quickcheck::quickcheck;
 
-    type BTreeMap<K, V> = super::BTreeMap<K, V, 2>;
+    // use the smallest possible MIN_OCCUPATION to stress rebalances, splits,
+    // rotations, etc.
+    type BTreeMap<K, V> = super::BTreeMap<K, V, 1>;
     type TestElems = Vec<(u8, u16)>;
 
     #[test]
@@ -733,6 +750,20 @@ mod test {
             (4, 0),
             (209, 0),
         ];
+        test_remove(elems);
+    }
+
+    #[test]
+    fn remove_regr2() {
+        let elems =
+            vec![(21, 0), (0, 0), (1, 0), (22, 0), (23, 0), (24, 0), (149, 0)];
+        test_remove(elems);
+    }
+
+    #[test]
+    fn remove_regr3() {
+        let elems =
+            vec![(127, 0), (0, 0), (1, 0), (2, 0), (4, 0), (3, 0), (255, 0)];
         test_remove(elems);
     }
 

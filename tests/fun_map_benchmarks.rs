@@ -128,7 +128,7 @@ macro_rules! iter_500_elems {
     };
 }
 
-for_each_map_type!(iter_elems);
+for_each_map_type!(iter_500_elems);
 
 macro_rules! remove_1000_elems {
     ( $map_t: ident ) => {
