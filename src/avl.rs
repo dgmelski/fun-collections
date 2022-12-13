@@ -929,16 +929,29 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     }
 
     pub fn iter(&self) -> Iter<K, V> {
-        let mut spine = Vec::new();
+        let mut work = Vec::new();
         let mut curr = self.root.as_ref();
         while let Some(n) = curr {
-            spine.push(n);
+            work.push(n);
             curr = n.left.as_ref();
         }
 
         Iter {
-            spine,
+            work,
             len: self.len,
+        }
+    }
+
+    pub fn iter_mut(&mut self) -> IterMut<K, V> {
+        match self.root.as_mut() {
+            Some(rc) => IterMut {
+                work: vec![IterMutAction::Descend(rc)],
+                len: self.len,
+            },
+            None => IterMut {
+                work: Vec::new(),
+                len: 0,
+            },
         }
     }
 
@@ -1397,7 +1410,7 @@ impl<K: Clone + Ord, V: Clone> Default for AvlMap<K, V> {
 pub struct Iter<'a, K, V> {
     // TODO: use FunStack for the spine. Vec will be more performant, but users
     // may expect our promise about "cheap cloning" to apply to the iterators.
-    spine: Vec<&'a Rc<Node<K, V>>>,
+    work: Vec<&'a Rc<Node<K, V>>>,
     len: usize,
 }
 
@@ -1405,16 +1418,70 @@ impl<'a, K, V> Iterator for Iter<'a, K, V> {
     type Item = (&'a K, &'a V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.spine.pop().map(|n| {
+        self.work.pop().map(|n| {
             self.len -= 1;
             let entry = (&n.key, &n.val);
             let mut curr = n.right.as_ref();
             while let Some(m) = curr {
-                self.spine.push(m);
+                self.work.push(m);
                 curr = m.left.as_ref();
             }
             entry
         })
+    }
+}
+
+enum IterMutAction<'a, K, V> {
+    Descend(&'a mut Rc<Node<K, V>>),
+    Return((&'a K, &'a mut V)),
+}
+
+pub struct IterMut<'a, K, V> {
+    work: Vec<IterMutAction<'a, K, V>>,
+    len: usize,
+}
+
+impl<'a, K, V> Iterator for IterMut<'a, K, V>
+where
+    K: Clone,
+    V: Clone,
+{
+    type Item = (&'a K, &'a mut V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        use IterMutAction::*;
+
+        match self.work.pop() {
+            Some(Descend(rc)) => {
+                let mut n = Rc::make_mut(rc);
+
+                loop {
+                    if let Some(rt) = n.right.as_mut() {
+                        self.work.push(Descend(rt));
+                    }
+
+                    if let Some(lf) = n.left.as_mut() {
+                        self.work.push(Return((&n.key, &mut n.val)));
+                        n = Rc::make_mut(lf);
+                    } else {
+                        break;
+                    }
+                }
+
+                self.len -= 1;
+                Some((&n.key, &mut n.val))
+            }
+
+            Some(IterMutAction::Return(ret)) => {
+                self.len -= 1;
+                Some(ret)
+            }
+
+            None => {
+                assert_eq!(self.len, 0);
+                None
+            }
+        }
     }
 }
 
@@ -1726,6 +1793,24 @@ mod test {
         // build map in reverse order to encourage opposite skewing
         let fmap: AvlMap<_, _> = (0..32).rev().map(|x| (x, x + 100)).collect();
         chk_all_removes(fmap);
+    }
+
+    #[test]
+    fn iter_mut_test() {
+        let mut m: AvlMap<_, _> = (0..8).map(|x| (x, 0)).collect();
+
+        for (i, (k, v)) in m.iter_mut().enumerate() {
+            assert_eq!(i, *k);
+            assert_eq!(0, *v);
+            *v = 1;
+        }
+
+        m.chk();
+
+        for (i, (k, v)) in m.iter().enumerate() {
+            assert_eq!(i, *k);
+            assert_eq!(1, *v);
+        }
     }
 
     #[test]
