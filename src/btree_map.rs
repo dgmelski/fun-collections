@@ -61,7 +61,9 @@ impl<K, V, const N: usize> Node<K, V, N> {
         self.elems.len()
     }
 
-    fn find_path<Q>(&self, key: &Q) -> TreePath
+    // If key is in the path, return Ok(path) with the path to the key.
+    // Otherwise, returns Err(path) with the path to the key's insertion point.
+    fn find_path<Q>(&self, key: &Q) -> Result<TreePath, TreePath>
     where
         K: Borrow<Q>,
         Q: Ord,
@@ -75,22 +77,19 @@ impl<K, V, const N: usize> Node<K, V, N> {
                     Less => break,
                     Equal => {
                         path.push_back(i as u16);
-                        return path;
+                        return Ok(path);
                     }
                     Greater => i += 1,
                 }
             }
 
-            match curr.child(i) {
-                None => {
-                    path.clear();
-                    return path;
-                }
+            // either we're pushing the next branch index, or we're pushing
+            // the insertion point
+            path.push_back(i as u16);
 
-                Some(rc) => {
-                    path.push_back(i as u16);
-                    curr = rc.as_ref();
-                }
+            match curr.child(i) {
+                None => return Err(path),
+                Some(rc) => curr = rc.as_ref(),
             }
         }
     }
