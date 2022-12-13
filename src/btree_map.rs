@@ -5,7 +5,8 @@ use std::cmp::Ordering::*;
 use std::mem::replace;
 use std::rc::Rc;
 
-type OptNodePtr<K, V, const N: usize> = Option<Rc<Node<K, V, N>>>;
+type NodePtr<K, V, const N: usize> = Rc<Node<K, V, N>>;
+type OptNodePtr<K, V, const N: usize> = Option<NodePtr<K, V, N>>;
 type ChildAndElem<K, V, const N: usize> = (OptNodePtr<K, V, N>, K, V);
 
 struct Node<K, V, const N: usize> {
@@ -30,21 +31,6 @@ enum InsertResult<K, V, const N: usize> {
     Replaced(V),
     Split(ChildAndElem<K, V, N>),
     Absorbed,
-}
-
-fn unwrap_or_clone<K, V, const N: usize>(
-    n: OptNodePtr<K, V, N>,
-) -> Node<K, V, N>
-where
-    K: Clone,
-    V: Clone,
-{
-    let mut n = n.unwrap();
-    Rc::make_mut(&mut n);
-    match Rc::try_unwrap(n) {
-        Ok(n) => n,
-        Err(_) => panic!("Rc::try_unwrap should succeed after Rc::make_mut"),
-    }
 }
 
 struct NeedsRebal(bool);
@@ -276,18 +262,24 @@ impl<K, V, const N: usize> Node<K, V, N> {
         K: Clone,
         V: Clone,
     {
-        let (lhs, k, v) = self.elems.remove(at);
-        let mut lhs = unwrap_or_clone(lhs);
+        // take the left child and the separator key & val
+        let (lhs_opt, k, v) = self.elems.remove(at);
+        let mut lhs_n = match Rc::try_unwrap(lhs_opt.unwrap()) {
+            Ok(n) => n,
+            Err(rc) => (*rc).clone(),
+        };
 
-        let rhs = self.take_child(at);
-        let mut rhs = unwrap_or_clone(rhs);
+        // put the separator key & val into the lhs
+        lhs_n.elems.push((lhs_n.right.take(), k, v));
 
-        let lt_k = replace(&mut lhs.right, rhs.right.take());
+        // get a private copy of the rhs
+        let rhs_rc = self.child_mut(at).unwrap();
+        let rhs_ref = Rc::make_mut(rhs_rc);
 
-        lhs.elems.push((lt_k, k, v));
-        lhs.elems.extend(rhs.elems);
-
-        self.set_child(at, Some(Rc::new(lhs)));
+        // We own & can take from lhs_n, but we want rhs's elements at the end.
+        // Swap the elem vecs so we can use a cheaper append for merging.
+        std::mem::swap(&mut lhs_n.elems, &mut rhs_ref.elems);
+        rhs_ref.elems.extend(lhs_n.elems);
     }
 
     // rebalances when the self.elems[at] is underpopulated
