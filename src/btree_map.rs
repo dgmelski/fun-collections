@@ -562,22 +562,24 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         V: Clone,
         Q: Ord,
     {
-        if let Some(rc) = self.root.as_mut() {
-            let n = Rc::make_mut(rc);
-            let (old_v, needs_rebal) = n.remove(key);
-
-            if old_v.is_some() {
-                self.len -= 1;
-            }
-
-            if needs_rebal.0 && n.elems.is_empty() {
-                self.root = n.kids.pop();
-            }
-
-            old_v
-        } else {
-            None
+        // avoid unnecessary cloning
+        if !self.contains_key(key) {
+            return None;
         }
+
+        let rc = self.root.as_mut().unwrap();
+        let n = Rc::make_mut(rc);
+        let (old_v, needs_rebal) = n.remove(key);
+
+        if old_v.is_some() {
+            self.len -= 1;
+        }
+
+        if needs_rebal.0 && n.elems.is_empty() {
+            self.root = n.kids.pop();
+        }
+
+        old_v
     }
 }
 
