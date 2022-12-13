@@ -49,8 +49,6 @@ The following line adds "N/A" (Not Applicable) to to-do status options.
 For the standard Iterator, we use `Item = (&'a K, &'a V)`, as BTreeMap does.
 BTreeMap::iter is offered as an example, though technically, this item seems to
 call for `Item = &'a (K, V)`.
-
-We also have not yet implemented `iter_mut`.
 ** DONE Iterator type names match the methods that produce them ([[https://rust-lang.github.io/api-guidelines/naming.html#c-iter-ty][C-ITER-TY]])
 ** TODO Feature names are free of placeholder words ([[https://rust-lang.github.io/api-guidelines/naming.html#c-feature][C-FEATURE]])
 ** DONE Names use a consistent word order ([[https://rust-lang.github.io/api-guidelines/naming.html#c-word-order][C-WORD-ORDER]])

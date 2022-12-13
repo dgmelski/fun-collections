@@ -943,15 +943,14 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     }
 
     pub fn iter_mut(&mut self) -> IterMut<K, V> {
-        match self.root.as_mut() {
-            Some(rc) => IterMut {
-                work: vec![IterMutAction::Descend(rc)],
-                len: self.len,
-            },
-            None => IterMut {
-                work: Vec::new(),
-                len: 0,
-            },
+        let work = match self.root.as_mut() {
+            Some(rc) => vec![IterMutAction::Descend(rc)],
+            None => Vec::new(),
+        };
+
+        IterMut {
+            work,
+            len: self.len,
         }
     }
 
