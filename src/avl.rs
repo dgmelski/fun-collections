@@ -6,14 +6,14 @@ use std::mem::replace;
 use std::rc::Rc;
 
 type OptNode<K, V> = Option<Rc<Node<K, V>>>;
-type IsShorter = bool;
-type IsTaller = bool;
+struct IsShorter(bool);
+struct IsTaller(bool);
 
-/// Creates a FunMap from a list of tuples.
+/// Creates a AvlMap from a list of tuples.
 ///
 /// # Examples
 /// ```
-/// use fun_collections::{fmap, FunMap};
+/// use fun_collections::{fmap, AvlMap};
 ///
 /// let fmap = fmap![(0,1), (2,7)];
 /// assert_eq!(fmap.get(&0), Some(&1));
@@ -24,7 +24,7 @@ type IsTaller = bool;
 macro_rules! fmap {
     ( $( $x:expr ),* ) => {
         {
-            let mut fmap = FunMap::new();
+            let mut fmap = AvlMap::new();
             $(
                 fmap.insert($x.0, $x.1);
             )*
@@ -226,27 +226,27 @@ impl<K: Clone + Debug, V: Clone + Debug> Debug for Node<K, V> {
     }
 }
 
-pub struct FunMap<K, V> {
+pub struct AvlMap<K, V> {
     len: usize,
     root: OptNode<K, V>,
 }
 
-impl<K: Clone, V: Clone> Clone for FunMap<K, V> {
+impl<K: Clone, V: Clone> Clone for AvlMap<K, V> {
     fn clone(&self) -> Self {
-        FunMap {
+        AvlMap {
             len: self.len,
             root: self.root.clone(),
         }
     }
 }
 
-impl<K: Clone + Debug, V: Clone + Debug> Debug for FunMap<K, V> {
+impl<K: Clone + Debug, V: Clone + Debug> Debug for AvlMap<K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match &self.root {
-            None => f.write_str("FunMap(EMPTY)"),
+            None => f.write_str("AvlMap(EMPTY)"),
             Some(rc) => {
                 // use Node's Debug formatter
-                f.write_fmt(format_args!("FunMap(#{}, {:?}", self.len, rc))
+                f.write_fmt(format_args!("AvlMap(#{}, {:?}", self.len, rc))
             }
         }
     }
@@ -270,7 +270,7 @@ where
     }
 }
 
-impl<K: Clone + Ord, V: Clone> PartialEq for FunMap<K, V>
+impl<K: Clone + Ord, V: Clone> PartialEq for AvlMap<K, V>
 where
     K: PartialEq,
     V: PartialEq,
@@ -280,9 +280,9 @@ where
     }
 }
 
-impl<K: Clone + Eq + Ord, V: Clone + Eq> Eq for FunMap<K, V> {}
+impl<K: Clone + Eq + Ord, V: Clone + Eq> Eq for AvlMap<K, V> {}
 
-impl<K, V> PartialOrd for FunMap<K, V>
+impl<K, V> PartialOrd for AvlMap<K, V>
 where
     K: Clone + Ord,
     V: Clone + PartialOrd,
@@ -292,7 +292,7 @@ where
     }
 }
 
-impl<K, V> Ord for FunMap<K, V>
+impl<K, V> Ord for AvlMap<K, V>
 where
     K: Clone + Ord,
     V: Clone + Ord,
@@ -302,7 +302,7 @@ where
     }
 }
 
-impl<K, V> std::hash::Hash for FunMap<K, V>
+impl<K, V> std::hash::Hash for AvlMap<K, V>
 where
     K: Clone + std::hash::Hash + Ord,
     V: Clone + std::hash::Hash,
@@ -315,7 +315,7 @@ where
     }
 }
 
-impl<K, Q, V> std::ops::Index<&Q> for FunMap<K, V>
+impl<K, Q, V> std::ops::Index<&Q> for AvlMap<K, V>
 where
     K: Borrow<Q> + Clone + Ord,
     V: Clone,
@@ -326,7 +326,7 @@ where
     fn index(&self, index: &Q) -> &Self::Output {
         match self.get(index) {
             Some(v) => v,
-            None => panic!("Key not found in FunMap"),
+            None => panic!("Key not found in AvlMap"),
         }
     }
 }
@@ -390,7 +390,7 @@ fn rot_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> IsShorter {
     // install b as the new root
     *root = b_opt;
 
-    !b_was_bal
+    IsShorter(!b_was_bal)
 }
 
 fn rot_rt_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> IsShorter {
@@ -434,7 +434,7 @@ fn rot_rt_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> IsShorter {
     *root = c_opt;
 
     // this rebalance always makes the tree shorter
-    true
+    IsShorter(true)
 }
 
 fn rot_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> IsShorter {
@@ -467,7 +467,7 @@ fn rot_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> IsShorter {
     // install b as the new root
     *root = b_opt;
 
-    !b_was_bal
+    IsShorter(!b_was_bal)
 }
 
 fn rot_lf_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> IsShorter {
@@ -506,7 +506,7 @@ fn rot_lf_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> IsShorter {
 
     *root = c_opt;
 
-    true
+    IsShorter(true)
 }
 
 // rebalance by "shifting height" from left to right
@@ -549,34 +549,34 @@ where
     let n = match root.as_mut() {
         None => {
             *root = Some(Rc::new(Node::new(k, v, None, None)));
-            return (None, true); // *** EARLY RETURN ***
+            return (None, IsTaller(true)); // *** EARLY RETURN ***
         }
 
         Some(rc) => Rc::make_mut(rc),
     };
 
     match k.cmp(&n.key) {
-        Equal => (Some(std::mem::replace(&mut n.val, v)), false),
+        Equal => (Some(std::mem::replace(&mut n.val, v)), IsTaller(false)),
 
         Less => {
             let (old_v, is_taller) = ins(&mut n.left, k, v);
-            n.left_ht += is_taller as i8;
-            if is_taller && n.bal() < -1 {
+            n.left_ht += is_taller.0 as i8;
+            if is_taller.0 && n.bal() < -1 {
                 rebal_lf_to_rt(root);
-                (old_v, false)
+                (old_v, IsTaller(false))
             } else {
-                (old_v, is_taller && n.bal() < 0)
+                (old_v, IsTaller(is_taller.0 && n.bal() < 0))
             }
         }
 
         Greater => {
             let (old_v, is_taller) = ins(&mut n.right, k, v);
-            n.right_ht += is_taller as i8;
-            if is_taller && n.bal() > 1 {
+            n.right_ht += is_taller.0 as i8;
+            if is_taller.0 && n.bal() > 1 {
                 rebal_rt_to_lf(root);
-                (old_v, false)
+                (old_v, IsTaller(false))
             } else {
-                (old_v, is_taller && n.bal() > 0)
+                (old_v, IsTaller(is_taller.0 && n.bal() > 0))
             }
         }
     }
@@ -590,22 +590,22 @@ where
     V: Clone,
 {
     let n = match root.as_mut() {
-        None => return (None, false), // *** EARLY RETURN ***
+        None => return (None, IsShorter(false)), // *** EARLY RETURN ***
         Some(rc) => Rc::make_mut(rc),
     };
 
     if n.left.is_some() {
         let (kv, is_shorter) = rm_leftmost(&mut n.left);
-        n.left_ht -= is_shorter as i8;
-        if is_shorter && n.bal() > 1 {
+        n.left_ht -= is_shorter.0 as i8;
+        if is_shorter.0 && n.bal() > 1 {
             (kv, rebal_rt_to_lf(root))
         } else {
-            (kv, is_shorter && n.bal() == 0)
+            (kv, IsShorter(is_shorter.0 && n.bal() == 0))
         }
     } else {
         let old_n = take_node(root);
         *root = old_n.right;
-        (Some((old_n.key, old_n.val)), true)
+        (Some((old_n.key, old_n.val)), IsShorter(true))
     }
 }
 
@@ -618,47 +618,47 @@ where
     Q: Ord + ?Sized,
 {
     let n = match root.as_mut() {
-        None => return (None, false), // *** EARLY RETURN ***
+        None => return (None, IsShorter(false)), // *** EARLY RETURN ***
         Some(rc) => Rc::make_mut(rc),
     };
 
     match k.cmp(n.key.borrow()) {
         Less => {
             let (v, is_shorter) = rm(&mut n.left, k);
-            n.left_ht -= is_shorter as i8;
-            if is_shorter && n.bal() > 1 {
+            n.left_ht -= is_shorter.0 as i8;
+            if is_shorter.0 && n.bal() > 1 {
                 (v, rebal_rt_to_lf(root))
             } else {
-                (v, is_shorter && n.bal() == 0)
+                (v, IsShorter(is_shorter.0 && n.bal() == 0))
             }
         }
 
         Greater => {
             let (v, is_shorter) = rm(&mut n.right, k);
-            n.right_ht -= is_shorter as i8;
-            if is_shorter && n.bal() < -1 {
+            n.right_ht -= is_shorter.0 as i8;
+            if is_shorter.0 && n.bal() < -1 {
                 (v, rebal_lf_to_rt(root))
             } else {
-                (v, is_shorter && n.bal() == 0)
+                (v, IsShorter(is_shorter.0 && n.bal() == 0))
             }
         }
 
         Equal => match (&n.left, &n.right) {
             (None, None) => {
                 let old_n = take_node(root);
-                (Some(old_n.val), true)
+                (Some(old_n.val), IsShorter(true))
             }
 
             (None, Some(_)) => {
                 let old_n = take_node(root);
                 *root = old_n.right;
-                (Some(old_n.val), true)
+                (Some(old_n.val), IsShorter(true))
             }
 
             (Some(_), None) => {
                 let old_n = take_node(root);
                 *root = old_n.left;
-                (Some(old_n.val), true)
+                (Some(old_n.val), IsShorter(true))
             }
 
             _ => {
@@ -668,12 +668,12 @@ where
                 n.key = succ_key;
                 let old_val = replace(&mut n.val, succ_val);
 
-                n.right_ht -= is_shorter as i8;
-                if is_shorter && n.bal() < -1 {
+                n.right_ht -= is_shorter.0 as i8;
+                if is_shorter.0 && n.bal() < -1 {
                     // we were taller on left and lost height on right
                     (Some(old_val), rebal_lf_to_rt(root))
                 } else {
-                    (Some(old_val), is_shorter && n.bal() == 0)
+                    (Some(old_val), IsShorter(is_shorter.0 && n.bal() == 0))
                 }
             }
         },
@@ -701,7 +701,7 @@ fn join_rt<K: Clone + Ord, V: Clone>(
         if t2n.is_bal() {
             chk_node!(Some(t2))
         } else {
-            if rot_rt(&mut t2n.right) {
+            if rot_rt(&mut t2n.right).0 {
                 t2n.right_ht -= 1;
             }
             let mut opt_t2 = Some(t2);
@@ -741,7 +741,7 @@ fn join_lf<K: Clone + Ord, V: Clone>(
         if t2n.is_bal() {
             chk_node!(Some(t2))
         } else {
-            if rot_lf(&mut t2n.left) {
+            if rot_lf(&mut t2n.left).0 {
                 t2n.left_ht -= 1;
             }
             let mut opt_t2 = Some(t2);
@@ -913,7 +913,7 @@ fn split<K, V, Q>(
 where
     K: Borrow<Q> + Clone + Ord,
     V: Clone,
-    Q: Ord,
+    Q: Ord + ?Sized,
 {
     match opt_root {
         None => (None, None, None),
@@ -942,9 +942,14 @@ where
     }
 }
 
-impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
+impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
+    pub fn clear(&mut self) {
+        self.len = 0;
+        self.root = None;
+    }
+
     pub fn new() -> Self {
-        FunMap { len: 0, root: None }
+        AvlMap { len: 0, root: None }
     }
 
     pub fn iter(&self) -> Iter<K, V> {
@@ -977,9 +982,9 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunMap;
+    /// use fun_collections::AvlMap;
     ///
-    /// let mut fmap = FunMap::new();
+    /// let mut fmap = AvlMap::new();
     /// fmap.insert(0, "a");
     /// fmap.for_each_mut(|(_, v)| *v = "b");
     /// assert_eq!(fmap.get(&0), Some(&"b"));
@@ -994,9 +999,9 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunMap;
+    /// use fun_collections::AvlMap;
     ///
-    /// let mut fmap = FunMap::new();
+    /// let mut fmap = AvlMap::new();
     /// fmap.insert(0, "a");
     /// assert_eq!(fmap.get(&0), Some(&"a"));
     /// ```
@@ -1010,9 +1015,9 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunMap;
+    /// use fun_collections::AvlMap;
     ///
-    /// let mut fmap = FunMap::new();
+    /// let mut fmap = AvlMap::new();
     /// fmap.insert(1, 2);
     /// fmap.insert(2, 3);
     /// assert_eq!(fmap.remove(&2), Some(3));
@@ -1037,7 +1042,7 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     /// Requires:
     ///    self.last_key_value().map_or(true, |(x,_)| x < key);
     ///    rhs.first_key_value().map_or(true, |(y,_)| key < y);
-    pub fn join_with(&mut self, key: K, val: V, mut rhs: FunMap<K, V>) {
+    pub fn join_with(&mut self, key: K, val: V, mut rhs: AvlMap<K, V>) {
         assert!(self.last_key_value().map_or(true, |(k2, _)| *k2 < key));
         assert!(rhs.first_key_value().map_or(true, |(k2, _)| key < *k2));
 
@@ -1057,11 +1062,11 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunMap;
+    /// use fun_collections::AvlMap;
     ///
-    /// let f1 = FunMap::from([(0, 'a'), (1, 'b')]);
-    /// let f2 = FunMap::from([(3, 'd')]);
-    /// let f3 = FunMap::join(&f1, 2, 'c', &f2);
+    /// let f1 = AvlMap::from([(0, 'a'), (1, 'b')]);
+    /// let f2 = AvlMap::from([(3, 'd')]);
+    /// let f3 = AvlMap::join(&f1, 2, 'c', &f2);
     /// assert_eq!(f3.get(&0), Some(&'a'));
     /// assert_eq!(f3.get(&2), Some(&'c'));
     /// assert_eq!(f3.get(&3), Some(&'d'));
@@ -1075,14 +1080,14 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
         lhs
     }
 
-    /// Moves all elements greater than a key into a new map returns the
+    /// Moves all elements greater than a key into a new map and returns the
     /// original key-value pair (if present) and the new map.
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunMap;
+    /// use fun_collections::AvlMap;
     ///
-    /// let mut fmap: FunMap<_, _> = (0..10).map(|i| (i, i * 2)).collect();
+    /// let mut fmap: AvlMap<_, _> = (0..10).map(|i| (i, i * 2)).collect();
     /// let (orig_kv, higher_fives) = fmap.split_off(&5);
     /// assert_eq!(orig_kv, Some((5, 10)));
     /// assert_eq!(fmap.get(&4), Some(&8));
@@ -1092,14 +1097,14 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     pub fn split_off<Q>(&mut self, key: &Q) -> (Option<(K, V)>, Self)
     where
         K: Borrow<Q>,
-        Q: Ord,
+        Q: Ord + ?Sized,
     {
         let (lhs, orig_kv, rhs) = split(self.root.take(), key);
         self.len = len(&lhs);
         self.root = lhs;
 
         let rhs_len = len(&rhs);
-        let rhs = FunMap {
+        let rhs = AvlMap {
             len: rhs_len,
             root: rhs,
         };
@@ -1113,10 +1118,10 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunMap;
+    /// use fun_collections::AvlMap;
     ///
-    /// let fmap = FunMap::from([(0,1),(1,2),(2,3)]);
-    /// let (lt, kv, gt) = FunMap::split(&fmap, &1);
+    /// let fmap = AvlMap::from([(0,1),(1,2),(2,3)]);
+    /// let (lt, kv, gt) = AvlMap::split(&fmap, &1);
     /// assert_eq!(kv, Some((1, 2)));
     /// assert_eq!(lt.get(&0), Some(&1));
     /// assert_eq!(gt.get(&2), Some(&3));
@@ -1124,7 +1129,7 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     pub fn split<Q>(map: &Self, key: &Q) -> (Self, Option<(K, V)>, Self)
     where
         K: Borrow<Q>,
-        Q: Ord,
+        Q: Ord + ?Sized,
     {
         let mut lhs = map.clone();
         let (orig_kv, rhs) = lhs.split_off(key);
@@ -1135,10 +1140,10 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunMap;
+    /// use fun_collections::AvlMap;
     ///
-    /// let mut lhs = FunMap::from([(0,1), (1, 2)]);
-    /// let rhs = FunMap::from([(1,5), (3,4)]);
+    /// let mut lhs = AvlMap::from([(0,1), (1, 2)]);
+    /// let rhs = AvlMap::from([(1,5), (3,4)]);
     /// lhs.diff_with(rhs);
     /// assert_eq!(lhs.get(&0), Some(&1));
     /// assert_eq!(lhs.get(&1), None);
@@ -1153,11 +1158,11 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunMap;
+    /// use fun_collections::AvlMap;
     ///
-    /// let lhs = FunMap::from([(0,1), (1, 2)]);
-    /// let rhs = FunMap::from([(1,5), (3,4)]);
-    /// let d = FunMap::diff(&lhs, &rhs);
+    /// let lhs = AvlMap::from([(0,1), (1, 2)]);
+    /// let rhs = AvlMap::from([(1,5), (3,4)]);
+    /// let d = AvlMap::diff(&lhs, &rhs);
     /// assert_eq!(d.get(&0), Some(&1));
     /// assert_eq!(d.get(&1), None);
     /// ```
@@ -1172,10 +1177,10 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunMap;
+    /// use fun_collections::AvlMap;
     ///
-    /// let mut lhs = FunMap::from([(0,1), (1, 2)]);
-    /// let rhs = FunMap::from([(1,5), (3,4)]);
+    /// let mut lhs = AvlMap::from([(0,1), (1, 2)]);
+    /// let rhs = AvlMap::from([(1,5), (3,4)]);
     /// lhs.sym_diff_with(rhs);
     /// assert_eq!(lhs.get(&0), Some(&1));
     /// assert_eq!(lhs.get(&1), None);
@@ -1191,11 +1196,11 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunMap;
+    /// use fun_collections::AvlMap;
     ///
-    /// let lhs = FunMap::from([(0,1), (1, 2)]);
-    /// let rhs = FunMap::from([(1,5), (3,4)]);
-    /// let d = FunMap::sym_diff(&lhs, &rhs);
+    /// let lhs = AvlMap::from([(0,1), (1, 2)]);
+    /// let rhs = AvlMap::from([(1,5), (3,4)]);
+    /// let d = AvlMap::sym_diff(&lhs, &rhs);
     /// assert_eq!(d.get(&0), Some(&1));
     /// assert_eq!(d.get(&1), None);
     /// assert_eq!(d.get(&3), Some(&4));
@@ -1210,10 +1215,10 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunMap;
+    /// use fun_collections::AvlMap;
     ///
-    /// let mut lhs = FunMap::from([(0,1), (1, 2)]);
-    /// let rhs = FunMap::from([(1,5), (3,4)]);
+    /// let mut lhs = AvlMap::from([(0,1), (1, 2)]);
+    /// let rhs = AvlMap::from([(1,5), (3,4)]);
     /// lhs.intersect_with(rhs);
     /// assert_eq!(lhs.get(&0), None);
     /// assert_eq!(lhs.get(&1), Some(&2));
@@ -1227,11 +1232,11 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunMap;
+    /// use fun_collections::AvlMap;
     ///
-    /// let lhs = FunMap::from([(0,1), (1, 2)]);
-    /// let rhs = FunMap::from([(1,5), (3,4)]);
-    /// let i = FunMap::intersect(&lhs, &rhs);
+    /// let lhs = AvlMap::from([(0,1), (1, 2)]);
+    /// let rhs = AvlMap::from([(1,5), (3,4)]);
+    /// let i = AvlMap::intersect(&lhs, &rhs);
     /// assert_eq!(i.get(&0), None);
     /// assert_eq!(i.get(&1), Some(&2));
     /// ```
@@ -1245,10 +1250,10 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunMap;
+    /// use fun_collections::AvlMap;
     ///
-    /// let mut lhs = FunMap::from([(0,1), (1, 2)]);
-    /// let rhs = FunMap::from([(1,5), (3,4)]);
+    /// let mut lhs = AvlMap::from([(0,1), (1, 2)]);
+    /// let rhs = AvlMap::from([(1,5), (3,4)]);
     /// lhs.union_with(rhs);
     /// assert_eq!(lhs.get(&0), Some(&1));
     /// assert_eq!(lhs.get(&1), Some(&2));
@@ -1264,10 +1269,10 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunMap;
+    /// use fun_collections::AvlMap;
     ///
-    /// let mut lhs = FunMap::from([(0,1), (1, 2)]);
-    /// let rhs = FunMap::from([(1,5), (3,4)]);
+    /// let mut lhs = AvlMap::from([(0,1), (1, 2)]);
+    /// let rhs = AvlMap::from([(1,5), (3,4)]);
     /// lhs.union_with(rhs);
     /// assert_eq!(lhs.get(&0), Some(&1));
     /// assert_eq!(lhs.get(&1), Some(&2));
@@ -1283,9 +1288,9 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunMap;
+    /// use fun_collections::AvlMap;
     ///
-    /// let fmap = FunMap::from([(2,0), (1,0)]);
+    /// let fmap = AvlMap::from([(2,0), (1,0)]);
     /// assert_eq!(fmap.first_key_value(), Some((&1, &0)));
     /// ```
     pub fn first_key_value(&self) -> Option<(&K, &V)> {
@@ -1302,9 +1307,9 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunMap;
+    /// use fun_collections::AvlMap;
     ///
-    /// let fmap = FunMap::from([(2,0), (1,0)]);
+    /// let fmap = AvlMap::from([(2,0), (1,0)]);
     /// assert_eq!(fmap.last_key_value(), Some((&2, &0)));
     /// ```
     pub fn last_key_value(&self) -> Option<(&K, &V)> {
@@ -1329,9 +1334,9 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     ///
     /// # Example
     /// ```
-    /// use fun_collections::FunMap;
+    /// use fun_collections::AvlMap;
     ///
-    /// let mut fmap = FunMap::new();
+    /// let mut fmap = AvlMap::new();
     /// fmap.insert(0, 100);
     ///
     /// assert_eq!(fmap.get(&0), Some(&100));
@@ -1357,9 +1362,9 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     ///
     /// # Example
     /// ```
-    /// use fun_collections::FunMap;
+    /// use fun_collections::AvlMap;
     ///
-    /// let mut fmap = FunMap::new();
+    /// let mut fmap = AvlMap::new();
     /// fmap.insert(1, 7);
     ///
     /// *fmap.get_mut(&1).unwrap() = 2;
@@ -1407,7 +1412,7 @@ impl<K: Clone + Ord, V: Clone> FunMap<K, V> {
     }
 }
 
-impl<K: Clone + Ord, V: Clone> Default for FunMap<K, V> {
+impl<K: Clone + Ord, V: Clone> Default for AvlMap<K, V> {
     fn default() -> Self {
         Self::new()
     }
@@ -1474,7 +1479,7 @@ impl<'a, K, V: Clone> OccupiedEntry<'a, K, V> {
 
 pub struct VacantEntry<'a, K, V> {
     key: K,
-    map: &'a mut FunMap<K, V>,
+    map: &'a mut AvlMap<K, V>,
 }
 
 impl<'a, K: Clone + Ord, V: Clone> VacantEntry<'a, K, V> {
@@ -1568,7 +1573,7 @@ impl<'a, K, V> ExactSizeIterator for Iter<'a, K, V> {
     }
 }
 
-impl<K: Clone + Ord, V: Clone> Extend<(K, V)> for FunMap<K, V> {
+impl<K: Clone + Ord, V: Clone> Extend<(K, V)> for AvlMap<K, V> {
     fn extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) {
         for (k, v) in iter {
             self.insert(k, v);
@@ -1576,25 +1581,107 @@ impl<K: Clone + Ord, V: Clone> Extend<(K, V)> for FunMap<K, V> {
     }
 }
 
-impl<K, V, const N: usize> From<[(K, V); N]> for FunMap<K, V>
+impl<K, V, const N: usize> From<[(K, V); N]> for AvlMap<K, V>
 where
     K: Clone + Ord,
     V: Clone,
 {
     fn from(vs: [(K, V); N]) -> Self {
-        FunMap::from_iter(vs.into_iter())
+        AvlMap::from_iter(vs.into_iter())
     }
 }
 
-impl<K: Clone + Ord, V: Clone> FromIterator<(K, V)> for FunMap<K, V> {
+impl<K: Clone + Ord, V: Clone> FromIterator<(K, V)> for AvlMap<K, V> {
     fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
-        let mut fmap = FunMap::new();
+        let mut fmap = AvlMap::new();
         fmap.extend(iter);
         fmap
     }
 }
 
 impl<'a, K, V> FusedIterator for Iter<'a, K, V> {}
+
+pub struct AvlSet<K>(AvlMap<K, ()>);
+
+impl<K: Clone + Ord> AvlSet<K> {
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    pub fn contains<Q>(&self, key: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        self.0.contains(key)
+    }
+
+    // TODO: difference
+
+    pub fn first(&self) -> Option<&K> {
+        self.0.first_key_value().map(|(k, _)| k)
+    }
+
+    // TODO: get
+
+    pub fn insert(&mut self, key: K) -> bool {
+        self.0.insert(key, ()).is_none()
+    }
+
+    // TODO: intersection
+
+    // TODO: is_disjoint
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    // TODO: is_subset
+    // TODO: is_superset
+
+    pub fn iter(&self) -> impl Iterator<Item = &K> {
+        self.0.iter().map(|(k, _)| k)
+    }
+
+    pub fn last(&self) -> Option<&K> {
+        self.0.last_key_value().map(|e| e.0)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    // TODO: range
+
+    pub fn remove<Q>(&mut self, key: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        self.0.remove(key).is_some()
+    }
+
+    // TODO: replace
+    // TODO: retain
+
+    // pub fn split_off<Q>(&mut self, key: &Q) -> Self
+    // where
+    //     K: Borrow<Q>,
+    //     Q: Ord + ?Sized,
+    // {
+    //     self.0.split_off(key).map(|x| Self(x))
+    // }
+
+    // TODO: symetric_difference
+
+    // TODO: take
+
+    // TODO: union
+
+    pub fn new() -> Self {
+        Self(AvlMap::new())
+    }
+}
 
 #[cfg(test)]
 mod test {
@@ -1603,7 +1690,7 @@ mod test {
     use quickcheck::quickcheck;
 
     fn bal_test(vs: Vec<(u8, u32)>) {
-        let mut fmap = FunMap::new();
+        let mut fmap = AvlMap::new();
         for &(k, v) in vs.iter() {
             fmap.insert(k, v);
             println!("{:?}", fmap);
@@ -1612,7 +1699,7 @@ mod test {
     }
 
     fn rm_test(vs: Vec<(i8, u32)>) {
-        let mut fmap = FunMap::new();
+        let mut fmap = AvlMap::new();
         let mut btree = std::collections::BTreeMap::new();
 
         for &(k, v) in vs.iter() {
@@ -1636,7 +1723,7 @@ mod test {
         }
     }
 
-    fn split_test<K: Clone + Ord, V: Clone>(mut fmap: FunMap<K, V>, k: &K) {
+    fn split_test<K: Clone + Ord, V: Clone>(mut fmap: AvlMap<K, V>, k: &K) {
         let (kv, rhs) = fmap.split_off(&k);
         fmap.chk();
         rhs.chk();
@@ -1646,7 +1733,7 @@ mod test {
     }
 
     // systematically try deleting each element of fmap
-    fn chk_all_removes(fmap: FunMap<u8, u8>) {
+    fn chk_all_removes(fmap: AvlMap<u8, u8>) {
         for (k, v) in fmap.clone().iter() {
             let mut fmap2 = fmap.clone();
             assert_eq!(fmap2.remove(k), Some(*v));
@@ -1657,11 +1744,11 @@ mod test {
     #[test]
     fn rm_each_test() {
         // build map in order to encourage skewing
-        let fmap: FunMap<_, _> = (0..32).map(|x| (x, x + 100)).collect();
+        let fmap: AvlMap<_, _> = (0..32).map(|x| (x, x + 100)).collect();
         chk_all_removes(fmap);
 
         // build map in reverse order to encourage opposite skewing
-        let fmap: FunMap<_, _> = (0..32).rev().map(|x| (x, x + 100)).collect();
+        let fmap: AvlMap<_, _> = (0..32).rev().map(|x| (x, x + 100)).collect();
         chk_all_removes(fmap);
     }
 
@@ -1734,7 +1821,7 @@ mod test {
 
     #[test]
     fn iter_len_test() {
-        let fmap: FunMap<_, _> = (0..10).map(|i| (i, ())).collect();
+        let fmap: AvlMap<_, _> = (0..10).map(|i| (i, ())).collect();
 
         let mut iter = fmap.iter();
         let mut cnt = 10;
@@ -1746,8 +1833,8 @@ mod test {
 
     #[test]
     fn intersect_test() {
-        let mut lhs = FunMap::from([(0, 1), (1, 2)]);
-        let rhs = FunMap::from([(1, 5), (3, 4)]);
+        let mut lhs = AvlMap::from([(0, 1), (1, 2)]);
+        let rhs = AvlMap::from([(1, 5), (3, 4)]);
         println!("{:?}", lhs);
         println!("{:?}", rhs);
         lhs.intersect_with(rhs);
@@ -1758,9 +1845,9 @@ mod test {
     type TestEntries = Vec<(u8, u16)>;
 
     fn intersection_test(v1: TestEntries, v2: TestEntries) -> () {
-        let f1 = FunMap::from_iter(v1.into_iter());
-        let f2 = FunMap::from_iter(v2.into_iter());
-        let both = FunMap::intersect(&f1, &f2);
+        let f1 = AvlMap::from_iter(v1.into_iter());
+        let f2 = AvlMap::from_iter(v2.into_iter());
+        let both = AvlMap::intersect(&f1, &f2);
 
         for (k, v) in both.iter() {
             assert_eq!(f1.get(k), Some(v));
@@ -1779,9 +1866,9 @@ mod test {
     }
 
     fn union_test(v1: TestEntries, v2: TestEntries) -> () {
-        let f1 = FunMap::from_iter(v1.into_iter());
-        let f2 = FunMap::from_iter(v2.into_iter());
-        let either = FunMap::union(&f1, &f2);
+        let f1 = AvlMap::from_iter(v1.into_iter());
+        let f2 = AvlMap::from_iter(v2.into_iter());
+        let either = AvlMap::union(&f1, &f2);
 
         assert!(either.iter().all(|(k, _)| f1.contains(k) || f2.contains(k)));
         f1.iter()
@@ -1790,9 +1877,9 @@ mod test {
     }
 
     fn diff_test(v1: TestEntries, v2: TestEntries) -> () {
-        let f1 = FunMap::from_iter(v1.into_iter());
-        let f2 = FunMap::from_iter(v2.into_iter());
-        let diff = FunMap::diff(&f1, &f2);
+        let f1 = AvlMap::from_iter(v1.into_iter());
+        let f2 = AvlMap::from_iter(v2.into_iter());
+        let diff = AvlMap::diff(&f1, &f2);
 
         for (k, v) in diff.iter() {
             assert_eq!(f1.get(k), Some(v));
@@ -1807,9 +1894,9 @@ mod test {
     }
 
     fn sym_diff_test(v1: TestEntries, v2: TestEntries) -> () {
-        let f1 = FunMap::from_iter(v1.into_iter());
-        let f2 = FunMap::from_iter(v2.into_iter());
-        let sym_diff = FunMap::sym_diff(&f1, &f2);
+        let f1 = AvlMap::from_iter(v1.into_iter());
+        let f2 = AvlMap::from_iter(v2.into_iter());
+        let sym_diff = AvlMap::sym_diff(&f1, &f2);
 
         for (k, v) in sym_diff.iter() {
             if !f2.contains(k) {
@@ -1870,15 +1957,15 @@ mod test {
 
         fn qc_join_test(v1: Vec<u32>, v2: Vec<u32>) -> () {
             let mid = v1.len();
-            let f1: FunMap<_, _> = v1.into_iter().enumerate().collect();
-            let f2: FunMap<_, _> =
+            let f1: AvlMap<_, _> = v1.into_iter().enumerate().collect();
+            let f2: AvlMap<_, _> =
                 v2.into_iter().enumerate().map(|(i,v)| (i+mid+1, v)).collect();
-            let f3 = FunMap::join(&f1, mid, 0, &f2);
+            let f3 = AvlMap::join(&f1, mid, 0, &f2);
             f3.chk();
         }
 
         fn qc_split_test(vs: Vec<(u8, u16)>) -> () {
-            let f1: FunMap<_, _> = vs.into_iter().collect();
+            let f1: AvlMap<_, _> = vs.into_iter().collect();
 
             // try extremum splits
             split_test(f1.clone(), &u8::MIN);

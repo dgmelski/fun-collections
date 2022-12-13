@@ -19,12 +19,12 @@ type OptList<T> = Option<Rc<List<T>>>;
 /// they are.
 ///
 /// # Examples
-/// In this example, we create a `FunStack` of `Box`es to illustrate
-/// `FunStack`'s use of clone on stored elements.
+/// In this example, we create a `Stack` of `Box`es to illustrate
+/// `Stack`'s use of clone on stored elements.
 /// ```
-/// use fun_collections::FunStack;
+/// use fun_collections::Stack;
 ///
-/// let mut s = FunStack::new();
+/// let mut s = Stack::new();
 /// s.push(Box::new(0));
 /// let mut t = s.clone();
 ///
@@ -41,7 +41,7 @@ type OptList<T> = Option<Rc<List<T>>>;
 /// assert_eq!(t.pop(), Some(Box::new(2))); // pop moves Box(2) (unshared)
 /// assert_eq!(t.pop(), Some(Box::new(0))); // pop moves Box(0) (now unshared)
 /// ```
-pub struct FunStack<T> {
+pub struct Stack<T> {
     len: usize,
     elems: OptList<T>,
 }
@@ -97,7 +97,7 @@ where
 }
 
 pub struct IntoIter<T> {
-    stk: FunStack<T>,
+    stk: Stack<T>,
 }
 
 impl<T: Clone> Iterator for IntoIter<T> {
@@ -108,17 +108,17 @@ impl<T: Clone> Iterator for IntoIter<T> {
     }
 }
 
-impl<T: Clone> FunStack<T> {
+impl<T: Clone> Stack<T> {
     /// Creates an empty stack.
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunStack;
+    /// use fun_collections::Stack;
     ///
-    /// let stack: FunStack<i32> = FunStack::new();
+    /// let stack: Stack<i32> = Stack::new();
     /// ```
     pub fn new() -> Self {
-        FunStack {
+        Stack {
             len: 0,
             elems: None,
         }
@@ -127,15 +127,15 @@ impl<T: Clone> FunStack<T> {
     /// Creates an iterator from the top to the bottom elements of the stack.
     ///
     /// # Example
-    /// As with most collections, you cannot modify a `FunStack` while you are
+    /// As with most collections, you cannot modify a `Stack` while you are
     /// iterating over it.  However, because cloning a collection is so cheap,
     /// it is sometimes viable to iterate over a clone while you modify the
     /// original.  In this example, we iterate over a clone while moving the odd
     /// elements in the original stack to its top.
     /// ```
-    /// use fun_collections::FunStack;
+    /// use fun_collections::Stack;
     ///
-    /// let mut s: FunStack<_> = (0..6).collect();
+    /// let mut s: Stack<_> = (0..6).collect();
     ///
     /// for (i, n) in s.clone().iter().enumerate() {
     ///     if n % 2 == 1 {
@@ -165,9 +165,9 @@ impl<T: Clone> FunStack<T> {
     /// # Examples
     ///
     /// ```
-    /// use fun_collections::FunStack;
+    /// use fun_collections::Stack;
     ///
-    /// let mut s = FunStack::new();
+    /// let mut s = Stack::new();
     ///
     /// s.push(0);
     /// let mut t = s.clone();
@@ -196,9 +196,9 @@ impl<T: Clone> FunStack<T> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunStack;
+    /// use fun_collections::Stack;
     ///
-    /// let mut s = FunStack::new();
+    /// let mut s = Stack::new();
     ///
     /// s.push("hello");
     /// assert_eq!(s.top(), Some(&"hello"));
@@ -216,9 +216,9 @@ impl<T: Clone> FunStack<T> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunStack;
+    /// use fun_collections::Stack;
     ///
-    /// let mut s: FunStack<_> = (0..3).collect();
+    /// let mut s: Stack<_> = (0..3).collect();
     /// assert_eq!(s.top(), Some(&2));
     ///
     /// s.clear();
@@ -235,9 +235,9 @@ impl<T: Clone> FunStack<T> {
     /// # Examples
     /// ```
     ///
-    /// use fun_collections::FunStack;
+    /// use fun_collections::Stack;
     ///
-    /// let mut s: FunStack<_> = (0..=3).collect();
+    /// let mut s: Stack<_> = (0..=3).collect();
     ///
     /// assert_eq!(s.top_mut(), Some(&mut 3));
     ///
@@ -277,9 +277,9 @@ impl<T: Clone> FunStack<T> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunStack;
+    /// use fun_collections::Stack;
     ///
-    /// let mut s: FunStack<_> = (0..5).collect();
+    /// let mut s: Stack<_> = (0..5).collect();
     /// assert_eq!(s.len(), 5);
     /// ```
     pub fn len(&self) -> usize {
@@ -290,9 +290,9 @@ impl<T: Clone> FunStack<T> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunStack;
+    /// use fun_collections::Stack;
     ///
-    /// let mut s: FunStack<_> = (0..3).collect();
+    /// let mut s: Stack<_> = (0..3).collect();
     /// assert_eq!(s.len(), 3);
     /// s.clear();
     /// assert!(s.is_empty());
@@ -306,9 +306,9 @@ impl<T: Clone> FunStack<T> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunStack;
+    /// use fun_collections::Stack;
     ///
-    /// let s: FunStack<_> = (3..8).collect();
+    /// let s: Stack<_> = (3..8).collect();
     /// assert!(s.contains(&4));
     /// assert!(!s.contains(&0));
     /// ```
@@ -323,9 +323,9 @@ impl<T: Clone> FunStack<T> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunStack;
+    /// use fun_collections::Stack;
     ///
-    /// let mut s = FunStack::new();
+    /// let mut s = Stack::new();
     /// assert!(s.is_empty());
     /// s.push(47);
     /// assert!(!s.is_empty());
@@ -344,8 +344,8 @@ impl<T: Clone> FunStack<T> {
     ///
     /// # Example
     /// ```
-    /// use fun_collections::FunStack;
-    /// let mut s = FunStack::from(vec!['a','b','c', 'd']);
+    /// use fun_collections::Stack;
+    /// let mut s = Stack::from(vec!['a','b','c', 'd']);
     /// assert_eq!(s.remove(1), 'b');
     /// assert_eq!(s.len(), 3);
     /// assert_eq!(s.pop(), Some('d'));
@@ -399,9 +399,9 @@ impl<T: Clone> FunStack<T> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunStack;
+    /// use fun_collections::Stack;
     ///
-    /// let mut s: FunStack<_> = (0..21).collect();
+    /// let mut s: Stack<_> = (0..21).collect();
     /// let t = s.split_off(7);
     ///
     /// assert_eq!(s.len(), 7);
@@ -415,14 +415,14 @@ impl<T: Clone> FunStack<T> {
         }
 
         if at == 0 {
-            return FunStack {
+            return Stack {
                 len: std::mem::take(&mut self.len),
                 elems: self.elems.take(),
             };
         }
 
         if at == self.len {
-            return FunStack::new();
+            return Stack::new();
         }
 
         // for the remainder, count from top instead of from bottom
@@ -449,42 +449,39 @@ impl<T: Clone> FunStack<T> {
         self.len = sz_bot_part;
         self.elems = bot_elems;
 
-        FunStack {
+        Stack {
             len: sz_top_part,
             elems: top_elems,
         }
     }
 }
 
-impl<T: Clone + Debug> Debug for FunStack<T> {
-    /// Prints the `FunStack` to the supplied `Formatter`.
+impl<T: Clone + Debug> Debug for Stack<T> {
+    /// Prints the `Stack` to the supplied `Formatter`.
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunStack;
+    /// use fun_collections::Stack;
     ///
-    /// let s: FunStack<_> = (0..3).collect();
+    /// let s: Stack<_> = (0..3).collect();
     ///
     /// assert_eq!(&format!("{:?}", s),
-    ///     "FunStack { len: 3, elems: TOP[2, 1, 0]BOT }");
+    ///     "Stack { len: 3, elems: TOP[2, 1, 0]BOT }");
     /// ```
     fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), fmt::Error> {
-        fmt.write_fmt(format_args!(
-            "FunStack {{ len: {}, elems: TOP",
-            self.len
-        ))?;
+        fmt.write_fmt(format_args!("Stack {{ len: {}, elems: TOP", self.len))?;
         fmt.debug_list().entries(self.iter()).finish()?;
         fmt.write_str("BOT }")
     }
 }
 
-impl<T: Clone> Default for FunStack<T> {
+impl<T: Clone> Default for Stack<T> {
     fn default() -> Self {
-        FunStack::new()
+        Stack::new()
     }
 }
 
-impl<T> Drop for FunStack<T> {
+impl<T> Drop for Stack<T> {
     // avoid deep recursion when dropping a large stack
     fn drop(&mut self) {
         let mut hd_opt = self.elems.as_mut().take();
@@ -502,18 +499,18 @@ impl<T> Drop for FunStack<T> {
     }
 }
 
-impl<T: Clone> IntoIterator for FunStack<T> {
+impl<T: Clone> IntoIterator for Stack<T> {
     type Item = T;
     type IntoIter = IntoIter<Self::Item>;
 
-    /// Converts the `FunStack<T>` into an `Iterator<T>`.
+    /// Converts the `Stack<T>` into an `Iterator<T>`.
     ///
     /// # Example
-    /// Demonstrate an implict call to into_iter when a `FunStack` is used as
+    /// Demonstrate an implict call to into_iter when a `Stack` is used as
     /// the iterated collection in a `for` loop.
     /// ```
-    /// use fun_collections::FunStack;
-    /// let s = FunStack::from(vec![0,1,2]);
+    /// use fun_collections::Stack;
+    /// let s = Stack::from(vec![0,1,2]);
     /// let mut expected = 2;
     /// for x in s { // equivalent to `for x in s.into_iter()`
     ///     assert_eq!(x, expected);
@@ -525,16 +522,16 @@ impl<T: Clone> IntoIterator for FunStack<T> {
     }
 }
 
-impl<T: Clone + PartialEq> PartialEq for FunStack<T> {
+impl<T: Clone + PartialEq> PartialEq for Stack<T> {
     // TODO: test
     fn eq(&self, rhs: &Self) -> bool {
         self.len == rhs.len && self.iter().zip(rhs.iter()).all(|(a, b)| a == b)
     }
 }
 
-impl<T: Clone + Eq> Eq for FunStack<T> {}
+impl<T: Clone + Eq> Eq for Stack<T> {}
 
-impl<T: Clone + PartialOrd> PartialOrd for FunStack<T> {
+impl<T: Clone + PartialOrd> PartialOrd for Stack<T> {
     // tODO: test
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         let mut xs = self.iter();
@@ -567,13 +564,13 @@ impl<T: Clone + PartialOrd> PartialOrd for FunStack<T> {
     }
 }
 
-impl<T: Clone + Ord> Ord for FunStack<T> {
+impl<T: Clone + Ord> Ord for Stack<T> {
     fn cmp(&self, rhs: &Self) -> std::cmp::Ordering {
         self.iter().cmp(rhs.iter())
     }
 }
 
-impl<T: Clone> Extend<T> for FunStack<T> {
+impl<T: Clone> Extend<T> for Stack<T> {
     /// Pushes elements from an iterator onto the stack.
     ///
     /// Elements are pushed in order of the iteration, which means they will
@@ -581,9 +578,9 @@ impl<T: Clone> Extend<T> for FunStack<T> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::FunStack;
+    /// use fun_collections::Stack;
     ///
-    /// let mut s = FunStack::new();
+    /// let mut s = Stack::new();
     /// s.extend((0..10));
     ///
     /// assert_eq!(s.top(), Some(&9));
@@ -597,15 +594,15 @@ impl<T: Clone> Extend<T> for FunStack<T> {
     }
 }
 
-impl<T: Clone> From<Vec<T>> for FunStack<T> {
+impl<T: Clone> From<Vec<T>> for Stack<T> {
     fn from(v: Vec<T>) -> Self {
-        FunStack::from_iter(v.into_iter())
+        Stack::from_iter(v.into_iter())
     }
 }
 
-impl<T: Clone> FromIterator<T> for FunStack<T> {
+impl<T: Clone> FromIterator<T> for Stack<T> {
     fn from_iter<Iter: IntoIterator<Item = T>>(iter: Iter) -> Self {
-        let mut s: FunStack<T> = FunStack::new();
+        let mut s: Stack<T> = Stack::new();
         s.extend(iter);
         s
     }
@@ -620,13 +617,13 @@ mod tests {
 
     #[test]
     fn collect_test() {
-        let s: FunStack<_> = vec![0, 1].into_iter().collect();
+        let s: Stack<_> = vec![0, 1].into_iter().collect();
         assert_eq!(s.iter().cmp(vec![1, 0].iter()), Equal);
     }
 
     #[test]
     fn diff_hd_shared_tl() {
-        let mut s = FunStack::new();
+        let mut s = Stack::new();
         s.push(1);
         s.push(2);
 
@@ -644,7 +641,7 @@ mod tests {
 
     #[test]
     fn iter_lifetime() {
-        let mut s = FunStack::new();
+        let mut s = Stack::new();
         for i in vec![0, 1, 2] {
             s.push(i);
         }
@@ -683,7 +680,7 @@ mod tests {
 
     #[test]
     fn cloned_pop() {
-        let mut s = FunStack::new();
+        let mut s = Stack::new();
         let cntr = Rc::new(RefCell::new(0_usize));
         s.push(CloneCounter::new(cntr.clone()));
 
@@ -703,7 +700,7 @@ mod tests {
     #[test]
     fn cloned_ref_pop() {
         let cntr = CloneCounter::new(Rc::new(RefCell::new(0_usize)));
-        let mut s = FunStack::new();
+        let mut s = Stack::new();
 
         s.push(&cntr);
 
@@ -727,9 +724,9 @@ mod tests {
     fn stack_of_stacks() {
         let mut vss = vec![vec![0, 1, 2], vec![3, 4], vec![5, 6, 7]];
 
-        let mut fss = FunStack::new();
+        let mut fss = Stack::new();
         for row in vss.iter() {
-            let mut new_row = FunStack::new();
+            let mut new_row = Stack::new();
             for c in row.iter() {
                 new_row.push(*c);
             }
@@ -746,7 +743,7 @@ mod tests {
 
     #[test]
     fn split_at_test() {
-        let mut s: FunStack<_> = (0..21).collect();
+        let mut s: Stack<_> = (0..21).collect();
         let t = s.split_off(7);
 
         assert_eq!(s.len(), 7);
@@ -767,7 +764,7 @@ mod tests {
 
     quickcheck! {
         fn qc_sharing_test(xs: Vec<i32>) -> () {
-            let mut fun_stks = vec![FunStack::new()];
+            let mut fun_stks = vec![Stack::new()];
             let mut vec_stks = vec![Vec::new()];
 
             for &i in xs.iter() {
@@ -787,7 +784,7 @@ mod tests {
                 }
             }
 
-            // Are the stacks equal?  Even as dropping FunStacks reduces
+            // Are the stacks equal?  Even as dropping Stacks reduces
             // sharing?
             while let Some(s1) = fun_stks.pop() {
                 let s2 = vec_stks.pop().unwrap();

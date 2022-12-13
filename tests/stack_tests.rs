@@ -1,16 +1,16 @@
 extern crate quickcheck;
-use fun_collections::FunStack;
+use fun_collections::Stack;
 use quickcheck::quickcheck;
 
 #[test]
 fn hello() {
-    let s: FunStack<_> = (0..3).collect();
+    let s: Stack<_> = (0..3).collect();
     assert_eq!(s.len(), 3);
 }
 
 quickcheck! {
     fn qc_cmp_with_vec(xs: Vec<i32>) -> bool {
-        let mut fs = vec![FunStack::new()];
+        let mut fs = vec![Stack::new()];
         let mut vs = vec![Vec::new()];
 
         let mut i = 0;

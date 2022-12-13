@@ -7,11 +7,12 @@
 //! provides a subset of the functionality found in the `im` crate, which is way
 //! more mature.  You probably should use the im crate instead of this one.
 
-mod fun_stack;
-pub use fun_stack::FunStack;
+mod stack;
+pub use stack::Stack;
 
-mod fun_map;
-pub use fun_map::FunMap;
+mod avl;
+pub use avl::AvlMap;
+pub use avl::AvlSet;
 
-mod btree_map;
-pub type BTreeMap<K, V> = btree_map::BTreeMap<K, V, 8>;
+mod btree;
+pub type BTreeMap<K, V> = btree::BTreeMap<K, V, 8>;

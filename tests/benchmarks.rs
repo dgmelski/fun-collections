@@ -1,4 +1,4 @@
-//! Microbenchmarks of FunMap against BTreeMap and HashMap.
+//! Microbenchmarks of AvlMap against BTreeMap and HashMap.
 //!
 //! Invoke with
 //! ```
@@ -19,7 +19,7 @@
 extern crate test;
 
 // An xmacro that takes the name of another macro and invokes it once for each
-// of the map types we are testing: BTreeMap, FunMap, and HashMap.  The passed
+// of the map types we are testing: BTreeMap, AvlMap, and HashMap.  The passed
 // argument should produce a benchmark function.
 //
 // We sidestep the issue that rust does not (easily) support token concatenation
@@ -38,10 +38,10 @@ macro_rules! for_each_map_type {
             }
 
             mod funmap {
-                use fun_collections::FunMap;
+                use fun_collections::AvlMap;
                 use test::Bencher;
 
-                $macro_name!(FunMap);
+                $macro_name!(AvlMap);
             }
 
             mod hashmap {

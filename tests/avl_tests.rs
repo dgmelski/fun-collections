@@ -1,10 +1,10 @@
 extern crate quickcheck;
-use fun_collections::FunMap;
+use fun_collections::AvlMap;
 use quickcheck::quickcheck;
 
 #[test]
 fn rot_rt_regr() {
-    let mut fmap = FunMap::new();
+    let mut fmap = AvlMap::new();
     fmap.insert(2, 0);
     fmap.insert(0, 0);
     fmap.insert(1, 0);
@@ -20,7 +20,7 @@ fn rot_rt_regr() {
 quickcheck! {
     fn qc_cmp_with_btree(xs: Vec<(u8, u32)>) -> () {
         let mut btree = std::collections::BTreeMap::new();
-        let mut fmap = FunMap::new();
+        let mut fmap = AvlMap::new();
 
         for (k, v) in xs.iter() {
             assert_eq!(btree.len(), fmap.len());
