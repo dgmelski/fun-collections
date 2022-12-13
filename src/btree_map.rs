@@ -4,6 +4,7 @@ use std::mem::replace;
 use std::rc::Rc;
 
 type NodePtr<K, V, const N: usize> = Rc<Node<K, V, N>>;
+type TreePath = std::collections::VecDeque<u16>;
 
 struct Node<K, V, const N: usize> {
     elems: Vec<(K, V)>,
@@ -58,6 +59,40 @@ impl<K, V, const N: usize> Node<K, V, N> {
 
     fn len(&self) -> usize {
         self.elems.len()
+    }
+
+    fn find_path<Q>(&self, key: &Q) -> TreePath
+    where
+        K: Borrow<Q>,
+        Q: Ord,
+    {
+        let mut path = TreePath::new();
+        let mut curr = self;
+        loop {
+            let mut i = 0;
+            while i < curr.len() {
+                match key.cmp(curr.key(i).borrow()) {
+                    Less => break,
+                    Equal => {
+                        path.push_back(i as u16);
+                        return path;
+                    }
+                    Greater => i += 1,
+                }
+            }
+
+            match curr.child(i) {
+                None => {
+                    path.clear();
+                    return path;
+                }
+
+                Some(rc) => {
+                    path.push_back(i as u16);
+                    curr = rc.as_ref();
+                }
+            }
+        }
     }
 
     fn get<Q>(&self, key: &Q) -> Option<&V>
