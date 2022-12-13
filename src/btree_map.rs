@@ -495,6 +495,17 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         }
     }
 
+    pub fn iter(&self) -> Iter<'_, K, V, N> {
+        let mut curr = self.root.as_ref();
+        let mut w = Vec::new();
+        while let Some(rc) = curr {
+            w.push((rc.as_ref(), 0));
+            curr = rc.child(0);
+        }
+
+        Iter { w }
+    }
+
     pub fn len(&self) -> usize {
         self.len
     }
@@ -576,6 +587,39 @@ where
     }
 }
 
+pub struct Iter<'a, K, V, const N: usize> {
+    w: Vec<(&'a Node<K, V, N>, usize)>,
+}
+
+impl<'a, K, V, const N: usize> Iterator for Iter<'a, K, V, N> {
+    type Item = (&'a K, &'a V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some((n, i)) = self.w.last_mut() {
+            let ret = (n.key(*i), n.val(*i));
+
+            *i += 1;
+
+            let mut curr = if *i < n.len() {
+                n.child(*i)
+            } else {
+                let curr = n.right.as_ref();
+                self.w.pop();
+                curr
+            };
+
+            while let Some(rc) = curr {
+                self.w.push((rc.as_ref(), 0));
+                curr = rc.child(0);
+            }
+
+            Some(ret)
+        } else {
+            None
+        }
+    }
+}
+
 #[cfg(test)]
 fn chk_node_ptr<'a, K: Ord, V, const N: usize>(
     n: Option<&'a Rc<Node<K, V, N>>>,
@@ -652,7 +696,7 @@ mod test {
 
     fn test_insert(elems: TestElems) -> () {
         let mut m1 = BTreeMap::new();
-        let mut m2 = std::collections::HashMap::new();
+        let mut m2 = std::collections::BTreeMap::new();
         for (k, v) in elems {
             assert_eq!(m1.insert(k, v), m2.insert(k, v));
             assert_eq!(m1.len(), m2.len());
@@ -662,6 +706,8 @@ mod test {
         for (k, v) in m2.iter() {
             assert_eq!(m1.get(k), Some(v));
         }
+
+        assert!(m1.iter().cmp(m2.iter()).is_eq());
     }
 
     fn test_remove(elems: TestElems) -> () {

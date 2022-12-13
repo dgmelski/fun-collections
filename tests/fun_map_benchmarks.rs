@@ -110,6 +110,26 @@ macro_rules! get_500_elems {
 
 for_each_map_type!(get_500_elems);
 
+macro_rules! iter_500_elems {
+    ( $map_t:ident ) => {
+        const MAP_LEN: usize = 500;
+
+        #[bench]
+        fn f(b: &mut Bencher) {
+            let m: $map_t<_, _> = (0..MAP_LEN).map(|x| (x, x)).collect();
+            b.iter(|| {
+                let mut s = 0;
+                for (k, v) in m.iter() {
+                    s += k * v;
+                }
+                s
+            });
+        }
+    };
+}
+
+for_each_map_type!(iter_elems);
+
 macro_rules! remove_1000_elems {
     ( $map_t: ident ) => {
         const MAP_LEN: usize = 1000;
