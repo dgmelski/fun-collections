@@ -1,5 +1,5 @@
 extern crate quickcheck;
-use fun_collections::AvlMap;
+use lazy_clone_collections::AvlMap;
 use quickcheck::quickcheck;
 
 #[test]

@@ -1,5 +1,5 @@
 extern crate quickcheck;
-use fun_collections::Stack;
+use lazy_clone_collections::Stack;
 use quickcheck::quickcheck;
 
 #[test]

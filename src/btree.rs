@@ -484,7 +484,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::BTreeMap;
+    /// use lazy_clone_collections::BTreeMap;
     ///
     /// let mut m = BTreeMap::new();
     /// m.insert(0, 1);
@@ -518,7 +518,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::BTreeMap;
+    /// use lazy_clone_collections::BTreeMap;
     ///
     /// let mut m = BTreeMap::new();
     /// assert_eq!(m.insert(0, 1), None);
@@ -580,7 +580,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::BTreeMap;
+    /// use lazy_clone_collections::BTreeMap;
     ///
     /// let mut m = BTreeMap::new();
     /// m.insert(0, 'a');

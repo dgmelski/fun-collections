@@ -9,30 +9,6 @@ type OptNode<K, V> = Option<Rc<Node<K, V>>>;
 struct IsShorter(bool);
 struct IsTaller(bool);
 
-/// Creates a AvlMap from a list of tuples.
-///
-/// # Examples
-/// ```
-/// use fun_collections::{fmap, AvlMap};
-///
-/// let fmap = fmap![(0,1), (2,7)];
-/// assert_eq!(fmap.get(&0), Some(&1));
-/// assert_eq!(fmap.get(&2), Some(&7));
-/// assert_eq!(fmap.get(&4), None);
-/// ```
-#[macro_export]
-macro_rules! fmap {
-    ( $( $x:expr ),* ) => {
-        {
-            let mut fmap = AvlMap::new();
-            $(
-                fmap.insert($x.0, $x.1);
-            )*
-            fmap
-        }
-    };
-}
-
 #[cfg(test)]
 #[macro_export]
 macro_rules! chk_node {
@@ -982,7 +958,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::AvlMap;
+    /// use lazy_clone_collections::AvlMap;
     ///
     /// let mut fmap = AvlMap::new();
     /// fmap.insert(0, "a");
@@ -999,7 +975,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::AvlMap;
+    /// use lazy_clone_collections::AvlMap;
     ///
     /// let mut fmap = AvlMap::new();
     /// fmap.insert(0, "a");
@@ -1015,7 +991,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::AvlMap;
+    /// use lazy_clone_collections::AvlMap;
     ///
     /// let mut fmap = AvlMap::new();
     /// fmap.insert(1, 2);
@@ -1062,7 +1038,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::AvlMap;
+    /// use lazy_clone_collections::AvlMap;
     ///
     /// let f1 = AvlMap::from([(0, 'a'), (1, 'b')]);
     /// let f2 = AvlMap::from([(3, 'd')]);
@@ -1085,7 +1061,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::AvlMap;
+    /// use lazy_clone_collections::AvlMap;
     ///
     /// let mut fmap: AvlMap<_, _> = (0..10).map(|i| (i, i * 2)).collect();
     /// let (orig_kv, higher_fives) = fmap.split_off(&5);
@@ -1118,7 +1094,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::AvlMap;
+    /// use lazy_clone_collections::AvlMap;
     ///
     /// let fmap = AvlMap::from([(0,1),(1,2),(2,3)]);
     /// let (lt, kv, gt) = AvlMap::split(&fmap, &1);
@@ -1140,7 +1116,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::AvlMap;
+    /// use lazy_clone_collections::AvlMap;
     ///
     /// let mut lhs = AvlMap::from([(0,1), (1, 2)]);
     /// let rhs = AvlMap::from([(1,5), (3,4)]);
@@ -1158,7 +1134,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::AvlMap;
+    /// use lazy_clone_collections::AvlMap;
     ///
     /// let lhs = AvlMap::from([(0,1), (1, 2)]);
     /// let rhs = AvlMap::from([(1,5), (3,4)]);
@@ -1177,7 +1153,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::AvlMap;
+    /// use lazy_clone_collections::AvlMap;
     ///
     /// let mut lhs = AvlMap::from([(0,1), (1, 2)]);
     /// let rhs = AvlMap::from([(1,5), (3,4)]);
@@ -1196,7 +1172,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::AvlMap;
+    /// use lazy_clone_collections::AvlMap;
     ///
     /// let lhs = AvlMap::from([(0,1), (1, 2)]);
     /// let rhs = AvlMap::from([(1,5), (3,4)]);
@@ -1215,7 +1191,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::AvlMap;
+    /// use lazy_clone_collections::AvlMap;
     ///
     /// let mut lhs = AvlMap::from([(0,1), (1, 2)]);
     /// let rhs = AvlMap::from([(1,5), (3,4)]);
@@ -1232,7 +1208,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::AvlMap;
+    /// use lazy_clone_collections::AvlMap;
     ///
     /// let lhs = AvlMap::from([(0,1), (1, 2)]);
     /// let rhs = AvlMap::from([(1,5), (3,4)]);
@@ -1250,7 +1226,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::AvlMap;
+    /// use lazy_clone_collections::AvlMap;
     ///
     /// let mut lhs = AvlMap::from([(0,1), (1, 2)]);
     /// let rhs = AvlMap::from([(1,5), (3,4)]);
@@ -1269,7 +1245,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::AvlMap;
+    /// use lazy_clone_collections::AvlMap;
     ///
     /// let mut lhs = AvlMap::from([(0,1), (1, 2)]);
     /// let rhs = AvlMap::from([(1,5), (3,4)]);
@@ -1288,7 +1264,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::AvlMap;
+    /// use lazy_clone_collections::AvlMap;
     ///
     /// let fmap = AvlMap::from([(2,0), (1,0)]);
     /// assert_eq!(fmap.first_key_value(), Some((&1, &0)));
@@ -1307,7 +1283,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::AvlMap;
+    /// use lazy_clone_collections::AvlMap;
     ///
     /// let fmap = AvlMap::from([(2,0), (1,0)]);
     /// assert_eq!(fmap.last_key_value(), Some((&2, &0)));
@@ -1334,7 +1310,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     ///
     /// # Example
     /// ```
-    /// use fun_collections::AvlMap;
+    /// use lazy_clone_collections::AvlMap;
     ///
     /// let mut fmap = AvlMap::new();
     /// fmap.insert(0, 100);
@@ -1362,7 +1338,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     ///
     /// # Example
     /// ```
-    /// use fun_collections::AvlMap;
+    /// use lazy_clone_collections::AvlMap;
     ///
     /// let mut fmap = AvlMap::new();
     /// fmap.insert(1, 7);

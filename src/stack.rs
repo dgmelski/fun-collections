@@ -22,7 +22,7 @@ type OptList<T> = Option<Rc<List<T>>>;
 /// In this example, we create a `Stack` of `Box`es to illustrate
 /// `Stack`'s use of clone on stored elements.
 /// ```
-/// use fun_collections::Stack;
+/// use lazy_clone_collections::Stack;
 ///
 /// let mut s = Stack::new();
 /// s.push(Box::new(0));
@@ -113,7 +113,7 @@ impl<T: Clone> Stack<T> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::Stack;
+    /// use lazy_clone_collections::Stack;
     ///
     /// let stack: Stack<i32> = Stack::new();
     /// ```
@@ -133,7 +133,7 @@ impl<T: Clone> Stack<T> {
     /// original.  In this example, we iterate over a clone while moving the odd
     /// elements in the original stack to its top.
     /// ```
-    /// use fun_collections::Stack;
+    /// use lazy_clone_collections::Stack;
     ///
     /// let mut s: Stack<_> = (0..6).collect();
     ///
@@ -165,7 +165,7 @@ impl<T: Clone> Stack<T> {
     /// # Examples
     ///
     /// ```
-    /// use fun_collections::Stack;
+    /// use lazy_clone_collections::Stack;
     ///
     /// let mut s = Stack::new();
     ///
@@ -196,7 +196,7 @@ impl<T: Clone> Stack<T> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::Stack;
+    /// use lazy_clone_collections::Stack;
     ///
     /// let mut s = Stack::new();
     ///
@@ -216,7 +216,7 @@ impl<T: Clone> Stack<T> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::Stack;
+    /// use lazy_clone_collections::Stack;
     ///
     /// let mut s: Stack<_> = (0..3).collect();
     /// assert_eq!(s.top(), Some(&2));
@@ -235,7 +235,7 @@ impl<T: Clone> Stack<T> {
     /// # Examples
     /// ```
     ///
-    /// use fun_collections::Stack;
+    /// use lazy_clone_collections::Stack;
     ///
     /// let mut s: Stack<_> = (0..=3).collect();
     ///
@@ -277,7 +277,7 @@ impl<T: Clone> Stack<T> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::Stack;
+    /// use lazy_clone_collections::Stack;
     ///
     /// let mut s: Stack<_> = (0..5).collect();
     /// assert_eq!(s.len(), 5);
@@ -290,7 +290,7 @@ impl<T: Clone> Stack<T> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::Stack;
+    /// use lazy_clone_collections::Stack;
     ///
     /// let mut s: Stack<_> = (0..3).collect();
     /// assert_eq!(s.len(), 3);
@@ -306,7 +306,7 @@ impl<T: Clone> Stack<T> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::Stack;
+    /// use lazy_clone_collections::Stack;
     ///
     /// let s: Stack<_> = (3..8).collect();
     /// assert!(s.contains(&4));
@@ -323,7 +323,7 @@ impl<T: Clone> Stack<T> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::Stack;
+    /// use lazy_clone_collections::Stack;
     ///
     /// let mut s = Stack::new();
     /// assert!(s.is_empty());
@@ -344,7 +344,7 @@ impl<T: Clone> Stack<T> {
     ///
     /// # Example
     /// ```
-    /// use fun_collections::Stack;
+    /// use lazy_clone_collections::Stack;
     /// let mut s = Stack::from(vec!['a','b','c', 'd']);
     /// assert_eq!(s.remove(1), 'b');
     /// assert_eq!(s.len(), 3);
@@ -399,7 +399,7 @@ impl<T: Clone> Stack<T> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::Stack;
+    /// use lazy_clone_collections::Stack;
     ///
     /// let mut s: Stack<_> = (0..21).collect();
     /// let t = s.split_off(7);
@@ -461,7 +461,7 @@ impl<T: Clone + Debug> Debug for Stack<T> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::Stack;
+    /// use lazy_clone_collections::Stack;
     ///
     /// let s: Stack<_> = (0..3).collect();
     ///
@@ -509,7 +509,7 @@ impl<T: Clone> IntoIterator for Stack<T> {
     /// Demonstrate an implict call to into_iter when a `Stack` is used as
     /// the iterated collection in a `for` loop.
     /// ```
-    /// use fun_collections::Stack;
+    /// use lazy_clone_collections::Stack;
     /// let s = Stack::from(vec![0,1,2]);
     /// let mut expected = 2;
     /// for x in s { // equivalent to `for x in s.into_iter()`
@@ -578,7 +578,7 @@ impl<T: Clone> Extend<T> for Stack<T> {
     ///
     /// # Examples
     /// ```
-    /// use fun_collections::Stack;
+    /// use lazy_clone_collections::Stack;
     ///
     /// let mut s = Stack::new();
     /// s.extend((0..10));

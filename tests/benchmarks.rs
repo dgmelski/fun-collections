@@ -38,7 +38,7 @@ macro_rules! for_each_map_type {
             }
 
             mod funmap {
-                use fun_collections::AvlMap;
+                use lazy_clone_collections::AvlMap;
                 use test::Bencher;
 
                 $macro_name!(AvlMap);
@@ -52,7 +52,7 @@ macro_rules! for_each_map_type {
             }
 
             mod shared_btree {
-                use fun_collections::BTreeMap;
+                use lazy_clone_collections::BTreeMap;
                 use test::Bencher;
 
                 $macro_name!(BTreeMap);
