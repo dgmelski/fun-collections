@@ -67,13 +67,13 @@ impl<K, V, const N: usize> Node<K, V, N> {
     {
         for i in 0..self.len() {
             match key.cmp(self.key(i).borrow()) {
-                Less => return self.child(i).and_then(|n| n.get(key)),
+                Less => return self.child(i)?.get(key),
                 Equal => return Some(self.val(i)),
                 Greater => (),
             }
         }
 
-        self.kids.last().and_then(|n| n.get(key))
+        self.kids.last()?.get(key)
     }
 
     fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
@@ -85,12 +85,9 @@ impl<K, V, const N: usize> Node<K, V, N> {
         for i in 0..self.len() {
             match key.cmp(self.key(i).borrow()) {
                 Less => {
-                    if let Some(rc) = self.child_mut(i) {
-                        let n = Rc::make_mut(rc);
-                        return n.get_mut(key);
-                    } else {
-                        return None;
-                    }
+                    let rc = self.child_mut(i)?;
+                    let n = Rc::make_mut(rc);
+                    return n.get_mut(key);
                 }
 
                 Equal => return Some(self.val_mut(i)),
@@ -98,12 +95,9 @@ impl<K, V, const N: usize> Node<K, V, N> {
             }
         }
 
-        if let Some(rc) = self.kids.last_mut() {
-            let n = Rc::make_mut(rc);
-            n.get_mut(key)
-        } else {
-            None
-        }
+        let rc = self.kids.last_mut()?;
+        let n = Rc::make_mut(rc);
+        n.get_mut(key)
     }
 
     fn insert(&mut self, key: K, val: V) -> InsertResult<K, V, N>
@@ -462,7 +456,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         K: Borrow<Q>,
         Q: Ord,
     {
-        self.root.as_ref().and_then(|n| n.get(key))
+        self.root.as_ref()?.get(key)
     }
 
     pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
@@ -471,12 +465,9 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         V: Clone,
         Q: Ord,
     {
-        if let Some(rc) = self.root.as_mut() {
-            let n = Rc::make_mut(rc);
-            n.get_mut(key)
-        } else {
-            None
-        }
+        let rc = self.root.as_mut()?;
+        let n = Rc::make_mut(rc);
+        n.get_mut(key)
     }
 
     /// Associates 'val' with 'key' and returns the value previously associated
@@ -625,28 +616,25 @@ impl<'a, K, V, const N: usize> Iterator for Iter<'a, K, V, N> {
     type Item = (&'a K, &'a V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some((n, i)) = self.w.last_mut() {
-            let ret = (n.key(*i), n.val(*i));
+        let (n, i) = self.w.last_mut()?;
+        let ret = (n.key(*i), n.val(*i));
 
-            *i += 1;
+        *i += 1;
 
-            let mut curr = if *i < n.len() {
-                n.child(*i)
-            } else {
-                let curr = n.kids.last();
-                self.w.pop();
-                curr
-            };
-
-            while let Some(rc) = curr {
-                self.w.push((rc.as_ref(), 0));
-                curr = rc.child(0);
-            }
-
-            Some(ret)
+        let mut curr = if *i < n.len() {
+            n.child(*i)
         } else {
-            None
+            let curr = n.kids.last();
+            self.w.pop();
+            curr
+        };
+
+        while let Some(rc) = curr {
+            self.w.push((rc.as_ref(), 0));
+            curr = rc.child(0);
         }
+
+        Some(ret)
     }
 }
 
