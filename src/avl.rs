@@ -980,6 +980,18 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
         }
     }
 
+    pub fn keys(&self) -> impl Iterator<Item = &K> {
+        self.iter().map(|p| p.0)
+    }
+
+    pub fn values(&self) -> impl Iterator<Item = &V> {
+        self.iter().map(|p| p.1)
+    }
+
+    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut V> {
+        self.iter_mut().map(|p| p.1)
+    }
+
     pub fn for_each<F: FnMut((&K, &V))>(&self, mut f: F) {
         if let Some(rc) = self.root.as_ref() {
             rc.for_each(&mut f);
