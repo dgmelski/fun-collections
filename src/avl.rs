@@ -919,15 +919,41 @@ where
 }
 
 impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
+    /// Drops all elements from the map.
     pub fn clear(&mut self) {
         self.len = 0;
         self.root = None;
     }
 
+    /// Creates a new, empty map.
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    /// let m: AvlMap<usize, usize> = AvlMap::new();
+    /// assert!(m.is_empty());
+    /// ```
     pub fn new() -> Self {
         AvlMap { len: 0, root: None }
     }
 
+    /// Creates an iterator over the map entries, sorted by key.
+    ///
+    /// It is more efficient to visit each entry using
+    /// [`for_each`](#method.for_each).  (Because tree nodes may share children,
+    /// the children cannot have ancestor links.  The iterator tracks its
+    /// progress with a Vec.)  The primary advantage of `iter` is the
+    /// functionality provided by the [`Iterator`] trait.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let m = AvlMap::from([(0,1), (1,2), (2, 3)]);
+    /// for (i, (k, v)) in m.iter().enumerate() {
+    ///     assert_eq!(&i, k);
+    ///     assert_eq!(&(i+1), v);
+    /// }
+    /// ```
     pub fn iter(&self) -> Iter<K, V> {
         let mut work = Vec::new();
         let mut curr = self.root.as_ref();
