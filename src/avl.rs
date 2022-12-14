@@ -1438,6 +1438,25 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     }
 }
 
+impl<K: Clone + Ord, V: Clone> std::ops::BitAnd for AvlMap<K, V> {
+    type Output = AvlMap<K, V>;
+
+    fn bitand(mut self, rhs: Self) -> Self::Output {
+        self.intersect_with(rhs);
+        self
+    }
+}
+
+impl<K: Clone + Ord, V: Clone> std::ops::BitAnd for &AvlMap<K, V> {
+    type Output = AvlMap<K, V>;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        let mut res = self.clone();
+        res.intersect_with(rhs.clone());
+        res
+    }
+}
+
 impl<K: Clone + Ord, V: Clone> Default for AvlMap<K, V> {
     fn default() -> Self {
         Self::new()
@@ -1467,6 +1486,14 @@ impl<'a, K, V> Iterator for Iter<'a, K, V> {
         })
     }
 }
+
+impl<'a, K, V> ExactSizeIterator for Iter<'a, K, V> {
+    fn len(&self) -> usize {
+        self.len
+    }
+}
+
+impl<'a, K, V> FusedIterator for Iter<'a, K, V> {}
 
 enum IterMutAction<'a, K, V> {
     Descend(&'a mut Rc<Node<K, V>>),
@@ -1521,6 +1548,18 @@ where
         }
     }
 }
+
+impl<'a, K, V> ExactSizeIterator for IterMut<'a, K, V>
+where
+    K: Clone,
+    V: Clone,
+{
+    fn len(&self) -> usize {
+        self.len
+    }
+}
+
+impl<'a, K: Clone, V: Clone> FusedIterator for IterMut<'a, K, V> {}
 
 pub struct OccupiedEntry<'a, K, V> {
     key: K,
@@ -1647,12 +1686,6 @@ impl<'a, K, V: Clone> Entry<'a, K, V> {
     }
 }
 
-impl<'a, K, V> ExactSizeIterator for Iter<'a, K, V> {
-    fn len(&self) -> usize {
-        self.len
-    }
-}
-
 impl<K: Clone + Ord, V: Clone> Extend<(K, V)> for AvlMap<K, V> {
     fn extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) {
         for (k, v) in iter {
@@ -1678,8 +1711,6 @@ impl<K: Clone + Ord, V: Clone> FromIterator<(K, V)> for AvlMap<K, V> {
         fmap
     }
 }
-
-impl<'a, K, V> FusedIterator for Iter<'a, K, V> {}
 
 pub struct AvlSet<K>(AvlMap<K, ()>);
 
