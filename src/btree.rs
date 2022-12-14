@@ -25,7 +25,7 @@ enum InsertResult<K, V, const N: usize> {
     Absorbed,
 }
 
-struct NeedsRebal(bool);
+struct IsUnderPop(bool);
 
 impl<K, V, const N: usize> Node<K, V, N> {
     // minimum and maximum element counts for non-root nodes
@@ -288,7 +288,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
     }
 
     // rebalances when the self.elems[at] is underpopulated
-    fn rebal(&mut self, at: usize) -> NeedsRebal
+    fn rebal(&mut self, at: usize) -> IsUnderPop
     where
         K: Clone,
         V: Clone,
@@ -307,10 +307,10 @@ impl<K, V, const N: usize> Node<K, V, N> {
             self.merge_kids(at);
         }
 
-        NeedsRebal(self.elems.len() < Self::MIN_OCCUPANCY)
+        IsUnderPop(self.elems.len() < Self::MIN_OCCUPANCY)
     }
 
-    fn rm_greatest(&mut self) -> (K, V, NeedsRebal)
+    fn rm_greatest(&mut self) -> (K, V, IsUnderPop)
     where
         K: Clone,
         V: Clone,
@@ -319,7 +319,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
             // self is a branch; recurse to the rightmost child
             let rt = Rc::make_mut(rt);
             let ret = rt.rm_greatest();
-            if let &NeedsRebal(true) = &ret.2 {
+            if let &IsUnderPop(true) = &ret.2 {
                 (ret.0, ret.1, self.rebal(self.elems.len()))
             } else {
                 ret
@@ -327,11 +327,11 @@ impl<K, V, const N: usize> Node<K, V, N> {
         } else {
             // self is a leaf
             let (k, v) = self.elems.pop().unwrap();
-            (k, v, NeedsRebal(self.elems.len() < Self::MIN_OCCUPANCY))
+            (k, v, IsUnderPop(self.elems.len() < Self::MIN_OCCUPANCY))
         }
     }
 
-    fn remove<Q>(&mut self, key: &Q) -> (Option<V>, NeedsRebal)
+    fn remove<Q>(&mut self, key: &Q) -> (Option<V>, IsUnderPop)
     where
         K: Borrow<Q> + Clone,
         V: Clone,
@@ -341,13 +341,13 @@ impl<K, V, const N: usize> Node<K, V, N> {
             match key.cmp(self.key(i).borrow()) {
                 Less => {
                     if self.is_leaf() {
-                        return (None, NeedsRebal(false));
+                        return (None, IsUnderPop(false));
                     }
 
                     let lt_k = self.child_mut(i).unwrap();
                     let lt_k = Rc::make_mut(lt_k);
                     let ret = lt_k.remove(key);
-                    if let &(_, NeedsRebal(true)) = &ret {
+                    if let &(_, IsUnderPop(true)) = &ret {
                         return (ret.0, self.rebal(i));
                     } else {
                         return ret;
@@ -359,19 +359,19 @@ impl<K, V, const N: usize> Node<K, V, N> {
                         let old_v = self.elems.remove(i).1;
                         return (
                             Some(old_v),
-                            NeedsRebal(self.elems.len() < Self::MIN_OCCUPANCY),
+                            IsUnderPop(self.elems.len() < Self::MIN_OCCUPANCY),
                         );
                     }
 
                     let lt_k = self.child_mut(i).unwrap();
                     let lt_k = Rc::make_mut(lt_k);
-                    let (k, v, needs_rebal) = lt_k.rm_greatest();
+                    let (k, v, is_under_pop) = lt_k.rm_greatest();
                     *self.key_mut(i) = k;
                     let old_v = replace(self.val_mut(i), v);
-                    if let NeedsRebal(true) = needs_rebal {
+                    if is_under_pop.0 {
                         return (Some(old_v), self.rebal(i));
                     } else {
-                        return (Some(old_v), NeedsRebal(false));
+                        return (Some(old_v), IsUnderPop(false));
                     }
                 }
 
@@ -380,13 +380,13 @@ impl<K, V, const N: usize> Node<K, V, N> {
         }
 
         if self.is_leaf() {
-            return (None, NeedsRebal(false));
+            return (None, IsUnderPop(false));
         }
 
         let gt_k = self.kids.last_mut().unwrap();
         let gt_k = Rc::make_mut(gt_k);
         let ret = gt_k.remove(key);
-        if let &NeedsRebal(true) = &ret.1 {
+        if let &IsUnderPop(true) = &ret.1 {
             (ret.0, self.rebal(self.elems.len()))
         } else {
             ret
@@ -569,13 +569,13 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
 
         let rc = self.root.as_mut().unwrap();
         let n = Rc::make_mut(rc);
-        let (old_v, needs_rebal) = n.remove(key);
+        let (old_v, is_under_pop) = n.remove(key);
 
         if old_v.is_some() {
             self.len -= 1;
         }
 
-        if needs_rebal.0 && n.elems.is_empty() {
+        if is_under_pop.0 && n.elems.is_empty() {
             self.root = n.kids.pop();
         }
 
