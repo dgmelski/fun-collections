@@ -240,31 +240,14 @@ impl<K: Clone + Debug, V: Clone + Debug> Debug for AvlMap<K, V> {
     }
 }
 
-fn eq<K, V>(lhs: &OptNode<K, V>, rhs: &OptNode<K, V>) -> bool
-where
-    K: PartialEq,
-    V: PartialEq,
-{
-    match (lhs, rhs) {
-        (Some(x), Some(y)) => {
-            Rc::ptr_eq(x, y)
-                || (x.key == y.key
-                    && x.val == y.val
-                    && eq(&x.left, &y.left)
-                    && eq(&x.right, &y.right))
-        }
-
-        _ => false,
-    }
-}
-
 impl<K: Clone + Ord, V: Clone> PartialEq for AvlMap<K, V>
 where
     K: PartialEq,
     V: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
-        self.len() == other.len() && eq(&self.root, &other.root)
+        self.len() == other.len()
+            && self.iter().zip(other.iter()).all(|(x, y)| x == y)
     }
 }
 
