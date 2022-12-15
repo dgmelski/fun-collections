@@ -1810,6 +1810,7 @@ impl<K: Clone + Ord, V: Clone> FromIterator<(K, V)> for AvlMap<K, V> {
 /// A sorted set of values.
 ///
 /// The implementation is mostly a thin wrapper around [`AvlMap`].
+#[derive(Clone)]
 pub struct AvlSet<V>(AvlMap<V, ()>);
 
 impl<V: Clone + Ord> AvlSet<V> {
@@ -1834,7 +1835,23 @@ impl<V: Clone + Ord> AvlSet<V> {
         self.0.first_key_value().map(|(k, _)| k)
     }
 
-    // TODO: get
+    /// Returns a reference to the element matching value, if it exists
+    pub fn get<Q>(&self, value: &Q) -> Option<&V>
+    where
+        V: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        let mut curr = &self.0.root;
+        while let Some(n) = curr {
+            match value.cmp(n.key.borrow()) {
+                Less => curr = &n.left,
+                Equal => return Some(&n.key),
+                Greater => curr = &n.right,
+            }
+        }
+
+        None
+    }
 
     /// Inserts the given value and returns true if self did not already have
     /// the value and returns false otherwise.
@@ -1842,9 +1859,42 @@ impl<V: Clone + Ord> AvlSet<V> {
         self.0.insert(value, ()).is_none()
     }
 
-    // TODO: intersection
+    /// Returns an iterator of the values that are in both self and other.
+    pub fn intersection<'a>(
+        &'a self,
+        other: &'a Self,
+    ) -> SetIntersection<'a, V> {
+        SetIntersection {
+            lhs: self.0.iter(),
+            rhs: other.0.iter(),
+        }
+    }
 
-    // TODO: is_disjoint
+    /// Returns true if self and other have no common values and false otherwise
+    pub fn is_disjoint(&self, other: &Self) -> bool {
+        fn intersects<'a, T: Ord>(
+            lhs: Option<&'a Rc<Node<T, ()>>>,
+            rhs: Option<&'a Rc<Node<T, ()>>>,
+        ) -> bool {
+            let Some(lf) = lhs else { return false; };
+            let Some(rt) = rhs else { return false; };
+            match lf.key.cmp(&rt.key) {
+                Less => {
+                    intersects(lhs, rt.left.as_ref())
+                        || intersects(lf.right.as_ref(), rhs)
+                }
+
+                Equal => true,
+
+                Greater => {
+                    intersects(lf.right.as_ref(), rhs)
+                        || intersects(lhs, rt.left.as_ref())
+                }
+            }
+        }
+
+        !intersects(self.0.root.as_ref(), other.0.root.as_ref())
+    }
 
     /// Returns true if self is the empty set, false otherwise.
     pub fn is_empty(&self) -> bool {
@@ -1896,7 +1946,15 @@ impl<V: Clone + Ord> AvlSet<V> {
 
     // TODO: take
 
-    // TODO: union
+    /// Returns an iterator over the elements of self and other, ordered by key.
+    ///
+    /// Common elements are only returned once.
+    pub fn union<'a>(&'a self, other: &'a Self) -> SetUnion<'a, V> {
+        SetUnion {
+            lhs: self.0.iter(),
+            rhs: other.0.iter(),
+        }
+    }
 
     /// Returns a new, empty set.
     pub fn new() -> Self {
@@ -1907,6 +1965,58 @@ impl<V: Clone + Ord> AvlSet<V> {
 impl<K: Clone + Ord> Default for AvlSet<K> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+pub struct SetIntersection<'a, V> {
+    lhs: Iter<'a, V, ()>,
+    rhs: Iter<'a, V, ()>,
+}
+
+impl<'a, V: Ord> Iterator for SetIntersection<'a, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let peek_lhs = self.lhs.work.last()?;
+            let peek_rhs = self.rhs.work.last()?;
+
+            match peek_lhs.key.cmp(&peek_rhs.key) {
+                Less => self.lhs.next(),
+
+                Equal => {
+                    self.lhs.next();
+                    return self.rhs.next().map(|e| e.0);
+                }
+
+                Greater => self.rhs.next(),
+            };
+        }
+    }
+}
+
+pub struct SetUnion<'a, V> {
+    lhs: Iter<'a, V, ()>,
+    rhs: Iter<'a, V, ()>,
+}
+
+impl<'a, V: Ord> Iterator for SetUnion<'a, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let peek_lhs = self.lhs.work.last()?;
+        let peek_rhs = self.rhs.work.last()?;
+
+        match peek_lhs.key.cmp(&peek_rhs.key) {
+            Less => self.lhs.next().map(|e| e.0),
+
+            Equal => {
+                self.lhs.next();
+                self.rhs.next().map(|e| e.0)
+            }
+
+            Greater => self.rhs.next().map(|e| e.0),
+        }
     }
 }
 
