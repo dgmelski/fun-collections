@@ -1200,6 +1200,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
         lhs
     }
 
+    // FIXME: this is not the semantics of BTreeMap.
     /// Moves all elements greater than a key into a new map and returns the
     /// original key-value pair (if present) and the new map.
     ///
@@ -1932,18 +1933,74 @@ impl<V: Clone + Ord> AvlSet<V> {
         self.0.remove(value).is_some()
     }
 
-    // TODO: replace
-    // TODO: retain
+    /// Replace and return the matching value in the map.
+    pub fn replace(&mut self, value: V) -> Option<V> {
+        // TODO: adapt insert so we don't need multiple calls.
+        let ret = self.take(&value);
+        self.insert(value);
+        ret
+    }
 
-    // pub fn split_off<Q>(&mut self, key: &Q) -> Self
-    // where
-    //     K: Borrow<Q>,
-    //     Q: Ord + ?Sized,
-    // {
-    //     self.0.split_off(key).map(|x| Self(x))
-    // }
+    /// Retain values for which f returns true and discard others
+    pub fn retain<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&V) -> bool,
+    {
+        fn dfs<V, F>(n: Node<V, ()>, f: &mut F, acc: &mut AvlMap<V, ()>)
+        where
+            F: FnMut(&V) -> bool,
+            V: Clone + Ord,
+        {
+            if let Some(mut lf) = n.left {
+                Rc::make_mut(&mut lf);
+                if let Ok(x) = Rc::try_unwrap(lf) {
+                    dfs(x, f, acc);
+                }
+            }
 
-    // TODO: symetric_difference
+            if f(&n.key) {
+                acc.insert(n.key, ());
+            }
+
+            if let Some(mut rt) = n.right {
+                Rc::make_mut(&mut rt);
+                if let Ok(x) = Rc::try_unwrap(rt) {
+                    dfs(x, f, acc);
+                }
+            }
+        }
+
+        let Some(mut root) = self.0.root.take() else { return; };
+        Rc::make_mut(&mut root);
+        let Ok(root) = Rc::try_unwrap(root) else { panic!("try_unwrap fail?") };
+        let mut acc = AvlMap::new();
+        dfs(root, &mut f, &mut acc);
+        self.0 = acc;
+    }
+
+    /// Removes all elements greater or equal to key and returns them.
+    pub fn split_off<Q>(&mut self, key: &Q) -> Self
+    where
+        V: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        let (old_elt, mut gt_map) = self.0.split_off(key);
+        if let Some((k, v)) = old_elt {
+            gt_map.insert(k, v);
+        }
+        Self(gt_map)
+    }
+
+    /// Returns an iterator over elements in self or other but not both.
+    pub fn symmetric_difference<'a>(
+        &'a self,
+        other: &'a Self,
+    ) -> SymmetricDifference<'a, V> {
+        SymmetricDifference {
+            lhs: self.0.iter(),
+            rhs: other.0.iter(),
+        }
+    }
 
     /// Removes and returns the set member that matches value.
     pub fn take<Q>(&mut self, value: &Q) -> Option<V>
@@ -1962,8 +2019,8 @@ impl<V: Clone + Ord> AvlSet<V> {
     /// Returns an iterator over the elements of self and other, ordered by key.
     ///
     /// Common elements are only returned once.
-    pub fn union<'a>(&'a self, other: &'a Self) -> SetUnion<'a, V> {
-        SetUnion {
+    pub fn union<'a>(&'a self, other: &'a Self) -> Union<'a, V> {
+        Union {
             lhs: self.0.iter(),
             rhs: other.0.iter(),
         }
@@ -2008,12 +2065,38 @@ impl<'a, V: Ord> Iterator for SetIntersection<'a, V> {
     }
 }
 
-pub struct SetUnion<'a, V> {
+pub struct SymmetricDifference<'a, V> {
     lhs: Iter<'a, V, ()>,
     rhs: Iter<'a, V, ()>,
 }
 
-impl<'a, V: Ord> Iterator for SetUnion<'a, V> {
+impl<'a, V: Ord> Iterator for SymmetricDifference<'a, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let peek_lhs = self.lhs.work.last()?;
+        let peek_rhs = self.rhs.work.last()?;
+
+        match peek_lhs.key.cmp(&peek_rhs.key) {
+            Less => self.lhs.next().map(|e| e.0),
+
+            Equal => {
+                self.lhs.next();
+                self.rhs.next();
+                None
+            }
+
+            Greater => self.rhs.next().map(|e| e.0),
+        }
+    }
+}
+
+pub struct Union<'a, V> {
+    lhs: Iter<'a, V, ()>,
+    rhs: Iter<'a, V, ()>,
+}
+
+impl<'a, V: Ord> Iterator for Union<'a, V> {
     type Item = &'a V;
 
     fn next(&mut self) -> Option<Self::Item> {
