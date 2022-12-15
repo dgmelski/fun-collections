@@ -1890,8 +1890,32 @@ impl<V: Clone + Ord> AvlSet<V> {
         self.0.is_empty()
     }
 
-    // TODO: is_subset
-    // TODO: is_superset
+    /// Tests if self is a subset of other.
+    pub fn is_subset(&self, other: &Self) -> bool {
+        if self.is_empty() {
+            return true;
+        } else if self.len() > other.len() {
+            return false;
+        }
+
+        let mi = MergeIter {
+            lhs: self.0.iter(),
+            rhs: other.0.iter(),
+        };
+
+        for x in mi {
+            if let MergeItem::LeftOnly(_) = x {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// tests if self is a superset of other.
+    pub fn is_superset(&self, other: &Self) -> bool {
+        other.is_subset(self)
+    }
 
     /// Returns an iterator over self's values in sorted order.
     pub fn iter(&self) -> impl Iterator<Item = &V> {
