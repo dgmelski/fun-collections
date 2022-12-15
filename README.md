@@ -1,3 +1,5 @@
+Please see the [documentation](https://dgmelski.github.io/lazy-clone-collections/).
+
 This crate provides rust collections that are 'functional' (or persistent or
 applicative or shared or immutable) under the hood.  Clone operations are cheap
 because a clone of a collection shares its represenation with the original
