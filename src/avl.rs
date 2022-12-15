@@ -606,7 +606,7 @@ where
 
 // removes k from the map and returns the associated value and whether the
 // tree at root is shorter as a result of the deletion.
-fn rm<K, V, Q>(root: &mut OptNode<K, V>, k: &Q) -> (Option<V>, IsShorter)
+fn rm<K, V, Q>(root: &mut OptNode<K, V>, k: &Q) -> (Option<(K, V)>, IsShorter)
 where
     K: Borrow<Q> + Clone + Ord,
     V: Clone,
@@ -641,34 +641,35 @@ where
         Equal => match (&n.left, &n.right) {
             (None, None) => {
                 let old_n = take_node(root);
-                (Some(old_n.val), IsShorter(true))
+                (Some((old_n.key, old_n.val)), IsShorter(true))
             }
 
             (None, Some(_)) => {
                 let old_n = take_node(root);
                 *root = old_n.right;
-                (Some(old_n.val), IsShorter(true))
+                (Some((old_n.key, old_n.val)), IsShorter(true))
             }
 
             (Some(_), None) => {
                 let old_n = take_node(root);
                 *root = old_n.left;
-                (Some(old_n.val), IsShorter(true))
+                (Some((old_n.key, old_n.val)), IsShorter(true))
             }
 
             _ => {
                 // both children are populated
                 let (succ, is_shorter) = rm_leftmost(&mut n.right);
                 let (succ_key, succ_val) = succ.unwrap();
-                n.key = succ_key;
+                let old_key = replace(&mut n.key, succ_key);
                 let old_val = replace(&mut n.val, succ_val);
+                let old_elt = (old_key, old_val);
 
                 n.right_ht -= is_shorter.0 as i8;
                 if is_shorter.0 && n.bal() < -1 {
                     // we were taller on left and lost height on right
-                    (Some(old_val), rebal_lf_to_rt(root))
+                    (Some(old_elt), rebal_lf_to_rt(root))
                 } else {
-                    (Some(old_val), IsShorter(is_shorter.0 && n.bal() == 0))
+                    (Some(old_elt), IsShorter(is_shorter.0 && n.bal() == 0))
                 }
             }
         },
@@ -1150,7 +1151,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
         if let (opt_v @ Some(_), _) = rm(&mut self.root, key) {
             self.len -= 1;
             chk_map!(&self);
-            opt_v
+            opt_v.map(|e| e.1)
         } else {
             None
         }
@@ -1944,7 +1945,19 @@ impl<V: Clone + Ord> AvlSet<V> {
 
     // TODO: symetric_difference
 
-    // TODO: take
+    /// Removes and returns the set member that matches value.
+    pub fn take<Q>(&mut self, value: &Q) -> Option<V>
+    where
+        V: Borrow<Q> + Ord,
+        Q: Ord + ?Sized,
+    {
+        if let (opt_v @ Some(_), _) = rm(&mut self.0.root, value) {
+            self.0.len -= 1;
+            opt_v.map(|e| e.0)
+        } else {
+            None
+        }
+    }
 
     /// Returns an iterator over the elements of self and other, ordered by key.
     ///
