@@ -1899,28 +1899,7 @@ impl<V: Clone + Ord> AvlSet<V> {
 
     /// Returns true if self and other have no common values and false otherwise
     pub fn is_disjoint(&self, other: &Self) -> bool {
-        fn intersects<'a, T: Ord>(
-            lhs: Option<&'a Rc<Node<T, ()>>>,
-            rhs: Option<&'a Rc<Node<T, ()>>>,
-        ) -> bool {
-            let Some(lf) = lhs else { return false; };
-            let Some(rt) = rhs else { return false; };
-            match lf.key.cmp(&rt.key) {
-                Less => {
-                    intersects(lhs, rt.left.as_ref())
-                        || intersects(lf.right.as_ref(), rhs)
-                }
-
-                Equal => true,
-
-                Greater => {
-                    intersects(lf.right.as_ref(), rhs)
-                        || intersects(lhs, rt.left.as_ref())
-                }
-            }
-        }
-
-        !intersects(self.0.root.as_ref(), other.0.root.as_ref())
+        self.intersection(other).next().is_none()
     }
 
     /// Returns true if self is the empty set, false otherwise.
