@@ -1,3 +1,4 @@
+#![warn(missing_docs)]
 use std::borrow::Borrow;
 use std::cmp::Ordering::*;
 use std::fmt::{Debug, Formatter};
@@ -202,6 +203,24 @@ impl<K: Clone + Debug, V: Clone + Debug> Debug for Node<K, V> {
     }
 }
 
+/// A map from keys to values sorted by key.
+///
+/// We aim for the API to be compatible with the (stable) API of
+/// [`std::collections::BTreeMap`].
+///
+/// Internally, the map uses 'persistent' AVL trees.  [AVL
+/// trees](https://en.wikipedia.org/wiki/AVL_tree) were the first self-balancing
+/// binary tree.  The trees are persistent in that trees cloned from a common
+/// ancestor will share nodes until they are updated.  When a map is updated, it
+/// creates a new tree with the update, though the tree prior to the update may
+/// continue to exist and be used by other maps.
+///
+/// AvlMaps shine when (1) you need many related maps that were cloned from
+/// common ancestors and (2) cloning of keys and/or values is expensive.  When
+/// you need cloned maps and cloning of entries is relatively cheap,
+/// [`BTreeMap`s](crate.btree.BTreeMap) will often give better performance.  BTrees store
+/// more entries in each node, leading to shallower trees.  Updates need to
+/// clone fewer nodes, but clone more entries for each node cloned.
 pub struct AvlMap<K, V> {
     len: usize,
     root: OptNode<K, V>,
@@ -968,6 +987,30 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
         }
     }
 
+    /// Returns iterator of the map's entries, sorted by key, with a mutable
+    /// refence to each value (and an immutable reference to each key).
+    ///
+    /// The iterator obtains sole ownership of each value it returns, cloning
+    /// nodes if necessary.  The cloning occurs even if the calling code does
+    /// not mutate the returned values.  When the entire iterator is consumed,
+    /// all shared nodes in self are cloned.
+    ///
+    /// As with [`iter()`](#method.iter) and [`for_each`](#method.for_each), the
+    /// method [`for_each_mut`](#method.for_each_mut) is expected to be more
+    /// efficient but less ergonomic than [`iter_mut`](#method.iter_mut).
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let mut m = AvlMap::from([(0,0), (1,1), (2,2)]);
+    /// for (k, v) in m.iter_mut() {
+    ///     *v += k;
+    /// }
+    /// assert_eq!(m.get(&0), Some(&0));
+    /// assert_eq!(m.get(&1), Some(&2));
+    /// assert_eq!(m.get(&2), Some(&4));
+    /// ```
     pub fn iter_mut(&mut self) -> IterMut<K, V> {
         let work = match self.root.as_mut() {
             Some(rc) => vec![IterMutAction::Descend(rc)],
@@ -980,18 +1023,68 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
         }
     }
 
+    /// Produces an iterator over the keys of the map, in sorted order.
+    ///
+    /// This is a simple projection from [`iter`](#method.iter).
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let m = AvlMap::from([(0,0), (1,1), (2,2)]);
+    /// let cnt_even_keys = m.keys().filter(|&k| k % &2 == 0).count();
+    /// assert_eq!(cnt_even_keys, 2);
+    /// ```
     pub fn keys(&self) -> impl Iterator<Item = &K> {
         self.iter().map(|p| p.0)
     }
 
+    /// Produces an iterator over the values of the map, ordered by their
+    /// associated keys.
+    ///
+    /// The iterator is a simple projection from [`iter`](#method.iter).
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let m = AvlMap::from([(0,0), (1,1), (2,2)]);
+    /// let sum_values: u32 = m.values().sum();
+    /// assert_eq!(sum_values, 3);
+    /// ```
     pub fn values(&self) -> impl Iterator<Item = &V> {
         self.iter().map(|p| p.1)
     }
 
+    /// Returns an iterator of mutable references to the map's values, ordered
+    /// by their associated keys.
+    ///
+    /// The iterator is a simple projection from the iterator returned by
+    /// [`iter_mut`](#method.iter) and has the similar properties.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let mut m = AvlMap::from([(0,0), (1,1), (2,2)]);
+    /// for v in m.values_mut() {
+    ///     *v *= 17;
+    /// };
+    /// assert_eq!(m.get(&2), Some(&34));
+    /// ```
     pub fn values_mut(&mut self) -> impl Iterator<Item = &mut V> {
         self.iter_mut().map(|p| p.1)
     }
 
+    /// Applies f to each entry of the map in order of the keys.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let m = AvlMap::from([(0,-10), (1,0), (2,12)]);
+    /// let mut cnt_keys_gt_vals = 0;
+    /// m.for_each(|(k, v)| if k > v { cnt_keys_gt_vals += 1 });
+    /// assert_eq!(cnt_keys_gt_vals, 2);
+    /// ```
     pub fn for_each<F: FnMut((&K, &V))>(&self, mut f: F) {
         if let Some(rc) = self.root.as_ref() {
             rc.for_each(&mut f);
@@ -1348,12 +1441,13 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
         prev.as_ref().map(|rc| (&rc.key, &rc.val))
     }
 
-    pub fn contains<Q>(&self, k: &Q) -> bool
+    /// Tests if self contains an entry for the given key.
+    pub fn contains<Q>(&self, key: &Q) -> bool
     where
         K: Borrow<Q> + Ord,
         Q: Ord + ?Sized,
     {
-        self.get(k).is_some()
+        self.get(key).is_some()
     }
 
     /// Returns a reference to the value associated with k.
@@ -1414,6 +1508,7 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
         None
     }
 
+    /// Returns an Entry that simplifies some update operations.
     pub fn entry(&mut self, key: K) -> Entry<'_, K, V> {
         // TODO: frustrating that this traverses the tree twice
         if self.contains(&key) {
@@ -1424,10 +1519,12 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
         }
     }
 
+    /// Returns true if self contains no entries, false otherwise.
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 
+    /// Returns the number of entries in self.
     pub fn len(&self) -> usize {
         self.len
     }
@@ -1492,8 +1589,6 @@ impl<'a, K, V> ExactSizeIterator for Iter<'a, K, V> {
         self.len
     }
 }
-
-impl<'a, K, V> FusedIterator for Iter<'a, K, V> {}
 
 enum IterMutAction<'a, K, V> {
     Descend(&'a mut Rc<Node<K, V>>),
@@ -1712,37 +1807,46 @@ impl<K: Clone + Ord, V: Clone> FromIterator<(K, V)> for AvlMap<K, V> {
     }
 }
 
-pub struct AvlSet<K>(AvlMap<K, ()>);
+/// A sorted set of values.
+///
+/// The implementation is mostly a thin wrapper around [`AvlMap`].
+pub struct AvlSet<V>(AvlMap<V, ()>);
 
-impl<K: Clone + Ord> AvlSet<K> {
+impl<V: Clone + Ord> AvlSet<V> {
+    /// Removes all the entries from self.
     pub fn clear(&mut self) {
         self.0.clear();
     }
 
-    pub fn contains<Q>(&self, key: &Q) -> bool
+    /// Tests if self contains the given value.
+    pub fn contains<Q>(&self, value: &Q) -> bool
     where
-        K: Borrow<Q>,
+        V: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        self.0.contains(key)
+        self.0.contains(value)
     }
 
     // TODO: difference
 
-    pub fn first(&self) -> Option<&K> {
+    /// Returns the least value in the set.
+    pub fn first(&self) -> Option<&V> {
         self.0.first_key_value().map(|(k, _)| k)
     }
 
     // TODO: get
 
-    pub fn insert(&mut self, key: K) -> bool {
-        self.0.insert(key, ()).is_none()
+    /// Inserts the given value and returns true if self did not already have
+    /// the value and returns false otherwise.
+    pub fn insert(&mut self, value: V) -> bool {
+        self.0.insert(value, ()).is_none()
     }
 
     // TODO: intersection
 
     // TODO: is_disjoint
 
+    /// Returns true if self is the empty set, false otherwise.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
@@ -1750,26 +1854,31 @@ impl<K: Clone + Ord> AvlSet<K> {
     // TODO: is_subset
     // TODO: is_superset
 
-    pub fn iter(&self) -> impl Iterator<Item = &K> {
+    /// Returns an iterator over self's values in sorted order.
+    pub fn iter(&self) -> impl Iterator<Item = &V> {
         self.0.iter().map(|(k, _)| k)
     }
 
-    pub fn last(&self) -> Option<&K> {
+    /// Returns the greatest value in self.
+    pub fn last(&self) -> Option<&V> {
         self.0.last_key_value().map(|e| e.0)
     }
 
+    /// Returns the number of elements in self.
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
     // TODO: range
 
-    pub fn remove<Q>(&mut self, key: &Q) -> bool
+    /// Removes the given value from self returning true if the value was
+    /// present and false otherwise.
+    pub fn remove<Q>(&mut self, value: &Q) -> bool
     where
-        K: Borrow<Q>,
+        V: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        self.0.remove(key).is_some()
+        self.0.remove(value).is_some()
     }
 
     // TODO: replace
@@ -1789,6 +1898,7 @@ impl<K: Clone + Ord> AvlSet<K> {
 
     // TODO: union
 
+    /// Returns a new, empty set.
     pub fn new() -> Self {
         Self(AvlMap::new())
     }
