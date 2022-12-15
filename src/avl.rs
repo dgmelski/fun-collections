@@ -217,22 +217,15 @@ impl<K: Clone + Debug, V: Clone + Debug> Debug for Node<K, V> {
 ///
 /// AvlMaps shine when (1) you need many related maps that were cloned from
 /// common ancestors and (2) cloning of keys and/or values is expensive.  When
-/// you need cloned maps and cloning of entries is relatively cheap,
-/// [`BTreeMap`s](crate.btree.BTreeMap) will often give better performance.  BTrees store
-/// more entries in each node, leading to shallower trees.  Updates need to
-/// clone fewer nodes, but clone more entries for each node cloned.
+/// you need cloned maps but cloning of entries is relatively cheap,
+/// [`lazy_clone_collections::BTreeMap`s](crate.btree.BTreeMap) will often give
+/// better performance. BTrees store more entries in each node, leading to
+/// shallower trees.  Updates need to clone fewer nodes, but clone more entries
+/// for each node cloned.
+#[derive(Clone)]
 pub struct AvlMap<K, V> {
     len: usize,
     root: OptNode<K, V>,
-}
-
-impl<K: Clone, V: Clone> Clone for AvlMap<K, V> {
-    fn clone(&self) -> Self {
-        AvlMap {
-            len: self.len,
-            root: self.root.clone(),
-        }
-    }
 }
 
 impl<K: Clone + Debug, V: Clone + Debug> Debug for AvlMap<K, V> {
