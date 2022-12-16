@@ -1539,8 +1539,6 @@ impl<K: Clone + Ord, V: Clone> Default for AvlMap<K, V> {
 }
 
 pub struct Iter<'a, K, V> {
-    // TODO: use FunStack for the spine. Vec will be more performant, but users
-    // may expect our promise about "cheap cloning" to apply to the iterators.
     work: Vec<&'a Rc<Node<K, V>>>,
     len: usize,
 }
