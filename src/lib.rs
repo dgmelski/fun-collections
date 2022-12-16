@@ -11,8 +11,8 @@ mod stack;
 pub use stack::Stack;
 
 mod avl;
+pub use avl::avl_set::AvlSet;
 pub use avl::AvlMap;
-pub use avl::AvlSet;
 
 mod btree;
 pub type BTreeMap<K, V> = btree::BTreeMap<K, V, 8>;
@@ -56,6 +56,7 @@ impl<T: Ord, I: Iterator<Item = T>> std::iter::FusedIterator
 {
 }
 
+#[allow(clippy::enum_variant_names)]
 enum SetOpFlag {
     KeepLeftOnly = 0b0100,
     KeepCommon = 0b0010,
@@ -80,15 +81,13 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         use SetOpFlag::*;
         loop {
-            let (lf, rt) = self.0.next()?;
-            if lf.is_none() && P & KeepRightOnly as u32 != 0 {
-                return rt;
-            } else if rt.is_none() && P & KeepLeftOnly as u32 != 0 {
-                return lf;
-            } else if lf.is_some() && rt.is_some() {
-                if P & KeepCommon as u32 != 0 {
-                    return rt;
-                }
+            let (a, b) = self.0.next()?;
+            if a.is_none() && P & KeepRightOnly as u32 != 0 {
+                return b;
+            } else if b.is_none() && P & KeepLeftOnly as u32 != 0 {
+                return a;
+            } else if a.is_some() && b.is_some() && P & KeepCommon as u32 != 0 {
+                return b;
             }
         }
     }
