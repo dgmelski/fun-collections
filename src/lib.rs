@@ -1,12 +1,70 @@
-//! # "Functional" collections that provide memory-efficient cloning
+//! # Lazy Clone Collections
 //!
-//! `fun-collections` is a set of "functional" collections.  The collections use
-//! persistent data structures, which means that a clone `s.clone()` shares its
-//! internal representation with `s`.  The representations of a collection and
-//! its clones gradually diverge as they are updated.  `fun-collections`
-//! provides a subset of the functionality found in the `im` crate, which is way
-//! more mature.  You probably should use the im crate instead of this one.
+//! The `lazy-clone-collections` crate provides standard collections with
+//! support for efficient cloning.  When a lazy-clone collection is cloned, the
+//! original and the cloned collections share their internal representation.  As
+//! the original and/or the clone are updated, their internal representations
+//! increasingly diverge.  A lazy-clone collection clones its internal state
+//! on-demand, or lazily, to implement updates.
+//!
+//! Externally, the lazy-clone collections provide standard destructive update
+//! semantics. Where applicable, each lazy-clone collections attempts to match
+//! the interface of the corresponding collection type from
+//! [`std::collections`]. Internally, the lazy-clone collections use data
+//! structures that behavior like those from a functional language.  Upon an
+//! update, a collection builds and switches to a new representation, but the
+//! pre-update representation may continue to exist and be used by other
+//! collections.  The new and original structures may partially overlap.
+//!
+//! There are many names for this type of behavior.  The internal structures
+//! might be called immutable, persistent, applicative, or be said to have value
+//! semantics.  (As an optimization, the structures destructively update nodes
+//! with a reference count of one, but Rust's ownership semantics ensures this
+//! is transparent to clients.)
+//!
+//! The lazy-clone collections are designed to support uses cases where you need
+//! to create and keep many clones of your collections.  The standard
+//! collections are more efficient most of the time.  However, when aggressive
+//! cloning is necessary, the standard collections will quickly explode in
+//! memory usage leading to severe declines in performance.  An example where
+//! lazy-clone collections shine is in representing symbolic state in a symbolic
+//! execution engine that performing a breadth-first exploration.
+//!
+//! Lazy-clone collections require that their elements implement [`Clone`].
+//!
+//! The crate provides the following collections:
+//!
+//! * [`AvlMap`] provides a map that matches the (stable) interface of
+//!   [`std::collections::BTreeMap`].  It is implemented using the venerable
+//!   [AVL tree](https://en.wikipedia.org/wiki/AVL_tree) data structure. It is
+//!   best in cases where cloning map elements is expensive, for example, if the
+//!   keys or mapped values are strings or standard collections.
+//!
+//! * [`BTreeMap`] also provides a map that matches the interface of
+//!   [`std::collections::BTreeMap`] and uses
+//!   [B-trees](https://en.wikipedia.org/wiki/B-tree) in its implementation.
+//!   Given an [`AvlMap`] and a [`BTreeMap`] holding the same elements, the
+//!   [`BTreeMap`] holds more elements in each node and is shallower.  Lookup
+//!   operations are likely faster in the [`BTreeMap`].  On an update, the
+//!   [`BTreeMap`] will clone fewer nodes, but is likely to clone more elements.
+//!   The relative performance of the two structures will depend on the mix of
+//!   operations and the expense of cloning operations.
+//!
+//! * [`AvlSet`] keeps a set of values and matches the
+//!   [`std::collections::BTreeSet`] interface.  It is a thin wrapper over an
+//!   [`AvlMap<T, ()>`] and shares its properties.
+//!
+//! * TODO: `BTreeSet`
+//!
+//! * [`Stack`] provides a Last-In First-Out (LIFO) stack.  It can also be used
+//!   as a singly-linked list. A lazy-clone stack may be useful for modeling and
+//!   recording the evolution of a population of individuals where new
+//!   individuals are derived from old. Each individual can be associated with a
+//!   stack that records that individual's history.  Because of internal
+//!   sharing, a set of stacks may form an "ancestral tree" with each stack
+//!   corresponding to a path from the root to a leaf.
 
+#[warn(missing_docs)]
 mod stack;
 pub use stack::Stack;
 
