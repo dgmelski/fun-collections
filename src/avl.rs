@@ -222,7 +222,7 @@ impl<K: Clone + Debug, V: Clone + Debug> Debug for Node<K, V> {
 /// better performance. BTrees store more entries in each node, leading to
 /// shallower trees.  Updates need to clone fewer nodes, but clone more entries
 /// for each node cloned.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct AvlMap<K, V> {
     len: usize,
     root: OptNode<K, V>,
@@ -1493,28 +1493,35 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     }
 }
 
-impl<K: Clone + Ord, V: Clone> std::ops::BitAnd for AvlMap<K, V> {
-    type Output = AvlMap<K, V>;
-
-    fn bitand(mut self, rhs: Self) -> Self::Output {
-        self.intersect_with(rhs);
-        self
-    }
-}
-
-impl<K: Clone + Ord, V: Clone> std::ops::BitAnd for &AvlMap<K, V> {
-    type Output = AvlMap<K, V>;
+impl<K: Clone + Ord> std::ops::BitAnd for &AvlSet<K> {
+    type Output = AvlSet<K>;
 
     fn bitand(self, rhs: Self) -> Self::Output {
-        let mut res = self.clone();
-        res.intersect_with(rhs.clone());
-        res
+        Self::Output::new_intersection(self.clone(), rhs.clone())
     }
 }
 
-impl<K: Clone + Ord, V: Clone> Default for AvlMap<K, V> {
-    fn default() -> Self {
-        Self::new()
+impl<K: Clone + Ord> std::ops::BitOr for &AvlSet<K> {
+    type Output = AvlSet<K>;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        AvlSet::new_union(self.clone(), rhs.clone())
+    }
+}
+
+impl<K: Clone + Ord> std::ops::Sub for &AvlSet<K> {
+    type Output = AvlSet<K>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        AvlSet::new_diff(self.clone(), rhs.clone())
+    }
+}
+
+impl<K: Clone + Ord> std::ops::BitXor for &AvlSet<K> {
+    type Output = AvlSet<K>;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        AvlSet::new_sym_diff(self.clone(), rhs.clone())
     }
 }
 
@@ -2086,6 +2093,70 @@ impl<V: Clone + Ord> AvlSet<V> {
     /// Returns a new, empty set.
     pub fn new() -> Self {
         Self(AvlMap::new())
+    }
+
+    /// Creates a new set with the elements of lhs that are not in rhs.
+    pub fn new_diff(lhs: Self, rhs: Self) -> Self {
+        let mut merger = Merger {
+            on_only_left: NoMatchMergePolicy::Keep,
+            on_only_right: NoMatchMergePolicy::Discard,
+            deconflict: &mut |_, _| None,
+            entry_dummy: std::marker::PhantomData,
+        };
+
+        let root = merger.merge(lhs.0.root, rhs.0.root);
+        Self(AvlMap {
+            len: len(&root),
+            root,
+        })
+    }
+
+    /// Creates a new set with the elements of lhs that are also in rhs.
+    pub fn new_intersection(lhs: Self, rhs: Self) -> Self {
+        let mut merger = Merger {
+            on_only_left: NoMatchMergePolicy::Discard,
+            on_only_right: NoMatchMergePolicy::Discard,
+            deconflict: &mut |lhs, _| Some(lhs),
+            entry_dummy: std::marker::PhantomData,
+        };
+
+        let root = merger.merge(lhs.0.root, rhs.0.root);
+        Self(AvlMap {
+            len: len(&root),
+            root,
+        })
+    }
+
+    /// Creates a new set with the elements of both lhs and rhs.
+    pub fn new_union(lhs: Self, rhs: Self) -> Self {
+        let mut merger = Merger {
+            on_only_left: NoMatchMergePolicy::Keep,
+            on_only_right: NoMatchMergePolicy::Keep,
+            deconflict: &mut |lhs, _| Some(lhs),
+            entry_dummy: std::marker::PhantomData,
+        };
+
+        let root = merger.merge(lhs.0.root, rhs.0.root);
+        Self(AvlMap {
+            len: len(&root),
+            root,
+        })
+    }
+
+    /// Creates a new set with the elements that are in lhs or rhs but not both.
+    pub fn new_sym_diff(lhs: Self, rhs: Self) -> Self {
+        let mut merger = Merger {
+            on_only_left: NoMatchMergePolicy::Keep,
+            on_only_right: NoMatchMergePolicy::Keep,
+            deconflict: &mut |_, _| None,
+            entry_dummy: std::marker::PhantomData,
+        };
+
+        let root = merger.merge(lhs.0.root, rhs.0.root);
+        Self(AvlMap {
+            len: len(&root),
+            root,
+        })
     }
 }
 
