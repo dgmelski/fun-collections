@@ -1668,43 +1668,78 @@ where
 
 impl<'a, K: Clone, V: Clone> FusedIterator for IterMut<'a, K, V> {}
 
-enum MergeItem<'a, K, V> {
-    LeftOnly((&'a K, &'a V)),
-    Both((&'a K, &'a V)),
-    RightOnly((&'a K, &'a V)),
+const KEEP_LEFT_MASK: u8 = 4;
+const KEEP_BOTH_MASK: u8 = 2;
+const KEEP_RIGHT_MASK: u8 = 1;
+
+pub struct MergeIter<'a, K, const M: u8> {
+    lhs: Iter<'a, K, ()>,
+    rhs: Iter<'a, K, ()>,
 }
 
-struct MergeIter<'a, K, V> {
-    lhs: Iter<'a, K, V>,
-    rhs: Iter<'a, K, V>,
-}
-
-impl<'a, K: Ord, V> Iterator for MergeIter<'a, K, V> {
-    type Item = MergeItem<'a, K, V>;
+impl<'a, K: Ord, const M: u8> Iterator for MergeIter<'a, K, M> {
+    type Item = &'a K;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let Some(peek_lhs) = self.lhs.work.last() else {
-            return self.rhs.next().map(|e| MergeItem::RightOnly(e));
-        };
+        loop {
+            let peek_lhs = self.lhs.work.last();
+            let peek_rhs = self.rhs.work.last();
 
-        let Some(peek_rhs) = self.rhs.work.last() else {
-            return self.lhs.next().map(|e| MergeItem::LeftOnly(e));
-        };
+            match (peek_lhs, peek_rhs) {
+                (Some(peek_lhs), Some(peek_rhs)) => {
+                    match peek_lhs.key.cmp(&peek_rhs.key) {
+                        Less => {
+                            let r = self.lhs.next().map(|e| e.0);
+                            if M & KEEP_LEFT_MASK != 0 {
+                                return r;
+                            }
+                        }
 
-        match peek_lhs.key.cmp(&peek_rhs.key) {
-            Less => self.lhs.next().map(|e| MergeItem::LeftOnly(e)),
+                        Equal => {
+                            self.lhs.next();
+                            let r = self.rhs.next().map(|e| e.0);
+                            if M & KEEP_BOTH_MASK != 0 {
+                                return r;
+                            }
+                        }
 
-            Equal => {
-                self.lhs.next();
-                self.rhs.next().map(|e| MergeItem::Both(e))
+                        Greater => {
+                            let r = self.rhs.next().map(|e| e.0);
+                            if M & KEEP_RIGHT_MASK != 0 {
+                                return r;
+                            }
+                        }
+                    }
+                }
+
+                (Some(_), None) => {
+                    if M & KEEP_LEFT_MASK != 0 {
+                        return self.lhs.next().map(|e| e.0);
+                    } else {
+                        return None;
+                    }
+                }
+
+                (None, Some(_)) => {
+                    if M & KEEP_RIGHT_MASK != 0 {
+                        return self.rhs.next().map(|e| e.0);
+                    } else {
+                        return None;
+                    }
+                }
+
+                (None, None) => return None,
             }
-
-            Greater => self.rhs.next().map(|e| MergeItem::RightOnly(e)),
         }
     }
 }
 
-impl<'a, K: Ord, V> FusedIterator for MergeIter<'a, K, V> {}
+impl<'a, K: Ord, const M: u8> FusedIterator for MergeIter<'a, K, M> {}
+
+pub type Difference<'a, K> = MergeIter<'a, K, 8>;
+pub type Intersection<'a, K> = MergeIter<'a, K, 2>;
+pub type Union<'a, K> = MergeIter<'a, K, 7>;
+pub type SymmetricDifference<'a, K> = MergeIter<'a, K, 5>;
 
 pub struct OccupiedEntry<'a, K, V> {
     key: K,
@@ -1880,10 +1915,10 @@ impl<V> AvlSet<V> {
 
     /// Returns an iterator over elements in self and not in other
     pub fn difference<'a>(&'a self, other: &'a Self) -> Difference<'a, V> {
-        Difference(MergeIter {
+        Difference {
             lhs: self.0.iter(),
             rhs: other.0.iter(),
-        })
+        }
     }
 
     /// Returns the least value in the set.
@@ -1920,10 +1955,10 @@ impl<V> AvlSet<V> {
 
     /// Returns an iterator of the values that are in both self and other.
     pub fn intersection<'a>(&'a self, other: &'a Self) -> Intersection<'a, V> {
-        Intersection(MergeIter {
+        Intersection {
             lhs: self.0.iter(),
             rhs: other.0.iter(),
-        })
+        }
     }
 
     /// Returns true if self and other have no common values and false otherwise
@@ -2123,10 +2158,10 @@ impl<V> AvlSet<V> {
         &'a self,
         other: &'a Self,
     ) -> SymmetricDifference<'a, V> {
-        SymmetricDifference(MergeIter {
+        SymmetricDifference {
             lhs: self.0.iter(),
             rhs: other.0.iter(),
-        })
+        }
     }
 
     /// Removes and returns the set member that matches value.
@@ -2147,10 +2182,10 @@ impl<V> AvlSet<V> {
     ///
     /// Common elements are only returned once.
     pub fn union<'a>(&'a self, other: &'a Self) -> Union<'a, V> {
-        Union(MergeIter {
+        Union {
             lhs: self.0.iter(),
             rhs: other.0.iter(),
-        })
+        }
     }
 
     /// Returns a new, empty set.
@@ -2234,49 +2269,6 @@ impl<V> AvlSet<V> {
         })
     }
 }
-
-macro_rules! make_set_iter {
-    ($name:ident, $rtn_left:expr, $rtn_both:expr, $rtn_right:expr) => {
-        pub struct $name<'a, T>(MergeIter<'a, T, ()>);
-
-        impl<'a, T: Ord> Iterator for $name<'a, T> {
-            type Item = &'a T;
-
-            fn next(&mut self) -> Option<Self::Item> {
-                while let Some(mi) = self.0.next() {
-                    match mi {
-                        MergeItem::LeftOnly(e) => {
-                            if $rtn_left {
-                                return Some(e.0);
-                            }
-                        }
-
-                        MergeItem::Both(e) => {
-                            if $rtn_both {
-                                return Some(e.0);
-                            }
-                        }
-
-                        MergeItem::RightOnly(e) => {
-                            if $rtn_right {
-                                return Some(e.0);
-                            }
-                        }
-                    }
-                }
-
-                None
-            }
-        }
-
-        impl<'a, T: Ord> FusedIterator for $name<'a, T> {}
-    };
-}
-
-make_set_iter!(Difference, true, false, false);
-make_set_iter!(Intersection, false, true, false);
-make_set_iter!(SymmetricDifference, true, false, true);
-make_set_iter!(Union, true, true, true);
 
 impl<T: Clone + Ord> Extend<T> for AvlSet<T> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
