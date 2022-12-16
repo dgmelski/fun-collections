@@ -261,8 +261,8 @@ where
 
 impl<K, V> std::hash::Hash for AvlMap<K, V>
 where
-    K: Clone + std::hash::Hash + Ord,
-    V: Clone + std::hash::Hash,
+    K: std::hash::Hash,
+    V: std::hash::Hash,
 {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.for_each(|(k, v)| {
@@ -274,8 +274,7 @@ where
 
 impl<K, Q, V> std::ops::Index<&Q> for AvlMap<K, V>
 where
-    K: Borrow<Q> + Clone + Ord,
-    V: Clone,
+    K: Borrow<Q>,
     Q: Ord + ?Sized,
 {
     type Output = V;
@@ -1461,7 +1460,7 @@ impl<K, V> AvlMap<K, V> {
     /// ```
     pub fn get<Q>(&self, k: &Q) -> Option<&V>
     where
-        K: Borrow<Q> + Ord,
+        K: Borrow<Q>,
         Q: Ord + ?Sized,
     {
         let mut curr = &self.root;
