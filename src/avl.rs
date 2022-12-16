@@ -1651,8 +1651,13 @@ impl<'a, K: Ord, V> Iterator for MergeIter<'a, K, V> {
     type Item = MergeItem<'a, K, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let peek_lhs = self.lhs.work.last()?;
-        let peek_rhs = self.rhs.work.last()?;
+        let Some(peek_lhs) = self.lhs.work.last() else {
+            return self.rhs.next().map(|e| MergeItem::RightOnly(e));
+        };
+
+        let Some(peek_rhs) = self.rhs.work.last() else {
+            return self.lhs.next().map(|e| MergeItem::LeftOnly(e));
+        };
 
         match peek_lhs.key.cmp(&peek_rhs.key) {
             Less => self.lhs.next().map(|e| MergeItem::LeftOnly(e)),
@@ -2103,6 +2108,22 @@ impl<'a, V: Ord> Iterator for Union<'a, V> {
 
 impl<'a, T: Ord> FusedIterator for Union<'a, T> {}
 
+impl<T: Clone + Ord> Extend<T> for AvlSet<T> {
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        for x in iter {
+            self.insert(x);
+        }
+    }
+}
+
+impl<T: Clone + Ord> FromIterator<T> for AvlSet<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let mut s = AvlSet::new();
+        s.extend(iter);
+        s
+    }
+}
+
 #[cfg(test)]
 mod test {
     extern crate quickcheck;
@@ -2353,6 +2374,64 @@ mod test {
         }
     }
 
+    fn set_checks(
+        s1: &AvlSet<u8>,
+        s2: &AvlSet<u8>,
+        t1: &std::collections::BTreeSet<u8>,
+        t2: &std::collections::BTreeSet<u8>,
+    ) {
+        assert!(s1.intersection(&s2).cmp(t1.intersection(&t2)).is_eq());
+        assert_eq!(s1.is_disjoint(&s2), t1.is_disjoint(&t2));
+        assert_eq!(s1.is_subset(&s2), t1.is_subset(&t2));
+        assert_eq!(s1.is_superset(&s2), t1.is_superset(&t2));
+        assert!(s1.union(&s2).cmp(t1.union(&t2)).is_eq());
+        assert!(s1
+            .symmetric_difference(&s2)
+            .cmp(t1.symmetric_difference(&t2))
+            .is_eq());
+    }
+
+    fn set_test(v1: Vec<u8>, v2: Vec<u8>) {
+        let s1: AvlSet<_> = v1.clone().into_iter().collect();
+        let s2: AvlSet<_> = v2.clone().into_iter().collect();
+
+        type OtherSet = std::collections::BTreeSet<u8>;
+        let t1: OtherSet = v1.into_iter().collect();
+        let t2: OtherSet = v2.into_iter().collect();
+
+        set_checks(&s1, &s2, &t1, &t2);
+        set_checks(&s2, &s1, &t2, &t1);
+    }
+
+    fn set_test2(v: Vec<u8>) {
+        let mut s = vec![AvlSet::new()];
+        let mut t = vec![std::collections::BTreeSet::new()];
+
+        for (i, x) in v.into_iter().enumerate() {
+            for j in 0..=i {
+                let mut s1 = s[j].clone();
+                s1.insert(x);
+                s.push(s1);
+
+                let mut t1 = t[j].clone();
+                t1.insert(x);
+                t.push(t1);
+            }
+        }
+
+        for (s1, t1) in s.iter().zip(t.iter()) {
+            for (s2, t2) in s.iter().zip(t.iter()) {
+                set_checks(s1, s2, t1, t2);
+                set_checks(s2, s1, t2, t1);
+            }
+        }
+    }
+
+    #[test]
+    fn set_test_regr1() {
+        set_test(vec![], vec![0]);
+    }
+
     #[test]
     fn intersection_regr1() {
         let vs1 = vec![(5, 0), (6, 0)];
@@ -2439,5 +2518,14 @@ mod test {
         fn qc_sym_diff_test(v1: TestEntries, v2: TestEntries) -> () {
             sym_diff_test(v1, v2);
         }
+
+        fn qc_set_tests(v1: Vec<u8>, v2: Vec<u8>) -> () {
+            set_test(v1, v2);
+        }
+
+        fn qc_set_tests2(v1: (u8,u8,u8,u8,u8,u8)) -> () {
+            set_test2(vec![v1.0, v1.1, v1.2, v1.3, v1.4, v1.5]);
+        }
+
     }
 }
