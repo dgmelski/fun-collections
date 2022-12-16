@@ -1682,53 +1682,44 @@ impl<'a, K: Ord, const M: u8> Iterator for MergeIter<'a, K, M> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let peek_lhs = self.lhs.work.last();
-            let peek_rhs = self.rhs.work.last();
-
-            match (peek_lhs, peek_rhs) {
-                (Some(peek_lhs), Some(peek_rhs)) => {
-                    match peek_lhs.key.cmp(&peek_rhs.key) {
-                        Less => {
-                            let r = self.lhs.next().map(|e| e.0);
-                            if M & KEEP_LEFT_MASK != 0 {
-                                return r;
-                            }
-                        }
-
-                        Equal => {
-                            self.lhs.next();
-                            let r = self.rhs.next().map(|e| e.0);
-                            if M & KEEP_BOTH_MASK != 0 {
-                                return r;
-                            }
-                        }
-
-                        Greater => {
-                            let r = self.rhs.next().map(|e| e.0);
-                            if M & KEEP_RIGHT_MASK != 0 {
-                                return r;
-                            }
-                        }
-                    }
+            let Some(peek_lhs) = self.lhs.work.last() else {
+                if M & KEEP_RIGHT_MASK != 0 {
+                    return self.rhs.next().map(|e| e.0);
+                } else {
+                    return None;
                 }
+            };
 
-                (Some(_), None) => {
+            let Some(peek_rhs) = self.rhs.work.last() else {
+                if M & KEEP_LEFT_MASK != 0 {
+                    return self.lhs.next().map(|e| e.0);
+                } else {
+                    return None;
+                }
+            };
+
+            match peek_lhs.key.cmp(&peek_rhs.key) {
+                Less => {
+                    let r = self.lhs.next().map(|e| e.0);
                     if M & KEEP_LEFT_MASK != 0 {
-                        return self.lhs.next().map(|e| e.0);
-                    } else {
-                        return None;
+                        return r;
                     }
                 }
 
-                (None, Some(_)) => {
+                Equal => {
+                    self.lhs.next();
+                    let r = self.rhs.next().map(|e| e.0);
+                    if M & KEEP_BOTH_MASK != 0 {
+                        return r;
+                    }
+                }
+
+                Greater => {
+                    let r = self.rhs.next().map(|e| e.0);
                     if M & KEEP_RIGHT_MASK != 0 {
-                        return self.rhs.next().map(|e| e.0);
-                    } else {
-                        return None;
+                        return r;
                     }
                 }
-
-                (None, None) => return None,
             }
         }
     }
