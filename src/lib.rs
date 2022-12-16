@@ -17,12 +17,12 @@ pub use avl::AvlSet;
 mod btree;
 pub type BTreeMap<K, V> = btree::BTreeMap<K, V, 8>;
 
-struct SortedMergeIter<'a, T: 'a, I: Iterator<Item = &'a T>> {
+struct SortedMergeIter<I: Iterator> {
     lhs: std::iter::Peekable<I>,
     rhs: std::iter::Peekable<I>,
 }
 
-impl<'a, T: 'a, I: Iterator<Item = &'a T>> SortedMergeIter<'a, T, I> {
+impl<I: Iterator> SortedMergeIter<I> {
     fn new(lhs: I, rhs: I) -> Self {
         Self {
             lhs: lhs.peekable(),
@@ -31,10 +31,8 @@ impl<'a, T: 'a, I: Iterator<Item = &'a T>> SortedMergeIter<'a, T, I> {
     }
 }
 
-impl<'a, T: 'a + Ord, I: Iterator<Item = &'a T>> Iterator
-    for SortedMergeIter<'a, T, I>
-{
-    type Item = (Option<&'a T>, Option<&'a T>);
+impl<T: Ord, I: Iterator<Item = T>> Iterator for SortedMergeIter<I> {
+    type Item = (Option<T>, Option<T>);
 
     fn next(&mut self) -> Option<Self::Item> {
         use std::cmp::Ordering::*;
@@ -53,10 +51,8 @@ impl<'a, T: 'a + Ord, I: Iterator<Item = &'a T>> Iterator
     }
 }
 
-impl<'a, T, I> std::iter::FusedIterator for SortedMergeIter<'a, T, I>
-where
-    T: 'a + Ord,
-    I: Iterator<Item = &'a T>,
+impl<T: Ord, I: Iterator<Item = T>> std::iter::FusedIterator
+    for SortedMergeIter<I>
 {
 }
 
@@ -66,33 +62,27 @@ enum SetOpFlag {
     KeepRightOnly = 0b0001,
 }
 
-struct SetOpIter<'a, T: 'a, I: Iterator<Item = &'a T>, const P: u32>(
-    SortedMergeIter<'a, T, I>,
-);
+struct SetOpIter<I: Iterator, const P: u32>(SortedMergeIter<I>);
 
-impl<'a, T, I, const P: u32> SetOpIter<'a, T, I, P>
-where
-    T: 'a,
-    I: Iterator<Item = &'a T>,
-{
+impl<I: Iterator, const P: u32> SetOpIter<I, P> {
     fn new(lhs: I, rhs: I) -> Self {
         Self(SortedMergeIter::new(lhs, rhs))
     }
 }
 
-impl<'a, T, I, const P: u32> Iterator for SetOpIter<'a, T, I, P>
+impl<T, I, const P: u32> Iterator for SetOpIter<I, P>
 where
-    T: 'a + Ord,
-    I: Iterator<Item = &'a T>,
+    T: Ord,
+    I: Iterator<Item = T>,
 {
-    type Item = &'a T;
+    type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
         use SetOpFlag::*;
         loop {
             match self.0.next()? {
                 (None, None) => {
-                    panic!("merge should give None, never (None, None)")
+                    panic!("merge should give None, not (None, None)")
                 }
 
                 (None, rt @ Some(_)) => {
@@ -117,18 +107,16 @@ where
     }
 }
 
-impl<'a, T, I, const P: u32> std::iter::FusedIterator for SetOpIter<'a, T, I, P>
-where
-    T: 'a + Ord,
-    I: Iterator<Item = &'a T>,
+impl<T: Ord, I: Iterator<Item = T>, const P: u32> std::iter::FusedIterator
+    for SetOpIter<I, P>
 {
 }
 
 macro_rules! make_set_op_iter {
     ( $name:ident, $iter:ty, $policy:literal ) => {
-        pub struct $name<'a, T: 'a>(crate::SetOpIter<'a, T, $iter, $policy>);
+        pub struct $name<'a, T: 'a>(crate::SetOpIter<$iter, $policy>);
 
-        impl<'a, T: 'a> $name<'a, T> {
+        impl<'a, T> $name<'a, T> {
             fn new(lhs: $iter, rhs: $iter) -> Self {
                 Self(crate::SetOpIter::new(lhs, rhs))
             }
