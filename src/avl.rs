@@ -1441,7 +1441,7 @@ impl<K, V> AvlMap<K, V> {
     /// Tests if self contains an entry for the given key.
     pub fn contains<Q>(&self, key: &Q) -> bool
     where
-        K: Borrow<Q> + Ord,
+        K: Borrow<Q>,
         Q: Ord + ?Sized,
     {
         self.get(key).is_some()
@@ -1860,10 +1860,10 @@ impl<K: Clone + Ord, V: Clone> FromIterator<(K, V)> for AvlMap<K, V> {
 /// A sorted set of values.
 ///
 /// The implementation is mostly a thin wrapper around [`AvlMap`].
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct AvlSet<V>(AvlMap<V, ()>);
 
-impl<V: Clone + Ord> AvlSet<V> {
+impl<V> AvlSet<V> {
     /// Removes all the entries from self.
     pub fn clear(&mut self) {
         self.0.clear();
@@ -1911,7 +1911,10 @@ impl<V: Clone + Ord> AvlSet<V> {
 
     /// Inserts the given value and returns true if self did not already have
     /// the value and returns false otherwise.
-    pub fn insert(&mut self, value: V) -> bool {
+    pub fn insert(&mut self, value: V) -> bool
+    where
+        V: Clone + Ord,
+    {
         self.0.insert(value, ()).is_none()
     }
 
@@ -1924,7 +1927,10 @@ impl<V: Clone + Ord> AvlSet<V> {
     }
 
     /// Returns true if self and other have no common values and false otherwise
-    pub fn is_disjoint(&self, other: &Self) -> bool {
+    pub fn is_disjoint(&self, other: &Self) -> bool
+    where
+        V: Ord,
+    {
         self.intersection(other).next().is_none()
     }
 
@@ -1934,7 +1940,10 @@ impl<V: Clone + Ord> AvlSet<V> {
     }
 
     /// Tests if self is a subset of other.
-    pub fn is_subset(&self, other: &Self) -> bool {
+    pub fn is_subset(&self, other: &Self) -> bool
+    where
+        V: Ord,
+    {
         if self.is_empty() {
             return true;
         } else if self.len() > other.len() {
@@ -2017,7 +2026,10 @@ impl<V: Clone + Ord> AvlSet<V> {
     }
 
     /// tests if self is a superset of other.
-    pub fn is_superset(&self, other: &Self) -> bool {
+    pub fn is_superset(&self, other: &Self) -> bool
+    where
+        V: Ord,
+    {
         other.is_subset(self)
     }
 
@@ -2042,14 +2054,17 @@ impl<V: Clone + Ord> AvlSet<V> {
     /// present and false otherwise.
     pub fn remove<Q>(&mut self, value: &Q) -> bool
     where
-        V: Borrow<Q>,
+        V: Borrow<Q> + Clone + Ord,
         Q: Ord + ?Sized,
     {
         self.0.remove(value).is_some()
     }
 
     /// Replace and return the matching value in the map.
-    pub fn replace(&mut self, value: V) -> Option<V> {
+    pub fn replace(&mut self, value: V) -> Option<V>
+    where
+        V: Clone + Ord,
+    {
         // TODO: adapt insert so we don't need multiple calls.
         let ret = self.take(&value);
         self.insert(value);
@@ -2059,6 +2074,7 @@ impl<V: Clone + Ord> AvlSet<V> {
     /// Retain values for which f returns true and discard others
     pub fn retain<F>(&mut self, mut f: F)
     where
+        V: Clone + Ord,
         F: FnMut(&V) -> bool,
     {
         fn dfs<V, F>(n: Node<V, ()>, f: &mut F, acc: &mut AvlMap<V, ()>)
@@ -2096,7 +2112,7 @@ impl<V: Clone + Ord> AvlSet<V> {
     /// Removes all elements greater or equal to key and returns them.
     pub fn split_off<Q>(&mut self, key: &Q) -> Self
     where
-        V: Borrow<Q>,
+        V: Borrow<Q> + Clone + Ord,
         Q: Ord + ?Sized,
     {
         Self(self.0.split_off(key))
@@ -2116,7 +2132,7 @@ impl<V: Clone + Ord> AvlSet<V> {
     /// Removes and returns the set member that matches value.
     pub fn take<Q>(&mut self, value: &Q) -> Option<V>
     where
-        V: Borrow<Q> + Ord,
+        V: Borrow<Q> + Clone + Ord,
         Q: Ord + ?Sized,
     {
         if let (opt_v @ Some(_), _) = rm(&mut self.0.root, value) {
@@ -2143,7 +2159,10 @@ impl<V: Clone + Ord> AvlSet<V> {
     }
 
     /// Creates a new set with the elements of lhs that are not in rhs.
-    pub fn new_diff(lhs: Self, rhs: Self) -> Self {
+    pub fn new_diff(lhs: Self, rhs: Self) -> Self
+    where
+        V: Clone + Ord,
+    {
         let mut merger = Merger {
             on_only_left: NoMatchMergePolicy::Keep,
             on_only_right: NoMatchMergePolicy::Discard,
@@ -2159,7 +2178,10 @@ impl<V: Clone + Ord> AvlSet<V> {
     }
 
     /// Creates a new set with the elements of lhs that are also in rhs.
-    pub fn new_intersection(lhs: Self, rhs: Self) -> Self {
+    pub fn new_intersection(lhs: Self, rhs: Self) -> Self
+    where
+        V: Clone + Ord,
+    {
         let mut merger = Merger {
             on_only_left: NoMatchMergePolicy::Discard,
             on_only_right: NoMatchMergePolicy::Discard,
@@ -2175,7 +2197,10 @@ impl<V: Clone + Ord> AvlSet<V> {
     }
 
     /// Creates a new set with the elements of both lhs and rhs.
-    pub fn new_union(lhs: Self, rhs: Self) -> Self {
+    pub fn new_union(lhs: Self, rhs: Self) -> Self
+    where
+        V: Clone + Ord,
+    {
         let mut merger = Merger {
             on_only_left: NoMatchMergePolicy::Keep,
             on_only_right: NoMatchMergePolicy::Keep,
@@ -2191,7 +2216,10 @@ impl<V: Clone + Ord> AvlSet<V> {
     }
 
     /// Creates a new set with the elements that are in lhs or rhs but not both.
-    pub fn new_sym_diff(lhs: Self, rhs: Self) -> Self {
+    pub fn new_sym_diff(lhs: Self, rhs: Self) -> Self
+    where
+        V: Clone + Ord,
+    {
         let mut merger = Merger {
             on_only_left: NoMatchMergePolicy::Keep,
             on_only_right: NoMatchMergePolicy::Keep,
@@ -2204,12 +2232,6 @@ impl<V: Clone + Ord> AvlSet<V> {
             len: len(&root),
             root,
         })
-    }
-}
-
-impl<K: Clone + Ord> Default for AvlSet<K> {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
