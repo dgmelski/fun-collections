@@ -1176,61 +1176,41 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
         lhs
     }
 
-    // FIXME: this is not the semantics of BTreeMap.
-    /// Moves all elements greater than a key into a new map and returns the
-    /// original key-value pair (if present) and the new map.
+    /// Moves all elements greater than or equal to the provided key into a new
+    /// map and returns it.
     ///
     /// # Examples
     /// ```
     /// use lazy_clone_collections::AvlMap;
     ///
     /// let mut fmap: AvlMap<_, _> = (0..10).map(|i| (i, i * 2)).collect();
-    /// let (orig_kv, higher_fives) = fmap.split_off(&5);
-    /// assert_eq!(orig_kv, Some((5, 10)));
-    /// assert_eq!(fmap.get(&4), Some(&8));
+    /// let higher_fives = fmap.split_off(&5);
+    /// assert_eq!(fmap.last_key_value(), Some((&4,&8)));
     /// assert_eq!(fmap.get(&6), None);
+    /// assert_eq!(higher_fives.first_key_value(), Some((&5, &10)));
     /// assert_eq!(higher_fives.get(&6), Some(&12));
     /// ```
-    pub fn split_off<Q>(&mut self, key: &Q) -> (Option<(K, V)>, Self)
+    pub fn split_off<Q>(&mut self, key: &Q) -> Self
     where
         K: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        let (lhs, orig_kv, rhs) = split(self.root.take(), key);
-        self.len = len(&lhs);
+        let (lhs, orig_kv, mut rhs) = split(self.root.take(), key);
+
+        let len_lhs = len(&lhs);
+        let len_rhs = self.len - len_lhs;
+
+        self.len = len_lhs;
         self.root = lhs;
 
-        let rhs_len = len(&rhs);
-        let rhs = AvlMap {
-            len: rhs_len,
+        if let Some((k, v)) = orig_kv {
+            ins(&mut rhs, k, v);
+        }
+
+        AvlMap {
+            len: len_rhs,
             root: rhs,
-        };
-
-        (orig_kv, rhs)
-    }
-
-    /// Splits a map on a key returning one map with entries less than the key,
-    /// one map with entries greater than the key, and the entry corresponding
-    /// to the key.
-    ///
-    /// # Examples
-    /// ```
-    /// use lazy_clone_collections::AvlMap;
-    ///
-    /// let fmap = AvlMap::from([(0,1),(1,2),(2,3)]);
-    /// let (lt, kv, gt) = AvlMap::split(&fmap, &1);
-    /// assert_eq!(kv, Some((1, 2)));
-    /// assert_eq!(lt.get(&0), Some(&1));
-    /// assert_eq!(gt.get(&2), Some(&3));
-    /// ```
-    pub fn split<Q>(map: &Self, key: &Q) -> (Self, Option<(K, V)>, Self)
-    where
-        K: Borrow<Q>,
-        Q: Ord + ?Sized,
-    {
-        let mut lhs = map.clone();
-        let (orig_kv, rhs) = lhs.split_off(key);
-        (lhs, orig_kv, rhs)
+        }
     }
 
     /// Removes entries with keys from the other map.
@@ -2065,11 +2045,7 @@ impl<V: Clone + Ord> AvlSet<V> {
         V: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        let (old_elt, mut gt_map) = self.0.split_off(key);
-        if let Some((k, v)) = old_elt {
-            gt_map.insert(k, v);
-        }
-        Self(gt_map)
+        Self(self.0.split_off(key))
     }
 
     /// Returns an iterator over elements in self or other but not both.
@@ -2219,12 +2195,11 @@ mod test {
     }
 
     fn split_test<K: Clone + Ord, V: Clone>(mut fmap: AvlMap<K, V>, k: &K) {
-        let (kv, rhs) = fmap.split_off(&k);
+        let rhs = fmap.split_off(&k);
         fmap.chk();
         rhs.chk();
-        assert!(kv.map_or(true, |(k2, _)| k2 == *k));
         assert!(fmap.last_key_value().map_or(true, |(k2, _)| k2 < k));
-        assert!(rhs.first_key_value().map_or(true, |(k2, _)| k < k2));
+        assert!(rhs.first_key_value().map_or(true, |(k2, _)| k <= k2));
     }
 
     // systematically try deleting each element of fmap
