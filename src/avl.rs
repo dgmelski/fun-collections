@@ -45,6 +45,7 @@ macro_rules! chk_map {
     }};
 }
 
+#[derive(Clone)]
 struct Node<K, V> {
     key: K,
     val: V,
@@ -161,19 +162,6 @@ impl<K: Ord, V> Node<K, V> {
     #[allow(dead_code)]
     #[cfg(not(test))]
     fn chk(&self) {}
-}
-
-impl<K: Clone, V: Clone> Clone for Node<K, V> {
-    fn clone(&self) -> Self {
-        Node {
-            key: self.key.clone(),
-            val: self.val.clone(),
-            left_ht: self.left_ht,
-            right_ht: self.right_ht,
-            left: self.left.clone(),
-            right: self.right.clone(),
-        }
-    }
 }
 
 impl<K: Clone + Debug, V: Clone + Debug> Debug for Node<K, V> {
