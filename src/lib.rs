@@ -114,11 +114,10 @@ impl<T: Ord, I: Iterator<Item = T>> std::iter::FusedIterator
 {
 }
 
-#[allow(clippy::enum_variant_names)]
-enum SetOpFlag {
-    KeepLeftOnly = 0b0100,
-    KeepCommon = 0b0010,
-    KeepRightOnly = 0b0001,
+enum KeepFlags {
+    LeftSolo = 0b0100,
+    Common = 0b0010,
+    RightSolo = 0b0001,
 }
 
 struct SetOpIter<I: Iterator, const P: u32>(SortedMergeIter<I>);
@@ -137,14 +136,14 @@ where
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        use SetOpFlag::*;
+        use KeepFlags::*;
         loop {
             let (a, b) = self.0.next()?;
-            if a.is_none() && P & KeepRightOnly as u32 != 0 {
+            if a.is_none() && P & RightSolo as u32 != 0 {
                 return b;
-            } else if b.is_none() && P & KeepLeftOnly as u32 != 0 {
+            } else if b.is_none() && P & LeftSolo as u32 != 0 {
                 return a;
-            } else if a.is_some() && b.is_some() && P & KeepCommon as u32 != 0 {
+            } else if a.is_some() && b.is_some() && P & Common as u32 != 0 {
                 return b;
             }
         }
