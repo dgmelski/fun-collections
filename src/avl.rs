@@ -1846,7 +1846,13 @@ impl<V: Clone + Ord> AvlSet<V> {
         self.0.contains(value)
     }
 
-    // TODO: difference
+    /// Returns an iterator over elements in self and not in other
+    pub fn difference<'a>(&'a self, other: &'a Self) -> Difference<'a, V> {
+        Difference(MergeIter {
+            lhs: self.0.iter(),
+            rhs: other.0.iter(),
+        })
+    }
 
     /// Returns the least value in the set.
     pub fn first(&self) -> Option<&V> {
@@ -2115,59 +2121,48 @@ impl<K: Clone + Ord> Default for AvlSet<K> {
     }
 }
 
-pub struct Intersection<'a, T>(MergeIter<'a, T, ()>);
+macro_rules! make_set_iter {
+    ($name:ident, $rtn_left:expr, $rtn_both:expr, $rtn_right:expr) => {
+        pub struct $name<'a, T>(MergeIter<'a, T, ()>);
 
-impl<'a, T: Ord> Iterator for Intersection<'a, T> {
-    type Item = &'a T;
+        impl<'a, T: Ord> Iterator for $name<'a, T> {
+            type Item = &'a T;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        while let Some(mi) = self.0.next() {
-            if let MergeItem::Both(e) = mi {
-                return Some(e.0);
+            fn next(&mut self) -> Option<Self::Item> {
+                while let Some(mi) = self.0.next() {
+                    match mi {
+                        MergeItem::LeftOnly(e) => {
+                            if $rtn_left {
+                                return Some(e.0);
+                            }
+                        }
+
+                        MergeItem::Both(e) => {
+                            if $rtn_both {
+                                return Some(e.0);
+                            }
+                        }
+
+                        MergeItem::RightOnly(e) => {
+                            if $rtn_right {
+                                return Some(e.0);
+                            }
+                        }
+                    }
+                }
+
+                None
             }
         }
 
-        None
-    }
+        impl<'a, T: Ord> FusedIterator for $name<'a, T> {}
+    };
 }
 
-impl<'a, T: Ord> FusedIterator for Intersection<'a, T> {}
-
-pub struct SymmetricDifference<'a, T>(MergeIter<'a, T, ()>);
-
-impl<'a, T: Ord> Iterator for SymmetricDifference<'a, T> {
-    type Item = &'a T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        while let Some(mi) = self.0.next() {
-            match mi {
-                MergeItem::LeftOnly(e) => return Some(e.0),
-                MergeItem::Both(_) => (),
-                MergeItem::RightOnly(e) => return Some(e.0),
-            }
-        }
-
-        None
-    }
-}
-
-impl<'a, T: Ord> FusedIterator for SymmetricDifference<'a, T> {}
-
-pub struct Union<'a, V>(MergeIter<'a, V, ()>);
-
-impl<'a, V: Ord> Iterator for Union<'a, V> {
-    type Item = &'a V;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.0.next()? {
-            MergeItem::LeftOnly(e) => Some(e.0),
-            MergeItem::Both(e) => Some(e.0),
-            MergeItem::RightOnly(e) => Some(e.0),
-        }
-    }
-}
-
-impl<'a, T: Ord> FusedIterator for Union<'a, T> {}
+make_set_iter!(Difference, true, false, false);
+make_set_iter!(Intersection, false, true, false);
+make_set_iter!(SymmetricDifference, true, false, true);
+make_set_iter!(Union, true, true, true);
 
 impl<T: Clone + Ord> Extend<T> for AvlSet<T> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
