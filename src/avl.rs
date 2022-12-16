@@ -102,8 +102,6 @@ impl<K, V> Node<K, V> {
 
     fn for_each<F>(&self, g: &mut F)
     where
-        K: Clone,
-        V: Clone,
         F: FnMut((&K, &V)),
     {
         if let Some(rc) = self.left.as_ref() {
@@ -240,7 +238,7 @@ impl<K: Clone + Debug, V: Clone + Debug> Debug for AvlMap<K, V> {
     }
 }
 
-impl<K: Clone + Ord, V: Clone> PartialEq for AvlMap<K, V>
+impl<K, V> PartialEq for AvlMap<K, V>
 where
     K: PartialEq,
     V: PartialEq,
@@ -251,12 +249,12 @@ where
     }
 }
 
-impl<K: Clone + Eq + Ord, V: Clone + Eq> Eq for AvlMap<K, V> {}
+impl<K: Eq, V: Eq> Eq for AvlMap<K, V> {}
 
 impl<K, V> PartialOrd for AvlMap<K, V>
 where
-    K: Clone + Ord,
-    V: Clone + PartialOrd,
+    K: PartialOrd,
+    V: PartialOrd,
 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.iter().partial_cmp(other.iter())
@@ -914,7 +912,7 @@ where
     }
 }
 
-impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
+impl<K, V> AvlMap<K, V> {
     /// Drops all elements from the map.
     pub fn clear(&mut self) {
         self.len = 0;
@@ -1047,7 +1045,11 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     /// };
     /// assert_eq!(m.get(&2), Some(&34));
     /// ```
-    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut V> {
+    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut V>
+    where
+        K: Clone,
+        V: Clone,
+    {
         self.iter_mut().map(|p| p.1)
     }
 
@@ -1085,7 +1087,11 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     /// fmap.for_each_mut(|(_, v)| *v = "b");
     /// assert_eq!(fmap.get(&0), Some(&"b"));
     /// ```
-    pub fn for_each_mut<F: FnMut((&K, &mut V))>(&mut self, mut f: F) {
+    pub fn for_each_mut<F: FnMut((&K, &mut V))>(&mut self, mut f: F)
+    where
+        K: Clone,
+        V: Clone,
+    {
         if let Some(rc) = self.root.as_mut() {
             Rc::make_mut(rc).for_each_mut(&mut f);
         }
@@ -1101,7 +1107,11 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     /// fmap.insert(0, "a");
     /// assert_eq!(fmap.get(&0), Some(&"a"));
     /// ```
-    pub fn insert(&mut self, key: K, val: V) -> Option<V> {
+    pub fn insert(&mut self, key: K, val: V) -> Option<V>
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
         let (ret, _) = ins(&mut self.root, key, val);
         self.len += ret.is_none() as usize;
         ret
@@ -1121,8 +1131,9 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     /// ```
     pub fn remove<Q>(&mut self, key: &Q) -> Option<V>
     where
-        K: Borrow<Q> + Ord,
+        K: Borrow<Q> + Clone + Ord,
         Q: Ord + ?Sized,
+        V: Clone,
     {
         if let (opt_v @ Some(_), _) = rm(&mut self.root, key) {
             self.len -= 1;
@@ -1138,7 +1149,11 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     /// Requires:
     ///    self.last_key_value().map_or(true, |(x,_)| x < key);
     ///    rhs.first_key_value().map_or(true, |(y,_)| key < y);
-    pub fn join_with(&mut self, key: K, val: V, mut rhs: AvlMap<K, V>) {
+    pub fn join_with(&mut self, key: K, val: V, mut rhs: AvlMap<K, V>)
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
         assert!(self.last_key_value().map_or(true, |(k2, _)| *k2 < key));
         assert!(rhs.first_key_value().map_or(true, |(k2, _)| key < *k2));
 
@@ -1167,7 +1182,11 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     /// assert_eq!(f3.get(&2), Some(&'c'));
     /// assert_eq!(f3.get(&3), Some(&'d'));
     /// ```
-    pub fn join(lhs: &Self, key: K, val: V, rhs: &Self) -> Self {
+    pub fn join(lhs: &Self, key: K, val: V, rhs: &Self) -> Self
+    where
+        K: Ord + Clone,
+        V: Clone,
+    {
         assert!(lhs.last_key_value().map_or(true, |(k2, _)| *k2 < key));
         assert!(rhs.first_key_value().map_or(true, |(k2, _)| key < *k2));
 
@@ -1192,8 +1211,9 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     /// ```
     pub fn split_off<Q>(&mut self, key: &Q) -> Self
     where
-        K: Borrow<Q>,
+        K: Borrow<Q> + Clone + Ord,
         Q: Ord + ?Sized,
+        V: Clone,
     {
         let (lhs, orig_kv, mut rhs) = split(self.root.take(), key);
 
@@ -1225,7 +1245,11 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     /// assert_eq!(lhs.get(&0), Some(&1));
     /// assert_eq!(lhs.get(&1), None);
     /// ```
-    pub fn diff_with(&mut self, mut other: Self) {
+    pub fn diff_with(&mut self, mut other: Self)
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
         self.root = diff(self.root.take(), other.root.take());
         self.len = len(&self.root);
     }
@@ -1243,7 +1267,11 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     /// assert_eq!(d.get(&0), Some(&1));
     /// assert_eq!(d.get(&1), None);
     /// ```
-    pub fn diff(lhs: &Self, rhs: &Self) -> Self {
+    pub fn diff(lhs: &Self, rhs: &Self) -> Self
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
         let mut lhs = lhs.clone();
         lhs.diff_with(rhs.clone());
         lhs
@@ -1263,7 +1291,11 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     /// assert_eq!(lhs.get(&1), None);
     /// assert_eq!(lhs.get(&3), Some(&4));
     /// ```
-    pub fn sym_diff_with(&mut self, mut other: Self) {
+    pub fn sym_diff_with(&mut self, mut other: Self)
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
         self.root = sym_diff(self.root.take(), other.root.take());
         self.len = len(&self.root);
     }
@@ -1282,7 +1314,11 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     /// assert_eq!(d.get(&1), None);
     /// assert_eq!(d.get(&3), Some(&4));
     /// ```
-    pub fn sym_diff(lhs: &Self, rhs: &Self) -> Self {
+    pub fn sym_diff(lhs: &Self, rhs: &Self) -> Self
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
         let mut lhs = lhs.clone();
         lhs.sym_diff_with(rhs.clone());
         lhs
@@ -1300,7 +1336,11 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     /// assert_eq!(lhs.get(&0), None);
     /// assert_eq!(lhs.get(&1), Some(&2));
     /// ```
-    pub fn intersect_with(&mut self, mut other: Self) {
+    pub fn intersect_with(&mut self, mut other: Self)
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
         self.root = intersect(self.root.take(), other.root.take());
         self.len = len(&self.root);
     }
@@ -1317,7 +1357,11 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     /// assert_eq!(i.get(&0), None);
     /// assert_eq!(i.get(&1), Some(&2));
     /// ```
-    pub fn intersect(lhs: &Self, rhs: &Self) -> Self {
+    pub fn intersect(lhs: &Self, rhs: &Self) -> Self
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
         let mut lhs = lhs.clone();
         lhs.intersect_with(rhs.clone());
         lhs
@@ -1336,7 +1380,11 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     /// assert_eq!(lhs.get(&1), Some(&2));
     /// assert_eq!(lhs.get(&3), Some(&4));
     /// ```
-    pub fn union_with(&mut self, mut other: Self) {
+    pub fn union_with(&mut self, mut other: Self)
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
         self.root = union(self.root.take(), other.root.take());
         self.len = len(&self.root);
     }
@@ -1355,7 +1403,11 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     /// assert_eq!(lhs.get(&1), Some(&2));
     /// assert_eq!(lhs.get(&3), Some(&4));
     /// ```
-    pub fn union(lhs: &Self, rhs: &Self) -> Self {
+    pub fn union(lhs: &Self, rhs: &Self) -> Self
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
         let mut lhs = lhs.clone();
         lhs.union_with(rhs.clone());
         lhs
@@ -1450,8 +1502,9 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     /// ```
     pub fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
     where
-        K: Borrow<Q> + Ord,
+        K: Borrow<Q> + Clone + Ord,
         Q: Ord + ?Sized,
+        V: Clone,
     {
         let mut curr = &mut self.root;
         while let Some(rc) = curr {
@@ -1467,7 +1520,11 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     }
 
     /// Returns an Entry that simplifies some update operations.
-    pub fn entry(&mut self, key: K) -> Entry<'_, K, V> {
+    pub fn entry(&mut self, key: K) -> Entry<'_, K, V>
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
         // TODO: frustrating that this traverses the tree twice
         if self.contains(&key) {
             let val = self.get_mut(&key).unwrap();
@@ -1488,7 +1545,10 @@ impl<K: Clone + Ord, V: Clone> AvlMap<K, V> {
     }
 
     #[cfg(test)]
-    fn chk(&self) {
+    fn chk(&self)
+    where
+        K: Ord,
+    {
         assert_eq!(self.len, chk(&self.root, None).0);
     }
 }
