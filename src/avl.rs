@@ -1903,18 +1903,79 @@ impl<V: Clone + Ord> AvlSet<V> {
             return false;
         }
 
-        let mi = MergeIter {
-            lhs: self.0.iter(),
-            rhs: other.0.iter(),
-        };
+        fn has_all<K, V>(
+            lhs: &Rc<Node<K, V>>,
+            w: &mut Vec<(&Rc<Node<K, V>>, bool)>,
+        ) -> bool
+        where
+            K: Ord,
+        {
+            // Strategy: we do an inorder recursive traversal of lhs (the
+            // suspected subset). Simultaneously, we keep an 'iterator' for the
+            // rhs (the suspected superset).  We also update the iterator
+            // 'in-order' but we look for opportunities to fast-forward.
 
-        for x in mi {
-            if let MergeItem::LeftOnly(_) = x {
-                return false;
+            // first traverse to lhs's left child
+            if let Some(lhs_left) = lhs.left.as_ref() {
+                if !has_all(lhs_left, w) {
+                    return false;
+                }
             }
+
+            // now, look for lhs.key in rhs using our iterator
+            while let Some((rhs, is_left_done)) = w.last_mut() {
+                // pointer check to short circuit further comparisons
+                if Rc::ptr_eq(lhs, rhs) {
+                    w.pop();
+                    return true;
+                }
+
+                match lhs.key.cmp(&rhs.key) {
+                    Less => {
+                        // The only way we can find a lesser key than rhs.key
+                        // is to traverse to its left.  If we already matched
+                        // all of the keys there, it won't help to look again.
+                        if *is_left_done {
+                            return false;
+                        }
+
+                        *is_left_done = true;
+                        let rhs_left = rhs.left.as_ref().unwrap();
+                        w.push((rhs_left, rhs_left.left.is_none()));
+                    }
+
+                    Equal => {
+                        // We visited all the lesser keys on the lhs and we
+                        // do not need any remaining lesser keys on the rhs.
+                        // Move on to greater keys.
+                        let rhs = w.pop().unwrap().0;
+                        if let Some(rhs_right) = rhs.right.as_ref() {
+                            w.push((rhs_right, rhs_right.left.is_none()));
+                        }
+
+                        if let Some(lhs_right) = lhs.right.as_ref() {
+                            return has_all(lhs_right, w);
+                        } else {
+                            return true;
+                        }
+                    }
+
+                    Greater => {
+                        // the greater nodes in the rhs are to the right or up
+                        let rhs = w.pop().unwrap().0;
+                        if let Some(rhs_right) = rhs.right.as_ref() {
+                            w.push((rhs_right, rhs_right.left.is_none()));
+                        }
+                    }
+                }
+            }
+
+            false
         }
 
-        return true;
+        let lhs = self.0.root.as_ref().unwrap();
+        let rhs = other.0.root.as_ref().unwrap();
+        has_all(lhs, &mut vec![(rhs, rhs.left.is_none())])
     }
 
     /// tests if self is a superset of other.
