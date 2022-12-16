@@ -1668,70 +1668,6 @@ where
 
 impl<'a, K: Clone, V: Clone> FusedIterator for IterMut<'a, K, V> {}
 
-const KEEP_LEFT_MASK: u8 = 4;
-const KEEP_BOTH_MASK: u8 = 2;
-const KEEP_RIGHT_MASK: u8 = 1;
-
-pub struct MergeIter<'a, K, const M: u8> {
-    lhs: Iter<'a, K, ()>,
-    rhs: Iter<'a, K, ()>,
-}
-
-impl<'a, K: Ord, const M: u8> Iterator for MergeIter<'a, K, M> {
-    type Item = &'a K;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let Some(peek_lhs) = self.lhs.work.last() else {
-                if M & KEEP_RIGHT_MASK != 0 {
-                    return self.rhs.next().map(|e| e.0);
-                } else {
-                    return None;
-                }
-            };
-
-            let Some(peek_rhs) = self.rhs.work.last() else {
-                if M & KEEP_LEFT_MASK != 0 {
-                    return self.lhs.next().map(|e| e.0);
-                } else {
-                    return None;
-                }
-            };
-
-            match peek_lhs.key.cmp(&peek_rhs.key) {
-                Less => {
-                    let r = self.lhs.next().map(|e| e.0);
-                    if M & KEEP_LEFT_MASK != 0 {
-                        return r;
-                    }
-                }
-
-                Equal => {
-                    self.lhs.next();
-                    let r = self.rhs.next().map(|e| e.0);
-                    if M & KEEP_BOTH_MASK != 0 {
-                        return r;
-                    }
-                }
-
-                Greater => {
-                    let r = self.rhs.next().map(|e| e.0);
-                    if M & KEEP_RIGHT_MASK != 0 {
-                        return r;
-                    }
-                }
-            }
-        }
-    }
-}
-
-impl<'a, K: Ord, const M: u8> FusedIterator for MergeIter<'a, K, M> {}
-
-pub type Difference<'a, K> = MergeIter<'a, K, 8>;
-pub type Intersection<'a, K> = MergeIter<'a, K, 2>;
-pub type Union<'a, K> = MergeIter<'a, K, 7>;
-pub type SymmetricDifference<'a, K> = MergeIter<'a, K, 5>;
-
 pub struct OccupiedEntry<'a, K, V> {
     key: K,
     val: &'a mut V,
@@ -1905,11 +1841,11 @@ impl<V> AvlSet<V> {
     }
 
     /// Returns an iterator over elements in self and not in other
-    pub fn difference<'a>(&'a self, other: &'a Self) -> Difference<'a, V> {
-        Difference {
-            lhs: self.0.iter(),
-            rhs: other.0.iter(),
-        }
+    pub fn difference<'a>(&'a self, other: &'a Self) -> Difference<'a, V>
+    where
+        V: Ord,
+    {
+        Difference::new(self.iter(), other.iter())
     }
 
     /// Returns the least value in the set.
@@ -1945,11 +1881,11 @@ impl<V> AvlSet<V> {
     }
 
     /// Returns an iterator of the values that are in both self and other.
-    pub fn intersection<'a>(&'a self, other: &'a Self) -> Intersection<'a, V> {
-        Intersection {
-            lhs: self.0.iter(),
-            rhs: other.0.iter(),
-        }
+    pub fn intersection<'a>(&'a self, other: &'a Self) -> Intersection<'a, V>
+    where
+        V: Ord,
+    {
+        Intersection::new(self.iter(), other.iter())
     }
 
     /// Returns true if self and other have no common values and false otherwise
@@ -2060,8 +1996,8 @@ impl<V> AvlSet<V> {
     }
 
     /// Returns an iterator over self's values in sorted order.
-    pub fn iter(&self) -> impl Iterator<Item = &V> {
-        self.0.iter().map(|(k, _)| k)
+    pub fn iter(&self) -> SetIter<V> {
+        SetIter(self.0.iter())
     }
 
     /// Returns the greatest value in self.
@@ -2149,10 +2085,7 @@ impl<V> AvlSet<V> {
         &'a self,
         other: &'a Self,
     ) -> SymmetricDifference<'a, V> {
-        SymmetricDifference {
-            lhs: self.0.iter(),
-            rhs: other.0.iter(),
-        }
+        SymmetricDifference::new(self.iter(), other.iter())
     }
 
     /// Removes and returns the set member that matches value.
@@ -2173,10 +2106,7 @@ impl<V> AvlSet<V> {
     ///
     /// Common elements are only returned once.
     pub fn union<'a>(&'a self, other: &'a Self) -> Union<'a, V> {
-        Union {
-            lhs: self.0.iter(),
-            rhs: other.0.iter(),
-        }
+        Union::new(self.iter(), other.iter())
     }
 
     /// Returns a new, empty set.
@@ -2276,6 +2206,21 @@ impl<T: Clone + Ord> FromIterator<T> for AvlSet<T> {
         s
     }
 }
+
+pub struct SetIter<'a, T>(Iter<'a, T, ()>);
+
+impl<'a, T> Iterator for SetIter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next().map(|e| e.0)
+    }
+}
+
+super::make_set_op_iter!(Difference, SetIter<'a, T>, 0b0100);
+super::make_set_op_iter!(Intersection, SetIter<'a, T>, 0b0010);
+super::make_set_op_iter!(Union, SetIter<'a, T>, 0b0111);
+super::make_set_op_iter!(SymmetricDifference, SetIter<'a, T>, 0b0101);
 
 #[cfg(test)]
 mod test {
