@@ -80,27 +80,14 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         use SetOpFlag::*;
         loop {
-            match self.0.next()? {
-                (None, None) => {
-                    panic!("merge should give None, not (None, None)")
-                }
-
-                (None, rt @ Some(_)) => {
-                    if P & KeepRightOnly as u32 != 0 {
-                        return rt;
-                    }
-                }
-
-                (lf @ Some(_), None) => {
-                    if P & KeepLeftOnly as u32 != 0 {
-                        return lf;
-                    }
-                }
-
-                (Some(_), rt @ Some(_)) => {
-                    if P & KeepCommon as u32 != 0 {
-                        return rt;
-                    }
+            let (lf, rt) = self.0.next()?;
+            if lf.is_none() && P & KeepRightOnly as u32 != 0 {
+                return rt;
+            } else if rt.is_none() && P & KeepLeftOnly as u32 != 0 {
+                return lf;
+            } else if lf.is_some() && rt.is_some() {
+                if P & KeepCommon as u32 != 0 {
+                    return rt;
                 }
             }
         }
