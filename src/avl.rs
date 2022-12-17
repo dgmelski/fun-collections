@@ -934,6 +934,15 @@ impl<K, V> AvlMap<K, V> {
         self.root = None;
     }
 
+    /// Tests if the map contains a value for the given key.
+    pub fn contains_key<Q>(&self, key: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        self.get(key).is_some()
+    }
+
     /// Creates a new, empty map.
     /// # Examples
     /// ```
