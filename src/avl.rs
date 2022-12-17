@@ -943,15 +943,47 @@ impl<K, V> AvlMap<K, V> {
         self.get(key).is_some()
     }
 
-    /// Creates a new, empty map.
+    /// Returns an Entry that simplifies some update operations.
+    pub fn entry(&mut self, key: K) -> Entry<'_, K, V>
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
+        // The following fails with a complaint about more than one mutable
+        // borrow of self.  I don't understand why it's a problem for
+        // non-lexical lifetimes.
+        // if let Some(val) = self.get_mut(&key) {
+        //     Entry::Occupied(OccupiedEntry { key, val })
+        // } else {
+        //     Entry::Vacant(VacantEntry { key, map: self })
+        // }
+
+        // TODO: all the same, do we need the double lookup?
+        if self.contains_key(&key) {
+            let val = self.get_mut(&key).unwrap();
+            Entry::Occupied(OccupiedEntry { key, val })
+        } else {
+            Entry::Vacant(VacantEntry { key, map: self })
+        }
+    }
+
+    /// Returns the key-value pair for the least key in the map
+    ///
     /// # Examples
     /// ```
     /// use lazy_clone_collections::AvlMap;
-    /// let m: AvlMap<usize, usize> = AvlMap::new();
-    /// assert!(m.is_empty());
+    ///
+    /// let fmap = AvlMap::from([(2,0), (1,0)]);
+    /// assert_eq!(fmap.first_key_value(), Some((&1, &0)));
     /// ```
-    pub fn new() -> Self {
-        AvlMap { len: 0, root: None }
+    pub fn first_key_value(&self) -> Option<(&K, &V)> {
+        let mut prev = &None;
+        let mut curr = &self.root;
+        while let Some(rc) = curr.as_ref() {
+            prev = curr;
+            curr = &rc.left;
+        }
+        prev.as_ref().map(|rc| (&rc.key, &rc.val))
     }
 
     /// Creates an iterator over the map entries, sorted by key.
@@ -1035,6 +1067,17 @@ impl<K, V> AvlMap<K, V> {
     /// ```
     pub fn keys(&self) -> impl Iterator<Item = &K> {
         self.iter().map(|p| p.0)
+    }
+
+    /// Creates a new, empty map.
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    /// let m: AvlMap<usize, usize> = AvlMap::new();
+    /// assert!(m.is_empty());
+    /// ```
+    pub fn new() -> Self {
+        AvlMap { len: 0, root: None }
     }
 
     /// Produces an iterator over the values of the map, ordered by their
@@ -1391,20 +1434,20 @@ impl<K, V> AvlMap<K, V> {
         lhs
     }
 
-    /// Builds a map with entries from both maps, with entries from the RHS
-    /// taking precedence when a key appears in both maps.
-    ///
-    /// # Examples
-    /// ```
-    /// use lazy_clone_collections::AvlMap;
-    ///
-    /// let lhs = AvlMap::from([(0,'a'), (1, 'a')]);
-    /// let rhs = AvlMap::from([(1,'b'), (2,'b')]);
-    /// let joint = AvlMap::union(lhs, rhs);
-    /// assert_eq!(joint.get(&0), Some(&'a'));
-    /// assert_eq!(joint.get(&1), Some(&'b'));
-    /// assert_eq!(joint.get(&2), Some(&'b'));
-    /// ```
+    // /// Builds a map with entries from both maps, with entries from the RHS
+    // /// taking precedence when a key appears in both maps.
+    // ///
+    // /// # Examples
+    // /// ```
+    // /// use lazy_clone_collections::AvlMap;
+    // ///
+    // /// let lhs = AvlMap::from([(0,'a'), (1, 'a')]);
+    // /// let rhs = AvlMap::from([(1,'b'), (2,'b')]);
+    // /// let joint = AvlMap::new_union(lhs, rhs);
+    // /// assert_eq!(joint.get(&0), Some(&'a'));
+    // /// assert_eq!(joint.get(&1), Some(&'b'));
+    // /// assert_eq!(joint.get(&2), Some(&'b'));
+    // /// ```
     // fn new_union(lhs: Self, rhs: Self) -> Self
     // where
     //     K: Clone + Ord,
@@ -1416,25 +1459,6 @@ impl<K, V> AvlMap<K, V> {
     //         root,
     //     }
     // }
-
-    /// Returns the key-value pair for the least key in the map
-    ///
-    /// # Examples
-    /// ```
-    /// use lazy_clone_collections::AvlMap;
-    ///
-    /// let fmap = AvlMap::from([(2,0), (1,0)]);
-    /// assert_eq!(fmap.first_key_value(), Some((&1, &0)));
-    /// ```
-    pub fn first_key_value(&self) -> Option<(&K, &V)> {
-        let mut prev = &None;
-        let mut curr = &self.root;
-        while let Some(rc) = curr.as_ref() {
-            prev = curr;
-            curr = &rc.left;
-        }
-        prev.as_ref().map(|rc| (&rc.key, &rc.val))
-    }
 
     /// Returns the key-value pair for the greatest key in the map
     ///
@@ -1453,15 +1477,6 @@ impl<K, V> AvlMap<K, V> {
             curr = &rc.right;
         }
         prev.as_ref().map(|rc| (&rc.key, &rc.val))
-    }
-
-    /// Tests if self contains an entry for the given key.
-    pub fn contains<Q>(&self, key: &Q) -> bool
-    where
-        K: Borrow<Q>,
-        Q: Ord + ?Sized,
-    {
-        self.get(key).is_some()
     }
 
     /// Returns a reference to the value associated with k.
@@ -1521,21 +1536,6 @@ impl<K, V> AvlMap<K, V> {
         }
 
         None
-    }
-
-    /// Returns an Entry that simplifies some update operations.
-    pub fn entry(&mut self, key: K) -> Entry<'_, K, V>
-    where
-        K: Clone + Ord,
-        V: Clone,
-    {
-        // TODO: frustrating that this traverses the tree twice
-        if self.contains(&key) {
-            let val = self.get_mut(&key).unwrap();
-            Entry::Occupied(OccupiedEntry { key, val })
-        } else {
-            Entry::Vacant(VacantEntry { key, map: self })
-        }
     }
 
     /// Returns true if self contains no entries, false otherwise.
@@ -1989,17 +1989,17 @@ mod test {
 
         for (k, v) in both.iter() {
             assert_eq!(f1.get(k), Some(v));
-            assert!(f2.contains(k));
+            assert!(f2.contains_key(k));
         }
 
         for (k, v) in f1.iter() {
-            if f2.contains(k) {
+            if f2.contains_key(k) {
                 assert_eq!(both.get(k), Some(v));
             }
         }
 
         for (k, _) in f2.iter() {
-            assert_eq!(f1.contains(k), both.contains(k));
+            assert_eq!(f1.contains_key(k), both.contains_key(k));
         }
     }
 
@@ -2021,14 +2021,14 @@ mod test {
 
         for (k, v) in diff.iter() {
             assert_eq!(f1.get(k), Some(v));
-            assert!(!f2.contains(k));
+            assert!(!f2.contains_key(k));
         }
 
         for (k, v) in f1.iter() {
-            assert!(f2.contains(k) || diff.get(k) == Some(v));
+            assert!(f2.contains_key(k) || diff.get(k) == Some(v));
         }
 
-        assert!(f2.iter().all(|(k, _)| !diff.contains(k)));
+        assert!(f2.iter().all(|(k, _)| !diff.contains_key(k)));
     }
 
     fn sym_diff_test(v1: TestEntries, v2: TestEntries) -> () {
@@ -2037,7 +2037,7 @@ mod test {
         let sym_diff = AvlMap::sym_diff(&f1, &f2);
 
         for (k, v) in sym_diff.iter() {
-            if !f2.contains(k) {
+            if !f2.contains_key(k) {
                 assert_eq!(f1.get(k), Some(v));
             } else {
                 assert_eq!(f2.get(k), Some(v));
@@ -2045,11 +2045,11 @@ mod test {
         }
 
         for (k, v) in f1.iter() {
-            assert!(f2.contains(k) || sym_diff.get(k) == Some(v));
+            assert!(f2.contains_key(k) || sym_diff.get(k) == Some(v));
         }
 
         for (k, v) in f2.iter() {
-            assert!(f1.contains(k) || sym_diff.get(k) == Some(v));
+            assert!(f1.contains_key(k) || sym_diff.get(k) == Some(v));
         }
     }
 

@@ -29,7 +29,7 @@ impl<V> AvlSet<V> {
         V: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        self.0.contains(value)
+        self.0.contains_key(value)
     }
 
     /// Returns an iterator over elements in self and not in other
