@@ -967,6 +967,33 @@ impl<K, V> AvlMap<K, V> {
         }
     }
 
+    /// Return an Entry for the least key in the map.
+    pub fn first_entry(&mut self, key: K) -> Entry<'_, K, V>
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
+        // avoid similar "double borrow" problem described in first_key_entry
+        if self.is_empty() {
+            return Entry::Vacant(VacantEntry { key, map: self });
+        }
+
+        let mut curr = self.root.as_mut().unwrap();
+        let mut n;
+        loop {
+            n = Rc::make_mut(curr);
+            let Some(next) = n.left.as_mut() else {
+                break;
+            };
+            curr = next;
+        }
+
+        Entry::Occupied(OccupiedEntry {
+            key,
+            val: &mut n.val,
+        })
+    }
+
     /// Returns the key-value pair for the least key in the map
     ///
     /// # Examples
@@ -977,13 +1004,11 @@ impl<K, V> AvlMap<K, V> {
     /// assert_eq!(fmap.first_key_value(), Some((&1, &0)));
     /// ```
     pub fn first_key_value(&self) -> Option<(&K, &V)> {
-        let mut prev = &None;
-        let mut curr = &self.root;
-        while let Some(rc) = curr.as_ref() {
-            prev = curr;
-            curr = &rc.left;
+        let mut curr = self.root.as_ref()?;
+        while let Some(next) = curr.left.as_ref() {
+            curr = next;
         }
-        prev.as_ref().map(|rc| (&rc.key, &rc.val))
+        Some((&curr.key, &curr.val))
     }
 
     /// Creates an iterator over the map entries, sorted by key.
