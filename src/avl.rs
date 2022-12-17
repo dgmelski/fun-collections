@@ -857,7 +857,7 @@ fn union<K: Clone + Ord, V: Clone>(
     let mut merger = Merger {
         on_only_left: NoMatchMergePolicy::Keep,
         on_only_right: NoMatchMergePolicy::Keep,
-        deconflict: &mut |lhs, _| Some(lhs),
+        deconflict: &mut |_, rhs| Some(rhs),
         entry_dummy: std::marker::PhantomData,
     };
 
@@ -902,6 +902,32 @@ where
 }
 
 impl<K, V> AvlMap<K, V> {
+    /// Move all the elements of other into self leaving other empty.
+    ///
+    /// When there are matching keys, prefer the entries from other.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let mut m1 = AvlMap::from([(0,'a'), (1,'a')]);
+    /// let mut m2 = AvlMap::from([(1,'b'), (2,'b')]);
+    /// m1.append(&mut m2);
+    /// assert_eq!(m1.len(), 3);
+    /// assert_eq!(m1.get(&0), Some(&'a'));
+    /// assert_eq!(m1.get(&1), Some(&'b'));
+    /// assert_eq!(m1.get(&2), Some(&'b'));
+    /// assert!(m2.is_empty());
+    pub fn append(&mut self, other: &mut Self)
+    where
+        K: Ord + Clone,
+        V: Clone,
+    {
+        self.root = union(self.root.take(), other.root.take());
+        self.len = len(&self.root);
+        other.len = 0;
+    }
+
     /// Drops all elements from the map.
     pub fn clear(&mut self) {
         self.len = 0;
@@ -1356,51 +1382,31 @@ impl<K, V> AvlMap<K, V> {
         lhs
     }
 
-    /// Adds the entries from other that don't have keys in this map.
-    ///
-    /// # Examples
-    /// ```
-    /// use lazy_clone_collections::AvlMap;
-    ///
-    /// let mut lhs = AvlMap::from([(0,1), (1, 2)]);
-    /// let rhs = AvlMap::from([(1,5), (3,4)]);
-    /// lhs.union_with(rhs);
-    /// assert_eq!(lhs.get(&0), Some(&1));
-    /// assert_eq!(lhs.get(&1), Some(&2));
-    /// assert_eq!(lhs.get(&3), Some(&4));
-    /// ```
-    pub fn union_with(&mut self, mut other: Self)
-    where
-        K: Clone + Ord,
-        V: Clone,
-    {
-        self.root = union(self.root.take(), other.root.take());
-        self.len = len(&self.root);
-    }
-
-    /// Builds a map with entries from both maps, with entries from the LHS
+    /// Builds a map with entries from both maps, with entries from the RHS
     /// taking precedence when a key appears in both maps.
     ///
     /// # Examples
     /// ```
     /// use lazy_clone_collections::AvlMap;
     ///
-    /// let mut lhs = AvlMap::from([(0,1), (1, 2)]);
-    /// let rhs = AvlMap::from([(1,5), (3,4)]);
-    /// lhs.union_with(rhs);
-    /// assert_eq!(lhs.get(&0), Some(&1));
-    /// assert_eq!(lhs.get(&1), Some(&2));
-    /// assert_eq!(lhs.get(&3), Some(&4));
+    /// let lhs = AvlMap::from([(0,'a'), (1, 'a')]);
+    /// let rhs = AvlMap::from([(1,'b'), (2,'b')]);
+    /// let joint = AvlMap::union(lhs, rhs);
+    /// assert_eq!(joint.get(&0), Some(&'a'));
+    /// assert_eq!(joint.get(&1), Some(&'b'));
+    /// assert_eq!(joint.get(&2), Some(&'b'));
     /// ```
-    pub fn union(lhs: &Self, rhs: &Self) -> Self
-    where
-        K: Clone + Ord,
-        V: Clone,
-    {
-        let mut lhs = lhs.clone();
-        lhs.union_with(rhs.clone());
-        lhs
-    }
+    // fn new_union(lhs: Self, rhs: Self) -> Self
+    // where
+    //     K: Clone + Ord,
+    //     V: Clone,
+    // {
+    //     let root = union(lhs.root, rhs.root);
+    //     Self {
+    //         len: len(&root),
+    //         root,
+    //     }
+    // }
 
     /// Returns the key-value pair for the least key in the map
     ///
@@ -1988,16 +1994,16 @@ mod test {
         }
     }
 
-    fn union_test(v1: TestEntries, v2: TestEntries) -> () {
-        let f1 = AvlMap::from_iter(v1.into_iter());
-        let f2 = AvlMap::from_iter(v2.into_iter());
-        let either = AvlMap::union(&f1, &f2);
+    // fn union_test(v1: TestEntries, v2: TestEntries) -> () {
+    //     let f1 = AvlMap::from_iter(v1.into_iter());
+    //     let f2 = AvlMap::from_iter(v2.into_iter());
+    //     let either = AvlMap::new_union(f1.clone(), f2.clone());
 
-        assert!(either.iter().all(|(k, _)| f1.contains(k) || f2.contains(k)));
-        f1.iter()
-            .for_each(|(k, v)| assert_eq!(Some(v), either.get(k)));
-        f2.iter().for_each(|(k, _)| assert!(either.contains(k)));
-    }
+    //     assert!(either.iter().all(|(k, _)| f1.contains(k) || f2.contains(k)));
+    //     f1.iter().for_each(|(k, _)| assert!(either.contains(k)));
+    //     f2.iter()
+    //         .for_each(|(k, v)| assert_eq!(Some(v), either.get(k)));
+    // }
 
     fn diff_test(v1: TestEntries, v2: TestEntries) -> () {
         let f1 = AvlMap::from_iter(v1.into_iter());
@@ -2113,9 +2119,9 @@ mod test {
             intersection_test(v1, v2);
         }
 
-        fn qc_union_test(v1: TestEntries, v2: TestEntries) -> () {
-            union_test(v1, v2);
-        }
+        // fn qc_union_test(v1: TestEntries, v2: TestEntries) -> () {
+        //     union_test(v1, v2);
+        // }
 
         fn qc_diff_test(v1: TestEntries, v2: TestEntries) -> () {
             diff_test(v1, v2);

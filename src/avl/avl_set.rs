@@ -10,6 +10,14 @@ use std::rc::Rc;
 pub struct AvlSet<V>(AvlMap<V, ()>);
 
 impl<V> AvlSet<V> {
+    /// Moves all elements from other into self and leaves other empty.
+    pub fn append(&mut self, other: &mut Self)
+    where
+        V: Ord + Clone,
+    {
+        self.0.append(&mut other.0);
+    }
+
     /// Removes all the entries from self.
     pub fn clear(&mut self) {
         self.0.clear();
