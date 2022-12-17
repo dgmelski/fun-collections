@@ -1011,6 +1011,88 @@ impl<K, V> AvlMap<K, V> {
         Some((&curr.key, &curr.val))
     }
 
+    /// Returns a reference to the value associated with k.
+    ///
+    /// # Example
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let mut fmap = AvlMap::new();
+    /// fmap.insert(0, 100);
+    ///
+    /// assert_eq!(fmap.get(&0), Some(&100));
+    /// ```
+    pub fn get<Q>(&self, k: &Q) -> Option<&V>
+    where
+        K: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        let mut curr = &self.root;
+        while let Some(n) = curr {
+            match k.cmp(n.key.borrow()) {
+                Less => curr = &n.left,
+                Equal => return Some(&n.val),
+                Greater => curr = &n.right,
+            }
+        }
+
+        None
+    }
+
+    /// Returns a mutable reference to the value associated with k.
+    ///
+    /// # Example
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let mut fmap = AvlMap::new();
+    /// fmap.insert(1, 7);
+    ///
+    /// *fmap.get_mut(&1).unwrap() = 2;
+    /// assert_eq!(fmap.get(&1), Some(&2));
+    /// ```
+    pub fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
+    where
+        K: Borrow<Q> + Clone + Ord,
+        Q: Ord + ?Sized,
+        V: Clone,
+    {
+        let mut curr = &mut self.root;
+        while let Some(rc) = curr {
+            let n = Rc::make_mut(rc);
+            match k.cmp(n.key.borrow()) {
+                Less => curr = &mut n.left,
+                Equal => return Some(&mut n.val),
+                Greater => curr = &mut n.right,
+            }
+        }
+
+        None
+    }
+
+    /// Inserts a key-value pair in the map.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let mut fmap = AvlMap::new();
+    /// fmap.insert(0, "a");
+    /// assert_eq!(fmap.get(&0), Some(&"a"));
+    /// ```
+    pub fn insert(&mut self, key: K, val: V) -> Option<V>
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
+        let (ret, _) = ins(&mut self.root, key, val);
+        self.len += ret.is_none() as usize;
+        ret
+    }
+
+    // TODO into_keys
+    // TODO into_values
+
     /// Creates an iterator over the map entries, sorted by key.
     ///
     /// It is more efficient to visit each entry using
@@ -1187,26 +1269,6 @@ impl<K, V> AvlMap<K, V> {
         if let Some(rc) = self.root.as_mut() {
             Rc::make_mut(rc).for_each_mut(&mut f);
         }
-    }
-
-    /// Inserts a key-value pair in the map.
-    ///
-    /// # Examples
-    /// ```
-    /// use lazy_clone_collections::AvlMap;
-    ///
-    /// let mut fmap = AvlMap::new();
-    /// fmap.insert(0, "a");
-    /// assert_eq!(fmap.get(&0), Some(&"a"));
-    /// ```
-    pub fn insert(&mut self, key: K, val: V) -> Option<V>
-    where
-        K: Clone + Ord,
-        V: Clone,
-    {
-        let (ret, _) = ins(&mut self.root, key, val);
-        self.len += ret.is_none() as usize;
-        ret
     }
 
     /// Removes a key from a map and returns the unmapped value.
@@ -1502,65 +1564,6 @@ impl<K, V> AvlMap<K, V> {
             curr = &rc.right;
         }
         prev.as_ref().map(|rc| (&rc.key, &rc.val))
-    }
-
-    /// Returns a reference to the value associated with k.
-    ///
-    /// # Example
-    /// ```
-    /// use lazy_clone_collections::AvlMap;
-    ///
-    /// let mut fmap = AvlMap::new();
-    /// fmap.insert(0, 100);
-    ///
-    /// assert_eq!(fmap.get(&0), Some(&100));
-    /// ```
-    pub fn get<Q>(&self, k: &Q) -> Option<&V>
-    where
-        K: Borrow<Q>,
-        Q: Ord + ?Sized,
-    {
-        let mut curr = &self.root;
-        while let Some(n) = curr {
-            match k.cmp(n.key.borrow()) {
-                Less => curr = &n.left,
-                Equal => return Some(&n.val),
-                Greater => curr = &n.right,
-            }
-        }
-
-        None
-    }
-
-    /// Returns a mutable reference to the value associated with k.
-    ///
-    /// # Example
-    /// ```
-    /// use lazy_clone_collections::AvlMap;
-    ///
-    /// let mut fmap = AvlMap::new();
-    /// fmap.insert(1, 7);
-    ///
-    /// *fmap.get_mut(&1).unwrap() = 2;
-    /// assert_eq!(fmap.get(&1), Some(&2));
-    /// ```
-    pub fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
-    where
-        K: Borrow<Q> + Clone + Ord,
-        Q: Ord + ?Sized,
-        V: Clone,
-    {
-        let mut curr = &mut self.root;
-        while let Some(rc) = curr {
-            let n = Rc::make_mut(rc);
-            match k.cmp(n.key.borrow()) {
-                Less => curr = &mut n.left,
-                Equal => return Some(&mut n.val),
-                Greater => curr = &mut n.right,
-            }
-        }
-
-        None
     }
 
     /// Returns true if self contains no entries, false otherwise.
