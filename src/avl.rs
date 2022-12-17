@@ -1681,6 +1681,80 @@ where
 
 impl<'a, K: Clone, V: Clone> FusedIterator for IterMut<'a, K, V> {}
 
+enum IntoIterAction<K, V> {
+    DescendRef(Rc<Node<K, V>>),
+    DescendOwn(Node<K, V>),
+    Return(K, V),
+}
+
+pub struct IntoIter<K, V> {
+    w: Vec<IntoIterAction<K, V>>,
+}
+
+impl<K: Clone, V: Clone> Iterator for IntoIter<K, V> {
+    type Item = (K, V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        use IntoIterAction::*;
+        let mut act = self.w.pop()?;
+        loop {
+            match act {
+                DescendRef(rc) => {
+                    if let Some(rt) = rc.right.clone() {
+                        self.w.push(DescendRef(rt));
+                    }
+
+                    if let Some(lf) = rc.left.clone() {
+                        self.w.push(Return(rc.key.clone(), rc.val.clone()));
+                        act = DescendRef(lf);
+                    } else {
+                        return Some((rc.key.clone(), rc.val.clone()));
+                    }
+                }
+
+                DescendOwn(n) => {
+                    if let Some(rt) = n.right {
+                        match Rc::try_unwrap(rt) {
+                            Ok(n) => self.w.push(DescendOwn(n)),
+                            Err(rt) => self.w.push(DescendRef(rt)),
+                        }
+                    }
+
+                    if let Some(lf) = n.left {
+                        self.w.push(Return(n.key, n.val));
+                        match Rc::try_unwrap(lf) {
+                            Ok(n) => act = DescendOwn(n),
+                            Err(lf) => act = DescendRef(lf),
+                        }
+                    } else {
+                        return Some((n.key, n.val));
+                    }
+                }
+
+                Return(k, v) => return Some((k, v)),
+            }
+        }
+    }
+}
+
+impl<K: Clone, V: Clone> IntoIterator for AvlMap<K, V> {
+    type Item = (K, V);
+    type IntoIter = IntoIter<K, V>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        use IntoIterAction::*;
+        let mut w = Vec::new();
+        if let Some(root) = self.root {
+            match Rc::try_unwrap(root) {
+                Ok(n) => w.push(DescendOwn(n)),
+                Err(rc) => w.push(DescendRef(rc)),
+            }
+        }
+
+        IntoIter { w }
+    }
+}
+
 pub struct OccupiedEntry<'a, K, V> {
     key: K,
     val: &'a mut V,
