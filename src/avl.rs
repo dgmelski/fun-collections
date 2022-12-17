@@ -1737,6 +1737,8 @@ impl<K: Clone, V: Clone> Iterator for IntoIter<K, V> {
     }
 }
 
+impl<K: Clone, V: Clone> FusedIterator for IntoIter<K, V> {}
+
 impl<K: Clone, V: Clone> IntoIterator for AvlMap<K, V> {
     type Item = (K, V);
     type IntoIter = IntoIter<K, V>;
@@ -1752,6 +1754,24 @@ impl<K: Clone, V: Clone> IntoIterator for AvlMap<K, V> {
         }
 
         IntoIter { w }
+    }
+}
+
+impl<'a, K, V> IntoIterator for &'a AvlMap<K, V> {
+    type Item = (&'a K, &'a V);
+    type IntoIter = Iter<'a, K, V>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'a, K: Clone, V: Clone> IntoIterator for &'a mut AvlMap<K, V> {
+    type Item = (&'a K, &'a mut V);
+    type IntoIter = IterMut<'a, K, V>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
     }
 }
 
