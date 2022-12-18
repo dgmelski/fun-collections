@@ -544,7 +544,7 @@ where
 // its key and value and whether or not the removal made the tree smaller.
 fn rm_leftmost<K, V>(root: &mut OptNode<K, V>) -> (Option<(K, V)>, IsShorter)
 where
-    K: Clone + Ord,
+    K: Clone,
     V: Clone,
 {
     let n = match root.as_mut() {
@@ -1291,6 +1291,26 @@ impl<K, V> AvlMap<K, V> {
     /// ```
     pub fn new() -> Self {
         AvlMap { len: 0, root: None }
+    }
+
+    /// Removes the entry with the least key and returns it.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let mut m = AvlMap::from([(2, 2), (0, 0), (1, 1)]);
+    /// assert_eq!(m.pop_first(), Some((0,0)));
+    /// assert_eq!(m.len(), 2);
+    /// ```
+    pub fn pop_first(&mut self) -> Option<(K, V)>
+    where
+        K: Clone,
+        V: Clone,
+    {
+        let kv = rm_leftmost(&mut self.root).0?;
+        self.len -= 1;
+        Some(kv)
     }
 
     /// Produces an iterator over the values of the map, ordered by their
