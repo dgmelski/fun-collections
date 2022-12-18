@@ -666,6 +666,28 @@ where
     }
 }
 
+fn retain<K, V, F>(root: OptNode<K, V>, f: &mut F) -> (OptNode<K, V>, usize)
+where
+    K: Clone + Ord,
+    V: Clone,
+    F: FnMut(&K, &mut V) -> bool,
+{
+    let Some(root) = root else {
+        return (None, 0);
+    };
+
+    let (left, left_len) = retain(root.left.clone(), f);
+    let (right, right_len) = retain(root.right.clone(), f);
+    let len = left_len + right_len;
+    let mut v = root.val.clone();
+
+    if f(&root.key, &mut v) {
+        (join(left, root.key.clone(), v, right), len + 1)
+    } else {
+        (join2(left, None, right), len)
+    }
+}
+
 fn join_rt<K: Clone + Ord, V: Clone>(
     left: Rc<Node<K, V>>,
     k: K,
@@ -1403,6 +1425,32 @@ impl<K, V> AvlMap<K, V> {
         self.len -= 1;
         chk_map!(&self);
         Some(kv)
+    }
+
+    /// Applies f to each map entry, discarding those for which f returns false.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let mut m = AvlMap::<i32, char>::from([(-1, 'a'), (0, 'a'), (1, 'a')]);
+    /// m.retain(|k, v| {
+    ///     *v = 'b';
+    ///     k.is_positive()
+    /// });
+    /// assert_eq!(m.get(&0), None);
+    /// assert_eq!(m.get(&1), Some(&'b'));
+    /// assert_eq!(m.len(), 1);
+    /// ```
+    pub fn retain<F>(&mut self, mut f: F)
+    where
+        K: Clone + Ord,
+        V: Clone,
+        F: FnMut(&K, &mut V) -> bool,
+    {
+        let (root, len) = retain(self.root.take(), &mut f);
+        self.root = root;
+        self.len = len;
     }
 
     /// Produces an iterator over the values of the map, ordered by their
