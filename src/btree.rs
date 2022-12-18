@@ -514,6 +514,10 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn iter(&self) -> Iter<'_, K, V, N> {
         let mut curr = self.root.as_ref();
         let mut w = Vec::new();
