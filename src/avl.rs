@@ -1453,6 +1453,44 @@ impl<K, V> AvlMap<K, V> {
         self.len = len;
     }
 
+    /// Moves all elements greater than or equal to the provided key into a new
+    /// map and returns it.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let mut fmap: AvlMap<_, _> = (0..10).map(|i| (i, i * 2)).collect();
+    /// let higher_fives = fmap.split_off(&5);
+    /// assert_eq!(fmap.last_key_value(), Some((&4,&8)));
+    /// assert_eq!(fmap.get(&6), None);
+    /// assert_eq!(higher_fives.first_key_value(), Some((&5, &10)));
+    /// assert_eq!(higher_fives.get(&6), Some(&12));
+    /// ```
+    pub fn split_off<Q>(&mut self, key: &Q) -> Self
+    where
+        K: Borrow<Q> + Clone + Ord,
+        Q: Ord + ?Sized,
+        V: Clone,
+    {
+        let (lhs, orig_kv, mut rhs) = split(self.root.take(), key);
+
+        let len_lhs = len(&lhs);
+        let len_rhs = self.len - len_lhs;
+
+        self.len = len_lhs;
+        self.root = lhs;
+
+        if let Some((k, v)) = orig_kv {
+            ins(&mut rhs, k, v);
+        }
+
+        AvlMap {
+            len: len_rhs,
+            root: rhs,
+        }
+    }
+
     /// Produces an iterator over the values of the map, ordered by their
     /// associated keys.
     ///
@@ -1515,8 +1553,6 @@ impl<K, V> AvlMap<K, V> {
     /// The passed function must take a reference to the key type and a mutable
     /// reference to the value type.  Any shared nodes in the tree are cloned,
     /// regardless of whether the contained values are mutated.
-    ///
-    /// This method provides partial compensation for the absence of iter_mut().
     ///
     /// # Examples
     /// ```
@@ -1586,44 +1622,6 @@ impl<K, V> AvlMap<K, V> {
         let mut lhs = lhs.clone();
         lhs.join_with(key, val, rhs.clone());
         lhs
-    }
-
-    /// Moves all elements greater than or equal to the provided key into a new
-    /// map and returns it.
-    ///
-    /// # Examples
-    /// ```
-    /// use lazy_clone_collections::AvlMap;
-    ///
-    /// let mut fmap: AvlMap<_, _> = (0..10).map(|i| (i, i * 2)).collect();
-    /// let higher_fives = fmap.split_off(&5);
-    /// assert_eq!(fmap.last_key_value(), Some((&4,&8)));
-    /// assert_eq!(fmap.get(&6), None);
-    /// assert_eq!(higher_fives.first_key_value(), Some((&5, &10)));
-    /// assert_eq!(higher_fives.get(&6), Some(&12));
-    /// ```
-    pub fn split_off<Q>(&mut self, key: &Q) -> Self
-    where
-        K: Borrow<Q> + Clone + Ord,
-        Q: Ord + ?Sized,
-        V: Clone,
-    {
-        let (lhs, orig_kv, mut rhs) = split(self.root.take(), key);
-
-        let len_lhs = len(&lhs);
-        let len_rhs = self.len - len_lhs;
-
-        self.len = len_lhs;
-        self.root = lhs;
-
-        if let Some((k, v)) = orig_kv {
-            ins(&mut rhs, k, v);
-        }
-
-        AvlMap {
-            len: len_rhs,
-            root: rhs,
-        }
     }
 
     /// Removes entries with keys from the other map.
