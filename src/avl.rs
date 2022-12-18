@@ -1011,7 +1011,7 @@ impl<K, V> AvlMap<K, V> {
         Some((&curr.key, &curr.val))
     }
 
-    /// Returns a reference to the value associated with k.
+    /// Returns a reference to the value associated with key.
     ///
     /// # Example
     /// ```
@@ -1022,7 +1022,24 @@ impl<K, V> AvlMap<K, V> {
     ///
     /// assert_eq!(fmap.get(&0), Some(&100));
     /// ```
-    pub fn get<Q>(&self, k: &Q) -> Option<&V>
+    pub fn get<Q>(&self, key: &Q) -> Option<&V>
+    where
+        K: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        self.get_key_value(key).map(|e| e.1)
+    }
+
+    /// Returns the entry for the given key.
+    ///
+    /// # Example
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let mut m = AvlMap::from([(0, 100), (12, 7)]);
+    /// assert_eq!(m.get_key_value(&12), Some((&12, &7)));
+    /// ```
+    pub fn get_key_value<Q>(&self, k: &Q) -> Option<(&K, &V)>
     where
         K: Borrow<Q>,
         Q: Ord + ?Sized,
@@ -1031,7 +1048,7 @@ impl<K, V> AvlMap<K, V> {
         while let Some(n) = curr {
             match k.cmp(n.key.borrow()) {
                 Less => curr = &n.left,
-                Equal => return Some(&n.val),
+                Equal => return Some((&n.key, &n.val)),
                 Greater => curr = &n.right,
             }
         }
@@ -1090,8 +1107,49 @@ impl<K, V> AvlMap<K, V> {
         ret
     }
 
-    // TODO into_keys
-    // TODO into_values
+    /// Converts the map into an iterator over its keys.
+    ///
+    /// Consumes the map.
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let m = AvlMap::from([(1, 'a'), (2, 'b')]);
+    /// let keys: Vec<_> = m.into_keys().collect();
+    /// assert_eq!(keys, [1, 2]);
+    /// ```
+    pub fn into_keys(self) -> impl Iterator<Item = K>
+    where
+        K: Clone,
+        V: Clone,
+    {
+        self.into_iter().map(|e| e.0)
+    }
+
+    /// Converts the map into an iterator over its values, ordered by their
+    /// corresponding keys.
+    ///
+    /// Consumes the map.
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let m = AvlMap::from([(100, 'a'), (2, 'z')]);
+    /// let vals: Vec<_> = m.into_values().collect();
+    /// assert_eq!(vals, ['z', 'a']);
+    /// ```
+    pub fn into_values(self) -> impl Iterator<Item = V>
+    where
+        K: Clone,
+        V: Clone,
+    {
+        self.into_iter().map(|e| e.1)
+    }
+
+    /// Returns true if self contains no entries, false otherwise.
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
 
     /// Creates an iterator over the map entries, sorted by key.
     ///
@@ -1174,6 +1232,54 @@ impl<K, V> AvlMap<K, V> {
     /// ```
     pub fn keys(&self) -> impl Iterator<Item = &K> {
         self.iter().map(|p| p.0)
+    }
+
+    /// Return an Entry for the greatest key in the map.
+    pub fn last_entry(&mut self, key: K) -> Entry<'_, K, V>
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
+        // avoid similar "double borrow" problem described in first_key_entry
+        if self.is_empty() {
+            return Entry::Vacant(VacantEntry { key, map: self });
+        }
+
+        let mut curr = self.root.as_mut().unwrap();
+        let mut n = Rc::make_mut(curr);
+        while let Some(next) = n.right.as_mut() {
+            curr = next;
+            n = Rc::make_mut(curr);
+        }
+
+        Entry::Occupied(OccupiedEntry {
+            key,
+            val: &mut n.val,
+        })
+    }
+
+    /// Returns the key-value pair for the greatest key in the map
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let fmap = AvlMap::from([(2,0), (1,0)]);
+    /// assert_eq!(fmap.last_key_value(), Some((&2, &0)));
+    /// ```
+    pub fn last_key_value(&self) -> Option<(&K, &V)> {
+        let mut prev = &None;
+        let mut curr = &self.root;
+        while let Some(rc) = curr.as_ref() {
+            prev = curr;
+            curr = &rc.right;
+        }
+        prev.as_ref().map(|rc| (&rc.key, &rc.val))
+    }
+
+    /// Returns the number of entries in self.
+    pub fn len(&self) -> usize {
+        self.len
     }
 
     /// Creates a new, empty map.
@@ -1546,35 +1652,6 @@ impl<K, V> AvlMap<K, V> {
     //         root,
     //     }
     // }
-
-    /// Returns the key-value pair for the greatest key in the map
-    ///
-    /// # Examples
-    /// ```
-    /// use lazy_clone_collections::AvlMap;
-    ///
-    /// let fmap = AvlMap::from([(2,0), (1,0)]);
-    /// assert_eq!(fmap.last_key_value(), Some((&2, &0)));
-    /// ```
-    pub fn last_key_value(&self) -> Option<(&K, &V)> {
-        let mut prev = &None;
-        let mut curr = &self.root;
-        while let Some(rc) = curr.as_ref() {
-            prev = curr;
-            curr = &rc.right;
-        }
-        prev.as_ref().map(|rc| (&rc.key, &rc.val))
-    }
-
-    /// Returns true if self contains no entries, false otherwise.
-    pub fn is_empty(&self) -> bool {
-        self.len == 0
-    }
-
-    /// Returns the number of entries in self.
-    pub fn len(&self) -> usize {
-        self.len
-    }
 
     #[cfg(test)]
     fn chk(&self)
