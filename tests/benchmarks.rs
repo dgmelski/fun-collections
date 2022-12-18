@@ -30,18 +30,11 @@ extern crate test;
 macro_rules! for_each_map_type {
     ( $macro_name:ident ) => {
         mod $macro_name {
-            mod btree {
+            mod btreemap {
                 use std::collections::BTreeMap;
                 use test::Bencher;
 
                 $macro_name!(BTreeMap);
-            }
-
-            mod funmap {
-                use lazy_clone_collections::AvlMap;
-                use test::Bencher;
-
-                $macro_name!(AvlMap);
             }
 
             mod hashmap {
@@ -51,9 +44,54 @@ macro_rules! for_each_map_type {
                 $macro_name!(HashMap);
             }
 
-            mod shared_btree {
-                use lazy_clone_collections::BTreeMap;
+            mod shared_avlmap {
+                use lazy_clone_collections::AvlMap;
                 use test::Bencher;
+
+                $macro_name!(AvlMap);
+            }
+
+            mod shared_btree_minpop_0001 {
+                use test::Bencher;
+
+                type BTreeMap<K, V> =
+                    lazy_clone_collections::btree::BTreeMap<K, V, 1>;
+
+                $macro_name!(BTreeMap);
+            }
+
+            mod shared_btree_minpop_0002 {
+                use test::Bencher;
+
+                type BTreeMap<K, V> =
+                    lazy_clone_collections::btree::BTreeMap<K, V, 2>;
+
+                $macro_name!(BTreeMap);
+            }
+
+            mod shared_btree_minpop_0007 {
+                use test::Bencher;
+
+                type BTreeMap<K, V> =
+                    lazy_clone_collections::btree::BTreeMap<K, V, 7>;
+
+                $macro_name!(BTreeMap);
+            }
+
+            mod shared_btree_minpop_0031 {
+                use test::Bencher;
+
+                type BTreeMap<K, V> =
+                    lazy_clone_collections::btree::BTreeMap<K, V, 31>;
+
+                $macro_name!(BTreeMap);
+            }
+
+            mod shared_btree_minpop_1023 {
+                use test::Bencher;
+
+                type BTreeMap<K, V> =
+                    lazy_clone_collections::btree::BTreeMap<K, V, 31>;
 
                 $macro_name!(BTreeMap);
             }
@@ -259,6 +297,36 @@ macro_rules! symex_sim {
 }
 
 for_each_map_type!(symex_sim);
+
+// macro_rules! symex_btree_width {
+//     ( $mod:ident, $w:literal ) => {
+//         mod $mod {
+//             use test::Bencher;
+//             type BTreeMap<K, V> = lazy_clone_collections::btree::BTreeMap<K, V, $w>;
+
+//             symex_sim!(BTreeMap);
+//         }
+//     }
+// }
+
+// symex_btree_width!(symex_sim_btree_minpop_0001, 1);
+// symex_btree_width!(symex_sim_btree_minpop_0002, 2);
+// symex_btree_width!(symex_sim_btree_minpop_0003, 3);
+// symex_btree_width!(symex_sim_btree_minpop_0004, 4);
+// symex_btree_width!(symex_sim_btree_minpop_0005, 5);
+// symex_btree_width!(symex_sim_btree_minpop_0006, 6);
+// symex_btree_width!(symex_sim_btree_minpop_0007, 7);
+// symex_btree_width!(symex_sim_btree_minpop_0008, 8);
+// symex_btree_width!(symex_sim_btree_minpop_0012, 12);
+// symex_btree_width!(symex_sim_btree_minpop_0015, 15);
+// symex_btree_width!(symex_sim_btree_minpop_0016, 16);
+// symex_btree_width!(symex_sim_btree_minpop_0031, 31);
+// symex_btree_width!(symex_sim_btree_minpop_0032, 32);
+// symex_btree_width!(symex_sim_btree_minpop_0063, 63);
+// symex_btree_width!(symex_sim_btree_minpop_0127, 127);
+// symex_btree_width!(symex_sim_btree_minpop_0255, 255);
+// symex_btree_width!(symex_sim_btree_minpop_0511, 511);
+// symex_btree_width!(symex_sim_btree_minpop_1023, 1023);
 
 #[bench]
 fn avl_into_iter(b: &mut test::Bencher) {
