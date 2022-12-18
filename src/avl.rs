@@ -2048,6 +2048,14 @@ impl<'a, K, V: Clone> Entry<'a, K, V> {
     }
 }
 
+impl<'a, K: Clone + Ord, V: Clone> Extend<(&'a K, &'a V)> for AvlMap<K, V> {
+    fn extend<I: IntoIterator<Item = (&'a K, &'a V)>>(&mut self, iter: I) {
+        for (k, v) in iter {
+            self.insert(k.clone(), v.clone());
+        }
+    }
+}
+
 impl<K: Clone + Ord, V: Clone> Extend<(K, V)> for AvlMap<K, V> {
     fn extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) {
         for (k, v) in iter {
