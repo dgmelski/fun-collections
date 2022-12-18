@@ -1689,12 +1689,15 @@ enum IntoIterAction<K, V> {
 
 pub struct IntoIter<K, V> {
     w: Vec<IntoIterAction<K, V>>,
+    len: usize,
 }
 
-impl<K: Clone, V: Clone> Iterator for IntoIter<K, V> {
-    type Item = (K, V);
-
-    fn next(&mut self) -> Option<Self::Item> {
+impl<K, V> IntoIter<K, V> {
+    fn next_elem(&mut self) -> Option<(K, V)>
+    where
+        K: Clone,
+        V: Clone,
+    {
         use IntoIterAction::*;
         let mut act = self.w.pop()?;
         loop {
@@ -1737,6 +1740,24 @@ impl<K: Clone, V: Clone> Iterator for IntoIter<K, V> {
     }
 }
 
+impl<K: Clone, V: Clone> Iterator for IntoIter<K, V> {
+    type Item = (K, V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let r = self.next_elem();
+        if r.is_some() {
+            self.len -= 1;
+        }
+        r
+    }
+}
+
+impl<K: Clone, V: Clone> ExactSizeIterator for IntoIter<K, V> {
+    fn len(&self) -> usize {
+        self.len
+    }
+}
+
 impl<K: Clone, V: Clone> FusedIterator for IntoIter<K, V> {}
 
 impl<K: Clone, V: Clone> IntoIterator for AvlMap<K, V> {
@@ -1753,7 +1774,7 @@ impl<K: Clone, V: Clone> IntoIterator for AvlMap<K, V> {
             }
         }
 
-        IntoIter { w }
+        IntoIter { w, len: self.len }
     }
 }
 
@@ -2203,16 +2224,12 @@ mod test {
 
     fn into_iter_test(vs: Vec<u8>) {
         let f1: AvlMap<_, _> = vs.iter().map(|&k| (k, ())).collect();
-        let f2: AvlMap<_, _> = vs.iter().map(|&k| (k, ())).collect();
         let m1: std::collections::BTreeMap<_, _> =
             vs.iter().map(|&k| (k, ())).collect();
 
         for ((x, ()), (&y, ())) in f1.into_iter().zip(m1.iter()) {
             assert_eq!(x, y);
         }
-
-        let mi = MorrisIter { top: f2.root };
-        assert!(mi.cmp(m1.into_iter()).is_eq());
     }
 
     quickcheck! {
