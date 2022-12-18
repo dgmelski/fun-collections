@@ -217,14 +217,19 @@ pub struct AvlMap<K, V> {
 }
 
 impl<K: Clone + Debug, V: Clone + Debug> Debug for AvlMap<K, V> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match &self.root {
-            None => f.write_str("AvlMap(EMPTY)"),
-            Some(rc) => {
-                // use Node's Debug formatter
-                f.write_fmt(format_args!("AvlMap(#{}, {:?}", self.len, rc))
-            }
-        }
+    /// Format and AvlMap using "map" notation.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let m = AvlMap::from([(0, 'a'), (1, 'b')]);
+    /// assert_eq!(format!("{:?}", m), r#"AvlMap({0: 'a', 1: 'b'})"#);
+    /// ```
+    fn fmt(&self, fmt: &mut Formatter<'_>) -> std::fmt::Result {
+        fmt.write_str("AvlMap(")?;
+        fmt.debug_map().entries(self.iter()).finish()?;
+        fmt.write_str(")")
     }
 }
 
