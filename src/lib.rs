@@ -157,11 +157,15 @@ impl<T: Ord, I: Iterator<Item = T>, const P: u32> std::iter::FusedIterator
 
 macro_rules! make_set_op_iter {
     ( $name:ident, $iter:ty, $policy:literal ) => {
-        pub struct $name<'a, T: 'a>(crate::SetOpIter<$iter, $policy>);
+        pub struct $name<'a, T: 'a> {
+            iter: crate::SetOpIter<$iter, $policy>,
+        }
 
         impl<'a, T> $name<'a, T> {
             fn new(lhs: $iter, rhs: $iter) -> Self {
-                Self(crate::SetOpIter::new(lhs, rhs))
+                Self {
+                    iter: crate::SetOpIter::new(lhs, rhs),
+                }
             }
         }
 
@@ -169,7 +173,7 @@ macro_rules! make_set_op_iter {
             type Item = &'a T;
 
             fn next(&mut self) -> Option<Self::Item> {
-                self.0.next()
+                self.iter.next()
             }
         }
 

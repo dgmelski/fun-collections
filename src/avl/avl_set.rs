@@ -7,7 +7,9 @@ use std::rc::Rc;
 ///
 /// The implementation is mostly a thin wrapper around [`AvlMap`].
 #[derive(Clone, Default)]
-pub struct AvlSet<V>(AvlMap<V, ()>);
+pub struct AvlSet<V> {
+    map: AvlMap<V, ()>,
+}
 
 impl<V> AvlSet<V> {
     /// Moves all elements from other into self and leaves other empty.
@@ -15,12 +17,12 @@ impl<V> AvlSet<V> {
     where
         V: Ord + Clone,
     {
-        self.0.append(&mut other.0);
+        self.map.append(&mut other.map);
     }
 
     /// Removes all the entries from self.
     pub fn clear(&mut self) {
-        self.0.clear();
+        self.map.clear();
     }
 
     /// Tests if self contains the given value.
@@ -29,7 +31,7 @@ impl<V> AvlSet<V> {
         V: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        self.0.contains_key(value)
+        self.map.contains_key(value)
     }
 
     /// Returns an iterator over elements in self and not in other
@@ -42,7 +44,7 @@ impl<V> AvlSet<V> {
 
     /// Returns the least value in the set.
     pub fn first(&self) -> Option<&V> {
-        self.0.first_key_value().map(|(k, _)| k)
+        self.map.first_key_value().map(|(k, _)| k)
     }
 
     /// Returns a reference to the element matching value, if it exists
@@ -51,7 +53,7 @@ impl<V> AvlSet<V> {
         V: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        let mut curr = &self.0.root;
+        let mut curr = &self.map.root;
         while let Some(n) = curr {
             match value.cmp(n.key.borrow()) {
                 Less => curr = &n.left,
@@ -69,7 +71,7 @@ impl<V> AvlSet<V> {
     where
         V: Clone + Ord,
     {
-        self.0.insert(value, ()).is_none()
+        self.map.insert(value, ()).is_none()
     }
 
     /// Returns an iterator of the values that are in both self and other.
@@ -90,7 +92,7 @@ impl<V> AvlSet<V> {
 
     /// Returns true if self is the empty set, false otherwise.
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.map.is_empty()
     }
 
     /// Tests if self is a subset of other.
@@ -174,8 +176,8 @@ impl<V> AvlSet<V> {
             false
         }
 
-        let lhs = self.0.root.as_ref().unwrap();
-        let rhs = other.0.root.as_ref().unwrap();
+        let lhs = self.map.root.as_ref().unwrap();
+        let rhs = other.map.root.as_ref().unwrap();
         has_all(lhs, &mut vec![(rhs, rhs.left.is_none())])
     }
 
@@ -189,17 +191,19 @@ impl<V> AvlSet<V> {
 
     /// Returns an iterator over self's values in sorted order.
     pub fn iter(&self) -> SetIter<V> {
-        SetIter(self.0.iter())
+        SetIter {
+            iter: self.map.iter(),
+        }
     }
 
     /// Returns the greatest value in self.
     pub fn last(&self) -> Option<&V> {
-        self.0.last_key_value().map(|e| e.0)
+        self.map.last_key_value().map(|e| e.0)
     }
 
     /// Returns the number of elements in self.
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.map.len()
     }
 
     // TODO: range
@@ -211,7 +215,7 @@ impl<V> AvlSet<V> {
         V: Borrow<Q> + Clone + Ord,
         Q: Ord + ?Sized,
     {
-        self.0.remove(value).is_some()
+        self.map.remove(value).is_some()
     }
 
     /// Replace and return the matching value in the map.
@@ -255,12 +259,12 @@ impl<V> AvlSet<V> {
             }
         }
 
-        let Some(mut root) = self.0.root.take() else { return; };
+        let Some(mut root) = self.map.root.take() else { return; };
         Rc::make_mut(&mut root);
         let Ok(root) = Rc::try_unwrap(root) else { panic!("try_unwrap fail?") };
         let mut acc = AvlMap::new();
         dfs(root, &mut f, &mut acc);
-        self.0 = acc;
+        self.map = acc;
     }
 
     /// Removes all elements greater or equal to key and returns them.
@@ -269,7 +273,9 @@ impl<V> AvlSet<V> {
         V: Borrow<Q> + Clone + Ord,
         Q: Ord + ?Sized,
     {
-        Self(self.0.split_off(key))
+        Self {
+            map: self.map.split_off(key),
+        }
     }
 
     /// Returns an iterator over elements in self or other but not both.
@@ -286,8 +292,8 @@ impl<V> AvlSet<V> {
         V: Borrow<Q> + Clone + Ord,
         Q: Ord + ?Sized,
     {
-        if let (opt_v @ Some(_), _) = super::rm(&mut self.0.root, value) {
-            self.0.len -= 1;
+        if let (opt_v @ Some(_), _) = super::rm(&mut self.map.root, value) {
+            self.map.len -= 1;
             opt_v.map(|e| e.0)
         } else {
             None
@@ -303,7 +309,7 @@ impl<V> AvlSet<V> {
 
     /// Returns a new, empty set.
     pub fn new() -> Self {
-        Self(AvlMap::new())
+        Self { map: AvlMap::new() }
     }
 
     /// Creates a new set with the elements of lhs that are not in rhs.
@@ -311,11 +317,13 @@ impl<V> AvlSet<V> {
     where
         V: Clone + Ord,
     {
-        let root = super::diff(lhs.0.root, rhs.0.root);
-        Self(AvlMap {
-            len: super::len(&root),
-            root,
-        })
+        let root = super::diff(lhs.map.root, rhs.map.root);
+        Self {
+            map: AvlMap {
+                len: super::len(&root),
+                root,
+            },
+        }
     }
 
     /// Creates a new set with the elements of lhs that are also in rhs.
@@ -323,11 +331,13 @@ impl<V> AvlSet<V> {
     where
         V: Clone + Ord,
     {
-        let root = super::intersect(lhs.0.root, rhs.0.root);
-        Self(AvlMap {
-            len: super::len(&root),
-            root,
-        })
+        let root = super::intersect(lhs.map.root, rhs.map.root);
+        Self {
+            map: AvlMap {
+                len: super::len(&root),
+                root,
+            },
+        }
     }
 
     /// Creates a new set with the elements of both lhs and rhs.
@@ -335,11 +345,13 @@ impl<V> AvlSet<V> {
     where
         V: Clone + Ord,
     {
-        let root = super::union(lhs.0.root, rhs.0.root);
-        Self(AvlMap {
-            len: super::len(&root),
-            root,
-        })
+        let root = super::union(lhs.map.root, rhs.map.root);
+        Self {
+            map: AvlMap {
+                len: super::len(&root),
+                root,
+            },
+        }
     }
 
     /// Creates a new set with the elements that are in lhs or rhs but not both.
@@ -347,11 +359,13 @@ impl<V> AvlSet<V> {
     where
         V: Clone + Ord,
     {
-        let root = super::sym_diff(lhs.0.root, rhs.0.root);
-        Self(AvlMap {
-            len: super::len(&root),
-            root,
-        })
+        let root = super::sym_diff(lhs.map.root, rhs.map.root);
+        Self {
+            map: AvlMap {
+                len: super::len(&root),
+                root,
+            },
+        }
     }
 }
 
@@ -371,13 +385,15 @@ impl<T: Clone + Ord> FromIterator<T> for AvlSet<T> {
     }
 }
 
-pub struct SetIter<'a, T>(Iter<'a, T, ()>);
+pub struct SetIter<'a, T> {
+    iter: Iter<'a, T, ()>,
+}
 
 impl<'a, T> Iterator for SetIter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.0.next().map(|e| e.0)
+        self.iter.next().map(|e| e.0)
     }
 }
 
