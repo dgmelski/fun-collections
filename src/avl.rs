@@ -567,6 +567,33 @@ where
     }
 }
 
+// helper function for remove that removes the rightmost node and returns both
+// its key and value and whether or not the removal made the tree smaller.
+fn rm_rightmost<K, V>(root: &mut OptNode<K, V>) -> (Option<(K, V)>, IsShorter)
+where
+    K: Clone,
+    V: Clone,
+{
+    let n = match root.as_mut() {
+        None => return (None, IsShorter(false)), // *** EARLY RETURN ***
+        Some(rc) => Rc::make_mut(rc),
+    };
+
+    if n.right.is_some() {
+        let (kv, is_shorter) = rm_rightmost(&mut n.right);
+        n.right_ht -= is_shorter.0 as i8;
+        if is_shorter.0 && n.bal() < -1 {
+            (kv, rebal_lf_to_rt(root))
+        } else {
+            (kv, IsShorter(is_shorter.0 && n.bal() == 0))
+        }
+    } else {
+        let old_n = take_node(root);
+        *root = old_n.left;
+        (Some((old_n.key, old_n.val)), IsShorter(true))
+    }
+}
+
 // removes k from the map and returns the associated value and whether the
 // tree at root is shorter as a result of the deletion.
 fn rm<K, V, Q>(root: &mut OptNode<K, V>, k: &Q) -> (Option<(K, V)>, IsShorter)
@@ -1300,7 +1327,7 @@ impl<K, V> AvlMap<K, V> {
     /// use lazy_clone_collections::AvlMap;
     ///
     /// let mut m = AvlMap::from([(2, 2), (0, 0), (1, 1)]);
-    /// assert_eq!(m.pop_first(), Some((0,0)));
+    /// assert_eq!(m.pop_first(), Some((0, 0)));
     /// assert_eq!(m.len(), 2);
     /// ```
     pub fn pop_first(&mut self) -> Option<(K, V)>
@@ -1309,6 +1336,26 @@ impl<K, V> AvlMap<K, V> {
         V: Clone,
     {
         let kv = rm_leftmost(&mut self.root).0?;
+        self.len -= 1;
+        Some(kv)
+    }
+
+    /// Removes the entry with the greatest key and returns it.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let mut m = AvlMap::from([(2, 2), (0, 0), (1, 1)]);
+    /// assert_eq!(m.pop_last(), Some((2, 2)));
+    /// assert_eq!(m.len(), 2);
+    /// ```
+    pub fn pop_last(&mut self) -> Option<(K, V)>
+    where
+        K: Clone,
+        V: Clone,
+    {
+        let kv = rm_rightmost(&mut self.root).0?;
         self.len -= 1;
         Some(kv)
     }
