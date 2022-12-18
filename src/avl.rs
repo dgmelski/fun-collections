@@ -4,11 +4,11 @@ use std::cmp::Ordering::*;
 use std::fmt::{Debug, Formatter};
 use std::iter::FusedIterator;
 use std::mem::replace;
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub mod avl_set;
 
-type OptNode<K, V> = Option<Rc<Node<K, V>>>;
+type OptNode<K, V> = Option<Arc<Node<K, V>>>;
 struct IsShorter(bool);
 struct IsTaller(bool);
 
@@ -75,7 +75,7 @@ impl<K, V> Node<K, V> {
         l: OptNode<K, V>,
         r: OptNode<K, V>,
     ) -> OptNode<K, V> {
-        Some(Rc::new(Self::new(k, v, l, r)))
+        Some(Arc::new(Self::new(k, v, l, r)))
     }
 
     // Returns the "balance factor" of the node
@@ -125,13 +125,13 @@ impl<K, V> Node<K, V> {
         F: FnMut((&K, &mut V)),
     {
         if let Some(rc) = self.left.as_mut() {
-            Rc::make_mut(rc).for_each_mut(g);
+            Arc::make_mut(rc).for_each_mut(g);
         }
 
         g((&self.key, &mut self.val));
 
         if let Some(rc) = self.right.as_mut() {
-            Rc::make_mut(rc).for_each_mut(g);
+            Arc::make_mut(rc).for_each_mut(g);
         }
     }
 }
@@ -317,7 +317,7 @@ fn chk<'a, K: Ord, V>(
 //   - opt_node.unwrap().get_mut().is_some() (the node is uniquely owned)
 fn take_node<K: Clone, V: Clone>(opt_node: &mut OptNode<K, V>) -> Node<K, V> {
     let old_rc = opt_node.take().unwrap();
-    match Rc::try_unwrap(old_rc) {
+    match Arc::try_unwrap(old_rc) {
         Ok(n) => n,
         Err(_) => panic!("Attempt to take a shared node"),
     }
@@ -330,11 +330,11 @@ fn rot_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> IsShorter {
 
     let mut a_opt = root.take();
     let a_rc = a_opt.as_mut().unwrap();
-    let a = Rc::make_mut(a_rc);
+    let a = Arc::make_mut(a_rc);
 
     let mut b_opt = a.right.take();
     let b_rc = b_opt.as_mut().unwrap();
-    let b = Rc::make_mut(b_rc);
+    let b = Arc::make_mut(b_rc);
 
     // if b is balanced, the rotation will make a shorter tree
     let b_was_bal = b.bal() == 0;
@@ -360,15 +360,15 @@ fn rot_rt_lf<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> IsShorter {
 
     let mut a_opt = root.take();
     let a_rc = a_opt.as_mut().unwrap();
-    let a = Rc::make_mut(a_rc);
+    let a = Arc::make_mut(a_rc);
 
     let mut b_opt = a.right.take();
     let b_rc = b_opt.as_mut().unwrap();
-    let b = Rc::make_mut(b_rc);
+    let b = Arc::make_mut(b_rc);
 
     let mut c_opt = b.left.take();
     let c_rc = c_opt.as_mut().unwrap();
-    let c = Rc::make_mut(c_rc);
+    let c = Arc::make_mut(c_rc);
 
     // We need to take care not to overwrite any links before taking them.
     // With the unlinks we've done, we have
@@ -404,11 +404,11 @@ fn rot_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> IsShorter {
 
     let mut a_opt = root.take();
     let a_rc = a_opt.as_mut().unwrap();
-    let a = Rc::make_mut(a_rc);
+    let a = Arc::make_mut(a_rc);
 
     let mut b_opt = a.left.take();
     let b_rc = b_opt.as_mut().unwrap();
-    let b = Rc::make_mut(b_rc);
+    let b = Arc::make_mut(b_rc);
 
     let b_was_bal = b.bal() == 0;
 
@@ -437,15 +437,15 @@ fn rot_lf_rt<K: Clone, V: Clone>(root: &mut OptNode<K, V>) -> IsShorter {
 
     let mut a_opt = root.take();
     let a_rc = a_opt.as_mut().unwrap();
-    let a = Rc::make_mut(a_rc);
+    let a = Arc::make_mut(a_rc);
 
     let mut b_opt = a.left.take();
     let b_rc = b_opt.as_mut().unwrap();
-    let b = Rc::make_mut(b_rc);
+    let b = Arc::make_mut(b_rc);
 
     let mut c_opt = b.right.take();
     let c_rc = c_opt.as_mut().unwrap();
-    let c = Rc::make_mut(c_rc);
+    let c = Arc::make_mut(c_rc);
 
     // We have:
     //   a(None, w)
@@ -475,7 +475,7 @@ where
     K: Clone,
     V: Clone,
 {
-    let n = Rc::get_mut(root.as_mut().unwrap()).unwrap();
+    let n = Arc::get_mut(root.as_mut().unwrap()).unwrap();
 
     if n.left.as_ref().unwrap().bal() <= 0 {
         rot_rt(root)
@@ -490,7 +490,7 @@ where
     K: Clone,
     V: Clone,
 {
-    let n = Rc::get_mut(root.as_mut().unwrap()).unwrap();
+    let n = Arc::get_mut(root.as_mut().unwrap()).unwrap();
 
     if n.right.as_ref().unwrap().bal() >= 0 {
         rot_lf(root)
@@ -508,11 +508,11 @@ where
 {
     let n = match root.as_mut() {
         None => {
-            *root = Some(Rc::new(Node::new(k, v, None, None)));
+            *root = Some(Arc::new(Node::new(k, v, None, None)));
             return (None, IsTaller(true)); // *** EARLY RETURN ***
         }
 
-        Some(rc) => Rc::make_mut(rc),
+        Some(rc) => Arc::make_mut(rc),
     };
 
     match k.cmp(&n.key) {
@@ -551,7 +551,7 @@ where
 {
     let n = match root.as_mut() {
         None => return (None, IsShorter(false)), // *** EARLY RETURN ***
-        Some(rc) => Rc::make_mut(rc),
+        Some(rc) => Arc::make_mut(rc),
     };
 
     if n.left.is_some() {
@@ -578,7 +578,7 @@ where
 {
     let n = match root.as_mut() {
         None => return (None, IsShorter(false)), // *** EARLY RETURN ***
-        Some(rc) => Rc::make_mut(rc),
+        Some(rc) => Arc::make_mut(rc),
     };
 
     if n.right.is_some() {
@@ -606,7 +606,7 @@ where
 {
     let n = match root.as_mut() {
         None => return (None, IsShorter(false)), // *** EARLY RETURN ***
-        Some(rc) => Rc::make_mut(rc),
+        Some(rc) => Arc::make_mut(rc),
     };
 
     match k.cmp(n.key.borrow()) {
@@ -691,7 +691,7 @@ where
 }
 
 fn join_rt<K: Clone + Ord, V: Clone>(
-    left: Rc<Node<K, V>>,
+    left: Arc<Node<K, V>>,
     k: K,
     v: V,
     opt_right: OptNode<K, V>,
@@ -700,7 +700,7 @@ fn join_rt<K: Clone + Ord, V: Clone>(
 
     // ultimately, we return a clone of left with the right branch replaced
     let mut t2 = left;
-    let t2n = Rc::make_mut(&mut t2);
+    let t2n = Arc::make_mut(&mut t2);
 
     let c = t2n.right.take();
 
@@ -734,13 +734,13 @@ fn join_lf<K: Clone + Ord, V: Clone>(
     opt_left: OptNode<K, V>,
     k: K,
     v: V,
-    right: Rc<Node<K, V>>,
+    right: Arc<Node<K, V>>,
 ) -> OptNode<K, V> {
     assert!(right.height() > height(&opt_left) + 1);
 
     // ultimately, we return a clone of right with the left branch replaced
     let mut t2 = right;
-    let t2n = Rc::make_mut(&mut t2);
+    let t2n = Arc::make_mut(&mut t2);
 
     let c = t2n.left.take();
 
@@ -841,7 +841,7 @@ where
             _ => (),
         }
 
-        let t1 = match Rc::try_unwrap(opt_t1.unwrap()) {
+        let t1 = match Arc::try_unwrap(opt_t1.unwrap()) {
             Ok(n) => n,
             Err(rc) => (*rc).clone(),
         };
@@ -929,8 +929,8 @@ where
         None => (None, None, None),
         Some(rc) => {
             // To reuse the node, we'd have to pass it into join.  By moving
-            // pieces out of the node, we might avoid some cloning & Rc updates.
-            let n = match Rc::try_unwrap(rc) {
+            // pieces out of the node, we might avoid some cloning & Arc updates.
+            let n = match Arc::try_unwrap(rc) {
                 Ok(n) => n,
                 Err(rc) => (*rc).clone(),
             };
@@ -1032,7 +1032,7 @@ impl<K, V> AvlMap<K, V> {
         let mut curr = self.root.as_mut().unwrap();
         let mut n;
         loop {
-            n = Rc::make_mut(curr);
+            n = Arc::make_mut(curr);
             let Some(next) = n.left.as_mut() else {
                 break;
             };
@@ -1127,7 +1127,7 @@ impl<K, V> AvlMap<K, V> {
     {
         let mut curr = &mut self.root;
         while let Some(rc) = curr {
-            let n = Rc::make_mut(rc);
+            let n = Arc::make_mut(rc);
             match k.cmp(n.key.borrow()) {
                 Less => curr = &mut n.left,
                 Equal => return Some(&mut n.val),
@@ -1297,10 +1297,10 @@ impl<K, V> AvlMap<K, V> {
         }
 
         let mut curr = self.root.as_mut().unwrap();
-        let mut n = Rc::make_mut(curr);
+        let mut n = Arc::make_mut(curr);
         while let Some(next) = n.right.as_mut() {
             curr = next;
-            n = Rc::make_mut(curr);
+            n = Arc::make_mut(curr);
         }
 
         Entry::Occupied(OccupiedEntry {
@@ -1701,7 +1701,7 @@ impl<K, V> AvlMap<K, V> {
         V: Clone,
     {
         if let Some(rc) = self.root.as_mut() {
-            Rc::make_mut(rc).for_each_mut(&mut f);
+            Arc::make_mut(rc).for_each_mut(&mut f);
         }
     }
 
@@ -1715,7 +1715,7 @@ impl<K, V> AvlMap<K, V> {
 }
 
 pub struct Iter<'a, K, V> {
-    work: Vec<&'a Rc<Node<K, V>>>,
+    work: Vec<&'a Arc<Node<K, V>>>,
     len: usize,
 }
 
@@ -1745,7 +1745,7 @@ impl<'a, K, V> ExactSizeIterator for Iter<'a, K, V> {
 impl<'a, K, V> FusedIterator for Iter<'a, K, V> {}
 
 enum IterMutAction<'a, K, V> {
-    Descend(&'a mut Rc<Node<K, V>>),
+    Descend(&'a mut Arc<Node<K, V>>),
     Return((&'a K, &'a mut V)),
 }
 
@@ -1766,7 +1766,7 @@ where
 
         match self.work.pop() {
             Some(Descend(rc)) => {
-                let mut n = Rc::make_mut(rc);
+                let mut n = Arc::make_mut(rc);
 
                 loop {
                     if let Some(rt) = n.right.as_mut() {
@@ -1775,7 +1775,7 @@ where
 
                     if let Some(lf) = n.left.as_mut() {
                         self.work.push(Return((&n.key, &mut n.val)));
-                        n = Rc::make_mut(lf);
+                        n = Arc::make_mut(lf);
                     } else {
                         break;
                     }
@@ -1811,7 +1811,7 @@ where
 impl<'a, K: Clone, V: Clone> FusedIterator for IterMut<'a, K, V> {}
 
 enum IntoIterAction<K, V> {
-    DescendRef(Rc<Node<K, V>>),
+    DescendRef(Arc<Node<K, V>>),
     DescendOwn(Node<K, V>),
     Return(K, V),
 }
@@ -1846,7 +1846,7 @@ impl<K, V> IntoIter<K, V> {
 
                 DescendOwn(n) => {
                     if let Some(rt) = n.right {
-                        match Rc::try_unwrap(rt) {
+                        match Arc::try_unwrap(rt) {
                             Ok(n) => self.w.push(DescendOwn(n)),
                             Err(rt) => self.w.push(DescendRef(rt)),
                         }
@@ -1854,7 +1854,7 @@ impl<K, V> IntoIter<K, V> {
 
                     if let Some(lf) = n.left {
                         self.w.push(Return(n.key, n.val));
-                        match Rc::try_unwrap(lf) {
+                        match Arc::try_unwrap(lf) {
                             Ok(n) => act = DescendOwn(n),
                             Err(lf) => act = DescendRef(lf),
                         }
@@ -1897,7 +1897,7 @@ impl<K: Clone, V: Clone> IntoIterator for AvlMap<K, V> {
         use IntoIterAction::*;
         let mut w = Vec::new();
         if let Some(root) = self.root {
-            match Rc::try_unwrap(root) {
+            match Arc::try_unwrap(root) {
                 Ok(n) => w.push(DescendOwn(n)),
                 Err(rc) => w.push(DescendRef(rc)),
             }

@@ -1,7 +1,7 @@
 use super::{AvlMap, Node};
 use std::borrow::Borrow;
 use std::cmp::Ordering::*;
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// A sorted set of values.
 ///
@@ -109,8 +109,8 @@ impl<T> AvlSet<T> {
         }
 
         fn has_all<K, V>(
-            lhs: &Rc<Node<K, V>>,
-            w: &mut Vec<(&Rc<Node<K, V>>, bool)>,
+            lhs: &Arc<Node<K, V>>,
+            w: &mut Vec<(&Arc<Node<K, V>>, bool)>,
         ) -> bool
         where
             K: Ord,
@@ -130,7 +130,7 @@ impl<T> AvlSet<T> {
             // now, look for lhs.key in rhs using our iterator
             while let Some((rhs, is_left_done)) = w.last_mut() {
                 // pointer check to short circuit further comparisons
-                if Rc::ptr_eq(lhs, rhs) {
+                if Arc::ptr_eq(lhs, rhs) {
                     w.pop();
                     return true;
                 }
@@ -321,8 +321,8 @@ impl<T> AvlSet<T> {
             V: Clone + Ord,
         {
             if let Some(mut lf) = n.left {
-                Rc::make_mut(&mut lf);
-                if let Ok(x) = Rc::try_unwrap(lf) {
+                Arc::make_mut(&mut lf);
+                if let Ok(x) = Arc::try_unwrap(lf) {
                     dfs(x, f, acc);
                 }
             }
@@ -332,16 +332,16 @@ impl<T> AvlSet<T> {
             }
 
             if let Some(mut rt) = n.right {
-                Rc::make_mut(&mut rt);
-                if let Ok(x) = Rc::try_unwrap(rt) {
+                Arc::make_mut(&mut rt);
+                if let Ok(x) = Arc::try_unwrap(rt) {
                     dfs(x, f, acc);
                 }
             }
         }
 
         let Some(mut root) = self.map.root.take() else { return; };
-        Rc::make_mut(&mut root);
-        let Ok(root) = Rc::try_unwrap(root) else { panic!("try_unwrap fail?") };
+        Arc::make_mut(&mut root);
+        let Ok(root) = Arc::try_unwrap(root) else { panic!("try_unwrap fail?") };
         let mut acc = AvlMap::new();
         dfs(root, &mut f, &mut acc);
         self.map = acc;
