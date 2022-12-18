@@ -1342,6 +1342,136 @@ impl<K, V> AvlMap<K, V> {
         AvlMap { len: 0, root: None }
     }
 
+    /// Builds a map with entries from the LHS map with keys that are not in the
+    /// RHS map.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let lhs = AvlMap::from([(0,1), (1, 2)]);
+    /// let rhs = AvlMap::from([(1,5), (3,4)]);
+    /// let d = AvlMap::new_diff(lhs, rhs);
+    /// assert_eq!(d.get(&0), Some(&1));
+    /// assert_eq!(d.get(&1), None);
+    /// ```
+    pub fn new_diff(lhs: Self, rhs: Self) -> Self
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
+        let root = diff(lhs.root, rhs.root);
+        let len = len(&root);
+        Self { root, len }
+    }
+
+    // FIXME: favor RHS over LHS entries
+    /// Creates a map with entries from the LHS that have keys in the RHS.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let lhs = AvlMap::from([(0,1), (1, 2)]);
+    /// let rhs = AvlMap::from([(1,5), (3,4)]);
+    /// let i = AvlMap::new_intersect(lhs, rhs);
+    /// assert_eq!(i.get(&0), None);
+    /// assert_eq!(i.get(&1), Some(&2));
+    /// ```
+    pub fn new_intersect(lhs: Self, rhs: Self) -> Self
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
+        let root = intersect(lhs.root, rhs.root);
+        let len = len(&root);
+        Self { root, len }
+    }
+
+    /// Build a new map by joining two maps around a pivot key that divides the
+    /// entries of the maps.
+    ///
+    /// The constructed map contains the entries from both maps and the pivot
+    /// key and the value provided for the pivot key.
+    ///
+    /// Requires:
+    ///    - greatest key of lhs is less than key
+    ///    - key is less than the least key of rhs
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let f1 = AvlMap::from([(0, 'a'), (1, 'b')]);
+    /// let f2 = AvlMap::from([(3, 'd')]);
+    /// let f3 = AvlMap::new_join(f1, 2, 'c', f2);
+    /// assert_eq!(f3.get(&0), Some(&'a'));
+    /// assert_eq!(f3.get(&1), Some(&'b'));
+    /// assert_eq!(f3.get(&2), Some(&'c'));
+    /// assert_eq!(f3.get(&3), Some(&'d'));
+    /// ```
+    pub fn new_join(lhs: Self, key: K, val: V, rhs: Self) -> Self
+    where
+        K: Ord + Clone,
+        V: Clone,
+    {
+        debug_assert!(lhs.last_key_value().map_or(true, |(k, _)| *k < key));
+        debug_assert!(rhs.first_key_value().map_or(true, |(k, _)| key < *k));
+
+        Self {
+            root: join(lhs.root, key, val, rhs.root),
+            len: lhs.len + 1 + rhs.len,
+        }
+    }
+
+    /// Builds a map with entries from the LHS and RHS maps that have keys that
+    /// occur in only one of the maps and not the other.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let lhs = AvlMap::from([(0,1), (1, 2)]);
+    /// let rhs = AvlMap::from([(1,5), (3,4)]);
+    /// let d = AvlMap::new_sym_diff(lhs, rhs);
+    /// assert_eq!(d.get(&0), Some(&1));
+    /// assert_eq!(d.get(&1), None);
+    /// assert_eq!(d.get(&3), Some(&4));
+    /// ```
+    pub fn new_sym_diff(lhs: Self, rhs: Self) -> Self
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
+        let root = sym_diff(lhs.root, rhs.root);
+        let len = len(&root);
+        Self { root, len }
+    }
+
+    /// Builds a map with entries from both maps, with entries from the RHS
+    /// taking precedence when a key appears in both maps.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let lhs = AvlMap::from([(0,'a'), (1, 'a')]);
+    /// let rhs = AvlMap::from([(1,'b'), (2,'b')]);
+    /// let joint = AvlMap::new_union(lhs, rhs);
+    /// assert_eq!(joint.get(&0), Some(&'a'));
+    /// assert_eq!(joint.get(&1), Some(&'b'));
+    /// assert_eq!(joint.get(&2), Some(&'b'));
+    /// ```
+    pub fn new_union(lhs: Self, rhs: Self) -> Self
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
+        let root = union(lhs.root, rhs.root);
+        let len = len(&root);
+        Self { root, len }
+    }
+
     /// Removes the entry with the least key and returns it.
     ///
     /// # Examples
@@ -1571,136 +1701,6 @@ impl<K, V> AvlMap<K, V> {
         if let Some(rc) = self.root.as_mut() {
             Rc::make_mut(rc).for_each_mut(&mut f);
         }
-    }
-
-    /// Build a new map by joining two maps around a pivot key that divides the
-    /// entries of the maps.
-    ///
-    /// The constructed map contains the entries from both maps and the pivot
-    /// key and the value provided for the pivot key.
-    ///
-    /// Requires:
-    ///    - greatest key of lhs is less than key
-    ///    - key is less than the least key of rhs
-    ///
-    /// # Examples
-    /// ```
-    /// use lazy_clone_collections::AvlMap;
-    ///
-    /// let f1 = AvlMap::from([(0, 'a'), (1, 'b')]);
-    /// let f2 = AvlMap::from([(3, 'd')]);
-    /// let f3 = AvlMap::new_join(f1, 2, 'c', f2);
-    /// assert_eq!(f3.get(&0), Some(&'a'));
-    /// assert_eq!(f3.get(&1), Some(&'b'));
-    /// assert_eq!(f3.get(&2), Some(&'c'));
-    /// assert_eq!(f3.get(&3), Some(&'d'));
-    /// ```
-    pub fn new_join(lhs: Self, key: K, val: V, rhs: Self) -> Self
-    where
-        K: Ord + Clone,
-        V: Clone,
-    {
-        debug_assert!(lhs.last_key_value().map_or(true, |(k, _)| *k < key));
-        debug_assert!(rhs.first_key_value().map_or(true, |(k, _)| key < *k));
-
-        Self {
-            root: join(lhs.root, key, val, rhs.root),
-            len: lhs.len + 1 + rhs.len,
-        }
-    }
-
-    /// Builds a map with entries from the LHS map with keys that are not in the
-    /// RHS map.
-    ///
-    /// # Examples
-    /// ```
-    /// use lazy_clone_collections::AvlMap;
-    ///
-    /// let lhs = AvlMap::from([(0,1), (1, 2)]);
-    /// let rhs = AvlMap::from([(1,5), (3,4)]);
-    /// let d = AvlMap::new_diff(lhs, rhs);
-    /// assert_eq!(d.get(&0), Some(&1));
-    /// assert_eq!(d.get(&1), None);
-    /// ```
-    pub fn new_diff(lhs: Self, rhs: Self) -> Self
-    where
-        K: Clone + Ord,
-        V: Clone,
-    {
-        let root = diff(lhs.root, rhs.root);
-        let len = len(&root);
-        Self { root, len }
-    }
-
-    /// Builds a map with entries from the LHS and RHS maps that have keys that
-    /// occur in only one of the maps and not the other.
-    ///
-    /// # Examples
-    /// ```
-    /// use lazy_clone_collections::AvlMap;
-    ///
-    /// let lhs = AvlMap::from([(0,1), (1, 2)]);
-    /// let rhs = AvlMap::from([(1,5), (3,4)]);
-    /// let d = AvlMap::new_sym_diff(lhs, rhs);
-    /// assert_eq!(d.get(&0), Some(&1));
-    /// assert_eq!(d.get(&1), None);
-    /// assert_eq!(d.get(&3), Some(&4));
-    /// ```
-    pub fn new_sym_diff(lhs: Self, rhs: Self) -> Self
-    where
-        K: Clone + Ord,
-        V: Clone,
-    {
-        let root = sym_diff(lhs.root, rhs.root);
-        let len = len(&root);
-        Self { root, len }
-    }
-
-    // FIXME: favor RHS over LHS entries
-    /// Creates a map with entries from the LHS that have keys in the RHS.
-    ///
-    /// # Examples
-    /// ```
-    /// use lazy_clone_collections::AvlMap;
-    ///
-    /// let lhs = AvlMap::from([(0,1), (1, 2)]);
-    /// let rhs = AvlMap::from([(1,5), (3,4)]);
-    /// let i = AvlMap::new_intersect(lhs, rhs);
-    /// assert_eq!(i.get(&0), None);
-    /// assert_eq!(i.get(&1), Some(&2));
-    /// ```
-    pub fn new_intersect(lhs: Self, rhs: Self) -> Self
-    where
-        K: Clone + Ord,
-        V: Clone,
-    {
-        let root = intersect(lhs.root, rhs.root);
-        let len = len(&root);
-        Self { root, len }
-    }
-
-    /// Builds a map with entries from both maps, with entries from the RHS
-    /// taking precedence when a key appears in both maps.
-    ///
-    /// # Examples
-    /// ```
-    /// use lazy_clone_collections::AvlMap;
-    ///
-    /// let lhs = AvlMap::from([(0,'a'), (1, 'a')]);
-    /// let rhs = AvlMap::from([(1,'b'), (2,'b')]);
-    /// let joint = AvlMap::new_union(lhs, rhs);
-    /// assert_eq!(joint.get(&0), Some(&'a'));
-    /// assert_eq!(joint.get(&1), Some(&'b'));
-    /// assert_eq!(joint.get(&2), Some(&'b'));
-    /// ```
-    pub fn new_union(lhs: Self, rhs: Self) -> Self
-    where
-        K: Clone + Ord,
-        V: Clone,
-    {
-        let root = union(lhs.root, rhs.root);
-        let len = len(&root);
-        Self { root, len }
     }
 
     #[cfg(test)]
