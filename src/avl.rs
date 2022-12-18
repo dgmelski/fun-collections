@@ -216,7 +216,7 @@ pub struct AvlMap<K, V> {
     root: OptNode<K, V>,
 }
 
-impl<K: Clone + Debug, V: Clone + Debug> Debug for AvlMap<K, V> {
+impl<K: Debug, V: Debug> Debug for AvlMap<K, V> {
     /// Format and AvlMap using "map" notation.
     ///
     /// # Examples
@@ -256,11 +256,7 @@ where
     }
 }
 
-impl<K, V> Ord for AvlMap<K, V>
-where
-    K: Clone + Ord,
-    V: Clone + Ord,
-{
+impl<K: Ord, V: Ord> Ord for AvlMap<K, V> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.iter().cmp(other.iter())
     }
@@ -272,6 +268,7 @@ where
     V: std::hash::Hash,
 {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.len.hash(state); // increase entropy?
         self.for_each(|(k, v)| {
             k.hash(state);
             v.hash(state);
