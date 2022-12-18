@@ -1360,6 +1360,51 @@ impl<K, V> AvlMap<K, V> {
         Some(kv)
     }
 
+    /// Removes the entry for the given key and returns the unmapped value.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let mut fmap = AvlMap::new();
+    /// fmap.insert(1, 2);
+    /// fmap.insert(2, 3);
+    /// assert_eq!(fmap.remove(&2), Some(3));
+    /// assert_eq!(fmap.remove(&2), None);
+    /// ```
+    pub fn remove<Q>(&mut self, key: &Q) -> Option<V>
+    where
+        K: Borrow<Q> + Clone + Ord,
+        Q: Ord + ?Sized,
+        V: Clone,
+    {
+        self.remove_entry(key).map(|e| e.1)
+    }
+
+    /// Removes and returns the entry matching the given key.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlMap;
+    ///
+    /// let mut fmap = AvlMap::new();
+    /// fmap.insert(1, 2);
+    /// fmap.insert(2, 3);
+    /// assert_eq!(fmap.remove(&2), Some(3));
+    /// assert_eq!(fmap.remove(&2), None);
+    /// ```
+    pub fn remove_entry<Q>(&mut self, key: &Q) -> Option<(K, V)>
+    where
+        K: Borrow<Q> + Clone + Ord,
+        Q: Ord + ?Sized,
+        V: Clone,
+    {
+        let kv = rm(&mut self.root, key).0?;
+        self.len -= 1;
+        chk_map!(&self);
+        Some(kv)
+    }
+
     /// Produces an iterator over the values of the map, ordered by their
     /// associated keys.
     ///
@@ -1441,33 +1486,6 @@ impl<K, V> AvlMap<K, V> {
     {
         if let Some(rc) = self.root.as_mut() {
             Rc::make_mut(rc).for_each_mut(&mut f);
-        }
-    }
-
-    /// Removes a key from a map and returns the unmapped value.
-    ///
-    /// # Examples
-    /// ```
-    /// use lazy_clone_collections::AvlMap;
-    ///
-    /// let mut fmap = AvlMap::new();
-    /// fmap.insert(1, 2);
-    /// fmap.insert(2, 3);
-    /// assert_eq!(fmap.remove(&2), Some(3));
-    /// assert_eq!(fmap.remove(&2), None);
-    /// ```
-    pub fn remove<Q>(&mut self, key: &Q) -> Option<V>
-    where
-        K: Borrow<Q> + Clone + Ord,
-        Q: Ord + ?Sized,
-        V: Clone,
-    {
-        if let (opt_v @ Some(_), _) = rm(&mut self.root, key) {
-            self.len -= 1;
-            chk_map!(&self);
-            opt_v.map(|e| e.1)
-        } else {
-            None
         }
     }
 
