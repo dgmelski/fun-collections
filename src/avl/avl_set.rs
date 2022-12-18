@@ -42,6 +42,8 @@ impl<V> AvlSet<V> {
         Difference::new(self.iter(), other.iter())
     }
 
+    // TODO: drain_filter? (Part of unstable API)
+
     /// Returns the least value in the set.
     pub fn first(&self) -> Option<&V> {
         self.map.first_key_value().map(|(k, _)| k)
@@ -165,6 +167,7 @@ impl<V> AvlSet<V> {
 
                     Greater => {
                         // the greater nodes in the rhs are to the right or up
+                        // TODO: we may be able to pop multiple nodes from rhs
                         let rhs = w.pop().unwrap().0;
                         if let Some(rhs_right) = rhs.right.as_ref() {
                             w.push((rhs_right, rhs_right.left.is_none()));
@@ -204,6 +207,83 @@ impl<V> AvlSet<V> {
     /// Returns the number of elements in self.
     pub fn len(&self) -> usize {
         self.map.len()
+    }
+
+    /// Returns a new, empty set.
+    pub fn new() -> Self {
+        Self { map: AvlMap::new() }
+    }
+
+    /// Creates a new set with the elements of lhs that are not in rhs.
+    pub fn new_diff(lhs: Self, rhs: Self) -> Self
+    where
+        V: Clone + Ord,
+    {
+        let root = super::diff(lhs.map.root, rhs.map.root);
+        Self {
+            map: AvlMap {
+                len: super::len(&root),
+                root,
+            },
+        }
+    }
+
+    /// Creates a new set with the elements of lhs that are also in rhs.
+    pub fn new_intersection(lhs: Self, rhs: Self) -> Self
+    where
+        V: Clone + Ord,
+    {
+        let root = super::intersect(lhs.map.root, rhs.map.root);
+        Self {
+            map: AvlMap {
+                len: super::len(&root),
+                root,
+            },
+        }
+    }
+
+    /// Creates a new set with the elements of both lhs and rhs.
+    pub fn new_union(lhs: Self, rhs: Self) -> Self
+    where
+        V: Clone + Ord,
+    {
+        let root = super::union(lhs.map.root, rhs.map.root);
+        Self {
+            map: AvlMap {
+                len: super::len(&root),
+                root,
+            },
+        }
+    }
+
+    /// Creates a new set with the elements that are in lhs or rhs but not both.
+    pub fn new_sym_diff(lhs: Self, rhs: Self) -> Self
+    where
+        V: Clone + Ord,
+    {
+        let root = super::sym_diff(lhs.map.root, rhs.map.root);
+        Self {
+            map: AvlMap {
+                len: super::len(&root),
+                root,
+            },
+        }
+    }
+
+    /// Removes the first element from the set and returns it.
+    pub fn pop_first(&mut self) -> Option<V>
+    where
+        V: Clone,
+    {
+        self.map.pop_first().map(|e| e.0)
+    }
+
+    /// Removes the last element from the set and returns it.
+    pub fn pop_last(&mut self) -> Option<V>
+    where
+        V: Clone,
+    {
+        self.map.pop_last().map(|e| e.0)
     }
 
     // TODO: range
@@ -287,14 +367,25 @@ impl<V> AvlSet<V> {
     }
 
     /// Removes and returns the set member that matches value.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlSet;
+    ///
+    /// let mut s = AvlSet::new();
+    /// s.insert("abc".to_string());
+    /// s.insert("def".to_string());
+    /// assert_eq!(s.take("abc"), Some(String::from("abc")));
+    /// assert_eq!(s.len(), 1);
+    /// ```
     pub fn take<Q>(&mut self, value: &Q) -> Option<V>
     where
         V: Borrow<Q> + Clone + Ord,
         Q: Ord + ?Sized,
     {
-        if let (opt_v @ Some(_), _) = super::rm(&mut self.map.root, value) {
+        if let Some((k, _)) = super::rm(&mut self.map.root, value).0 {
             self.map.len -= 1;
-            opt_v.map(|e| e.0)
+            Some(k)
         } else {
             None
         }
@@ -305,67 +396,6 @@ impl<V> AvlSet<V> {
     /// Common elements are only returned once.
     pub fn union<'a>(&'a self, other: &'a Self) -> Union<'a, V> {
         Union::new(self.iter(), other.iter())
-    }
-
-    /// Returns a new, empty set.
-    pub fn new() -> Self {
-        Self { map: AvlMap::new() }
-    }
-
-    /// Creates a new set with the elements of lhs that are not in rhs.
-    pub fn new_diff(lhs: Self, rhs: Self) -> Self
-    where
-        V: Clone + Ord,
-    {
-        let root = super::diff(lhs.map.root, rhs.map.root);
-        Self {
-            map: AvlMap {
-                len: super::len(&root),
-                root,
-            },
-        }
-    }
-
-    /// Creates a new set with the elements of lhs that are also in rhs.
-    pub fn new_intersection(lhs: Self, rhs: Self) -> Self
-    where
-        V: Clone + Ord,
-    {
-        let root = super::intersect(lhs.map.root, rhs.map.root);
-        Self {
-            map: AvlMap {
-                len: super::len(&root),
-                root,
-            },
-        }
-    }
-
-    /// Creates a new set with the elements of both lhs and rhs.
-    pub fn new_union(lhs: Self, rhs: Self) -> Self
-    where
-        V: Clone + Ord,
-    {
-        let root = super::union(lhs.map.root, rhs.map.root);
-        Self {
-            map: AvlMap {
-                len: super::len(&root),
-                root,
-            },
-        }
-    }
-
-    /// Creates a new set with the elements that are in lhs or rhs but not both.
-    pub fn new_sym_diff(lhs: Self, rhs: Self) -> Self
-    where
-        V: Clone + Ord,
-    {
-        let root = super::sym_diff(lhs.map.root, rhs.map.root);
-        Self {
-            map: AvlMap {
-                len: super::len(&root),
-                root,
-            },
-        }
     }
 }
 
