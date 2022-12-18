@@ -2201,7 +2201,25 @@ mod test {
         );
     }
 
+    fn into_iter_test(vs: Vec<u8>) {
+        let f1: AvlMap<_, _> = vs.iter().map(|&k| (k, ())).collect();
+        let f2: AvlMap<_, _> = vs.iter().map(|&k| (k, ())).collect();
+        let m1: std::collections::BTreeMap<_, _> =
+            vs.iter().map(|&k| (k, ())).collect();
+
+        for ((x, ()), (&y, ())) in f1.into_iter().zip(m1.iter()) {
+            assert_eq!(x, y);
+        }
+
+        let mi = MorrisIter { top: f2.root };
+        assert!(mi.cmp(m1.into_iter()).is_eq());
+    }
+
     quickcheck! {
+        fn qc_into_iter_test(vs: Vec<u8>) -> () {
+            into_iter_test(vs);
+        }
+
         fn qc_bal_test(vs: Vec<(u8, u32)>) -> () {
             bal_test(vs);
         }

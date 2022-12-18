@@ -259,3 +259,13 @@ macro_rules! symex_sim {
 }
 
 for_each_map_type!(symex_sim);
+
+#[bench]
+fn avl_into_iter(b: &mut test::Bencher) {
+    let vs: Vec<_> = (0..1000).map(|i| (i, ())).collect();
+    b.iter(|| {
+        let m: lazy_clone_collections::AvlMap<_, _> =
+            vs.iter().map(|p| p.clone()).collect();
+        m.into_iter().map(|e| e.0).sum::<usize>();
+    });
+}
