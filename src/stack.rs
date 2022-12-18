@@ -3,13 +3,13 @@ use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
+type OptList<T> = Option<Rc<List<T>>>;
+
 #[derive(Clone)]
 struct List<T> {
     elem: T,
     rest: OptList<T>,
 }
-
-type OptList<T> = Option<Rc<List<T>>>;
 
 #[derive(Clone)]
 /// Implements a stack with constant time `push`, `pop`, and `clone` operations.
@@ -484,17 +484,9 @@ impl<T: Clone> Default for Stack<T> {
 impl<T> Drop for Stack<T> {
     // avoid deep recursion when dropping a large stack
     fn drop(&mut self) {
-        let mut hd_opt = self.elems.as_mut().take();
-        while let Some(rc) = hd_opt {
-            if let Some(hd) = Rc::get_mut(rc) {
-                // As sole owner of the top of the stack, we can break its link
-                // to the rest of the stack so it will be freed w/o recursing.
-                hd_opt = hd.rest.as_mut().take();
-            } else {
-                // There are other owners for the rest of the stack; it won't
-                // be dropped at this time.
-                break;
-            }
+        let mut hd = self.elems.take();
+        while let Some(next) = hd.as_mut().and_then(Rc::get_mut) {
+            hd = next.rest.take();
         }
     }
 }
@@ -760,6 +752,46 @@ mod tests {
         let t = s.split_off(3);
         assert!(s.into_iter().cmp((0..3).rev()).is_eq());
         assert!(t.is_empty());
+    }
+
+    type DropLog = Rc<RefCell<Vec<usize>>>;
+
+    #[derive(Clone)]
+    struct DropRecorder {
+        i: usize,
+        log: DropLog,
+    }
+
+    impl Drop for DropRecorder {
+        fn drop(&mut self) {
+            (*self.log).borrow_mut().push(self.i);
+        }
+    }
+
+    #[test]
+    // Unfortunately, this does not test if our drop implementation breaks deep
+    // recursion.  The stack nodes are "Dropped" in the same order, only the
+    // order of freeing memory is changed.  We might test that by implementing
+    // Drop for List, but then we cannot move fields out of List.
+    fn drop_test() {
+        let log = Rc::new(RefCell::new(Vec::new()));
+        let new_dr = |i: usize| DropRecorder {
+            i,
+            log: log.clone(),
+        };
+
+        let mut s1: Stack<_> = (0..3).into_iter().map(|i| new_dr(i)).collect();
+        let mut s2 = s1.clone();
+
+        s1.extend((3..6).into_iter().map(|i| new_dr(i)));
+        s2.extend((6..9).into_iter().map(|i| new_dr(i)));
+
+        drop(s2); // should only drop the unshared nodes
+        assert!((*log).borrow().iter().map(|&x| x).cmp((6..9).rev()).is_eq());
+
+        s1 = Stack::new(); // implicit drop of old value of s1
+        assert!((*log).borrow().iter().map(|&x| x).cmp((0..9).rev()).is_eq());
+        assert!(s1.is_empty());
     }
 
     quickcheck! {
