@@ -616,30 +616,7 @@ where
     type IntoIter = IntoIter<K, V, N>;
 
     fn into_iter(self) -> Self::IntoIter {
-        let mut ii = IntoIter {
-            len: self.len,
-            work: Vec::new(),
-        };
-
-        let Some(arc) = self.root else {
-            return ii;
-        };
-
-        let act1 = if arc.kids.is_empty() {
-            IterAction::Return
-        } else {
-            IterAction::Descend
-        };
-
-        use IterNodeState::*;
-        let state1 = match Arc::try_unwrap(arc) {
-            Ok(n) => Owned(n.elems.into_iter(), n.kids.into_iter(), act1),
-            Err(arc) => Borrowed(arc, 0, act1),
-        };
-
-        ii.work.push(state1);
-
-        ii
+        IntoIter::new(self)
     }
 }
 
@@ -673,37 +650,83 @@ impl<'a, K, V, const N: usize> Iterator for Iter<'a, K, V, N> {
     }
 }
 
-enum IterAction {
-    Descend,
-    Return,
-}
+// enum IterAction {
+//     Descend,
+//     Return,
+// }
 
 enum IterNodeState<K, V, const N: usize> {
     Owned(
         std::vec::IntoIter<(K, V)>,
         std::vec::IntoIter<Arc<Node<K, V, N>>>,
-        IterAction,
     ),
-    Borrowed(Arc<Node<K, V, N>>, usize, IterAction),
-}
-
-fn descend_from_owned<K, V, const N: usize>(
-    arc: Arc<Node<K, V, N>>,
-) -> IterNodeState<K, V, N> {
-    use IterAction::*;
-    use IterNodeState::*;
-
-    let next_act = if arc.kids.is_empty() { Return } else { Descend };
-
-    match Arc::try_unwrap(arc) {
-        Ok(n) => Owned(n.elems.into_iter(), n.kids.into_iter(), next_act),
-        Err(arc) => Borrowed(arc, 0, next_act),
-    }
+    Borrowed(Arc<Node<K, V, N>>, usize),
 }
 
 pub struct IntoIter<K, V, const N: usize> {
     len: usize,
     work: Vec<IterNodeState<K, V, N>>,
+}
+
+impl<K, V, const N: usize> IntoIter<K, V, N> {
+    fn descend(&mut self) {
+        use IterNodeState::*;
+        while let Some(curr) = self.work.last_mut() {
+            match curr {
+                Owned(elems, kids) => {
+                    if let Some(arc) = kids.next() {
+                        let next_kid = match Arc::try_unwrap(arc) {
+                            Ok(n) => {
+                                Owned(n.elems.into_iter(), n.kids.into_iter())
+                            }
+                            Err(arc) => Borrowed(arc, 0),
+                        };
+                        self.work.push(next_kid);
+                    } else {
+                        if elems.len() == 0 {
+                            self.work.pop();
+                        }
+                        return;
+                    }
+                }
+
+                Borrowed(arc, i) => {
+                    if *i < arc.kids.len() {
+                        let next_kid = arc.kids[*i].clone();
+                        self.work.push(Borrowed(next_kid, 0));
+                    } else {
+                        if *i >= arc.elems.len() {
+                            self.work.pop();
+                        }
+                        return;
+                    }
+                }
+            };
+        }
+    }
+
+    fn new(m: BTreeMap<K, V, N>) -> Self {
+        if m.is_empty() {
+            return Self {
+                len: 0,
+                work: Vec::new(),
+            };
+        }
+
+        use IterNodeState::*;
+        let state1 = match Arc::try_unwrap(m.root.unwrap()) {
+            Ok(n) => Owned(n.elems.into_iter(), n.kids.into_iter()),
+            Err(arc) => Borrowed(arc, 0),
+        };
+
+        let mut ii = Self {
+            len: m.len,
+            work: vec![state1],
+        };
+        ii.descend();
+
+        ii
+    }
 }
 
 impl<'a, K, V, const N: usize> Iterator for IntoIter<K, V, N>
@@ -714,71 +737,26 @@ where
     type Item = (K, V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        use IterAction::*;
         use IterNodeState::*;
 
-        loop {
-            match self.work.last_mut()? {
-                Owned(_, kids, act @ Descend) => {
-                    let Some(arc) = kids.next() else {
-                        panic!("Unable to descend");
-                    };
+        let ret = match self.work.last_mut()? {
+            Owned(elems, _) => {
+                let ret = elems.next().unwrap();
+                ret
+            }
 
-                    if kids.len() == 0 {
-                        self.work.pop();
-                    } else {
-                        *act = Return;
-                    }
+            Borrowed(arc, i) => {
+                let ret = arc.elems[*i].clone();
+                *i += 1;
+                ret
+            }
+        };
 
-                    self.work.push(descend_from_owned(arc));
-                }
+        self.descend();
 
-                Borrowed(arc, i, act @ Descend) => {
-                    let next_kid = arc.kids[*i].clone();
-                    let next_act = if next_kid.kids.is_empty() {
-                        Return
-                    } else {
-                        Descend
-                    };
+        self.len -= 1;
 
-                    if *i == arc.kids.len() - 1 {
-                        self.work.pop();
-                    } else {
-                        *act = Return;
-                        *i += 1;
-                    }
-
-                    self.work.push(Borrowed(next_kid, 0, next_act));
-                }
-
-                Owned(elems, kids, act @ Return) => {
-                    if let Some(kv) = elems.next() {
-                        if kids.len() > 0 {
-                            *act = Descend;
-                        }
-
-                        return Some(kv);
-                    } else {
-                        assert_eq!(kids.len(), 0);
-                        self.work.pop();
-                    }
-                }
-
-                Borrowed(arc, i, act @ Return) => {
-                    if *i < arc.elems.len() {
-                        if !arc.kids.is_empty() {
-                            *act = Descend;
-                        }
-
-                        *i += 1;
-
-                        return Some(arc.elems[*i - 1].clone());
-                    } else {
-                        self.work.pop();
-                    }
-                }
-            };
-        }
+        Some(ret)
     }
 }
 
