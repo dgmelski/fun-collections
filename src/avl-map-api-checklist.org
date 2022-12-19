@@ -72,18 +72,18 @@ call for `Item = &'a (K, V)`.
 ** DONE Collections implement FromIterator and Extend ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-collect][C-COLLECT]])
 *** DONE FromIterator
 *** DONE Extend
-** TODO Data structures implement Serde's Serialize, Deserialize ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-serde][C-SERDE]])
-*** TODO Serialize
-*** TODO Deserialize
+** DONE Data structures implement Serde's Serialize, Deserialize ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-serde][C-SERDE]])
+*** DONE Serialize
+*** DONE Deserialize
 ** TODO Types are Send and Sync where possible ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-send-sync][C-SEND-SYNC]])
 *** TODO Send
 *** TODO Sync
 ** DONE Error types are meaningful and well-behaved ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-good-err][C-GOOD-ERR]])
 ** N/A Binary number types provide Hex, Octal, Binary formatting ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-num-fmt][C-NUM-FMT]])
-*** TODO Hex formatting
-*** TODO Octal formatting
-*** TODO Binary formatting
-** TODO Generic reader/writer functions take R: Read and W: Write by value ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-rw-value][C-RW-VALUE]])
+*** N/A Hex formatting
+*** N/A Octal formatting
+*** N/A Binary formatting
+** N/A Generic reader/writer functions take R: Read and W: Write by value ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-rw-value][C-RW-VALUE]])
 * TODO Macros (crate presents well-behaved macros)
 ** TODO Input syntax is evocative of the output ([[https://rust-lang.github.io/api-guidelines/macros.html#c-evocative][C-EVOCATIVE]])
 ** TODO Macros compose well with attributes ([[https://rust-lang.github.io/api-guidelines/macros.html#c-macro-attr][C-MACRO-ATTR]])
