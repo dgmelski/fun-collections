@@ -2086,8 +2086,6 @@ impl<K: Clone + Ord, V: Clone> FromIterator<(K, V)> for AvlMap<K, V> {
 
 #[cfg(feature = "serde")]
 mod avl_serde {
-    // This is closely modeled on the serde documentation.
-
     use super::AvlMap;
     use serde::de::{Deserialize, MapAccess, Visitor};
     use std::fmt;
@@ -2170,6 +2168,34 @@ mod test {
     extern crate quickcheck;
     use super::*;
     use quickcheck::quickcheck;
+
+    // run with: `cargo test --features serde,serde_test`
+    #[cfg(feature = "serde_test")]
+    mod serde_test {
+        use serde_test::{assert_tokens, Token};
+
+        #[test]
+        fn test_serde() {
+            let mut s = crate::AvlMap::new();
+            s.insert('a', 0_i32);
+            s.insert('b', 1_i32);
+            s.insert('c', 2_i32);
+
+            assert_tokens(
+                &s,
+                &[
+                    Token::Map { len: Some(3) },
+                    Token::Char('a'),
+                    Token::I32(0),
+                    Token::Char('b'),
+                    Token::I32(1),
+                    Token::Char('c'),
+                    Token::I32(2),
+                    Token::MapEnd,
+                ],
+            );
+        }
+    }
 
     fn bal_test(vs: Vec<(u8, u32)>) {
         let mut fmap = AvlMap::new();

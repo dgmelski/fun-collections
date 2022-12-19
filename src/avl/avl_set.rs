@@ -545,6 +545,83 @@ impl<K: Clone + Ord> std::ops::Sub for &AvlSet<K> {
     }
 }
 
+#[cfg(feature = "serde")]
+mod avl_serde {
+    use super::AvlSet;
+    use serde::de::{Deserialize, SeqAccess, Visitor};
+    use std::fmt;
+    use std::marker::PhantomData;
+
+    pub(super) struct AvlSetVisitor<T> {
+        marker: PhantomData<fn() -> AvlSet<T>>,
+    }
+
+    impl<T> AvlSetVisitor<T> {
+        pub fn new() -> Self {
+            AvlSetVisitor {
+                marker: PhantomData,
+            }
+        }
+    }
+
+    impl<'de, T> Visitor<'de> for AvlSetVisitor<T>
+    where
+        T: Clone + Deserialize<'de> + Ord,
+    {
+        type Value = AvlSet<T>;
+
+        // Format a message stating what data this Visitor expects to receive.
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("lazy_clone_collections::AvlSet")
+        }
+
+        fn visit_seq<M>(self, mut access: M) -> Result<Self::Value, M::Error>
+        where
+            M: SeqAccess<'de>,
+        {
+            let mut set = AvlSet::<T>::new();
+
+            while let Some(elem) = access.next_element()? {
+                set.insert(elem);
+            }
+
+            Ok(set)
+        }
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<T> serde::ser::Serialize for AvlSet<T>
+where
+    T: serde::ser::Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        use serde::ser::SerializeSeq;
+
+        let mut seq = serializer.serialize_seq(Some(self.len()))?;
+        for k in self {
+            seq.serialize_element(k)?;
+        }
+        seq.end()
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, T> serde::de::Deserialize<'de> for AvlSet<T>
+where
+    T: Clone + serde::de::Deserialize<'de> + Ord,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        deserializer.deserialize_seq(self::avl_serde::AvlSetVisitor::new())
+    }
+}
+
 #[cfg(test)]
 mod test {
     extern crate quickcheck;
@@ -613,6 +690,32 @@ mod test {
     fn dbg_fmt_test() {
         let m = AvlSet::from(['a', 'b']);
         assert_eq!(format!("{:?}", m), r#"AvlSet({'a', 'b'})"#);
+    }
+
+    // run with: `cargo test --features serde,serde_test`
+    #[cfg(feature = "serde_test")]
+    mod serde_test {
+        use crate::AvlSet;
+        use serde_test::{assert_tokens, Token};
+
+        #[test]
+        fn test_serde() {
+            let mut s = AvlSet::new();
+            s.insert('a');
+            s.insert('b');
+            s.insert('c');
+
+            assert_tokens(
+                &s,
+                &[
+                    Token::Seq { len: Some(3) },
+                    Token::Char('a'),
+                    Token::Char('b'),
+                    Token::Char('c'),
+                    Token::SeqEnd,
+                ],
+            );
+        }
     }
 
     quickcheck! {
