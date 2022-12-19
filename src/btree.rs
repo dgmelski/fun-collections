@@ -650,12 +650,8 @@ impl<'a, K, V, const N: usize> Iterator for Iter<'a, K, V, N> {
     }
 }
 
-// enum IterAction {
-//     Descend,
-//     Return,
-// }
-
-enum IterNodeState<K, V, const N: usize> {
+// "erg" as in "unit of work" that is put on the IntoIter's worklist
+enum IntoIterErg<K, V, const N: usize> {
     Owned(
         std::vec::IntoIter<(K, V)>,
         std::vec::IntoIter<Arc<Node<K, V, N>>>,
@@ -665,17 +661,17 @@ enum IterNodeState<K, V, const N: usize> {
 
 pub struct IntoIter<K, V, const N: usize> {
     len: usize,
-    work: Vec<IterNodeState<K, V, N>>,
+    work: Vec<IntoIterErg<K, V, N>>,
 }
 
 impl<K, V, const N: usize> IntoIter<K, V, N> {
     fn descend(&mut self) {
-        use IterNodeState::*;
+        use IntoIterErg::*;
         while let Some(curr) = self.work.last_mut() {
             match curr {
                 Owned(elems, kids) => {
                     if let Some(arc) = kids.next() {
-                        let next_kid = match Arc::try_unwrap(arc) {
+                        let next_erg = match Arc::try_unwrap(arc) {
                             Ok(n) => {
                                 Owned(n.elems.into_iter(), n.kids.into_iter())
                             }
@@ -687,7 +683,7 @@ impl<K, V, const N: usize> IntoIter<K, V, N> {
                             self.work.pop();
                         }
 
-                        self.work.push(next_kid);
+                        self.work.push(next_erg);
                     } else {
                         if elems.len() == 0 {
                             self.work.pop();
@@ -724,7 +720,7 @@ impl<K, V, const N: usize> IntoIter<K, V, N> {
             };
         }
 
-        use IterNodeState::*;
+        use IntoIterErg::*;
         let state1 = match Arc::try_unwrap(m.root.unwrap()) {
             Ok(n) => Owned(n.elems.into_iter(), n.kids.into_iter()),
             Err(arc) => Borrowed(arc, 0),
@@ -748,7 +744,7 @@ where
     type Item = (K, V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        use IterNodeState::*;
+        use IntoIterErg::*;
 
         let ret = match self.work.last_mut()? {
             Owned(elems, _) => {
