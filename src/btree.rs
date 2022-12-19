@@ -380,23 +380,12 @@ impl<K, V, const N: usize> Node<K, V, N> {
     }
 }
 
+#[derive(Clone)]
 pub struct BTreeMap<K, V, const N: usize = 2> {
     len: usize,
     root: Option<NodePtr<K, V, N>>,
 }
 
-impl<K, V, const N: usize> Clone for BTreeMap<K, V, N>
-where
-    K: Clone,
-    V: Clone,
-{
-    fn clone(&self) -> Self {
-        Self {
-            len: self.len,
-            root: self.root.clone(),
-        }
-    }
-}
 
 impl<K, V, const N: usize> Default for BTreeMap<K, V, N> {
     fn default() -> Self {
