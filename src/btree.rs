@@ -565,6 +565,22 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         Iter { w }
     }
 
+    // TODO: iter_mut
+
+    pub fn keys(&self) -> impl Iterator<Item = &K> {
+        self.iter().map(|e| e.0)
+    }
+
+    // TODO: last_entry()
+
+    pub fn last_key_value(&self) -> Option<(&K, &V)> {
+        let mut curr = self.root.as_ref()?;
+        while let Some(next) = curr.kids.last() {
+            curr = next;
+        }
+        curr.elems.last().map(|(ref k, ref v)| (k, v))
+    }
+
     pub fn len(&self) -> usize {
         self.len
     }
@@ -572,6 +588,11 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
     pub fn new() -> Self {
         Self { len: 0, root: None }
     }
+
+    // TODO: pop_first
+    // TOOD: pop_last
+    // TODO: range
+    // TODO: range_mut
 
     /// Removes and returns the value associated with key, if it exists.
     ///
@@ -612,6 +633,18 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
 
         old_v
     }
+
+    // TODO: retain()
+    // TOOD: split_off()
+    // TOOD: try_insert()
+
+    pub fn values(&self) -> impl Iterator<Item = &V> {
+        self.iter().map(|e| e.1)
+    }
+
+    // pub fn values_mut(&mut self) -> impl Iterator<Item = &mut V> {
+    //     self.iter_mut.map(|e| e.1)
+    // }
 }
 
 // we implement our own default to avoid the Default constraints on K and V
