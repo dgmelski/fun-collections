@@ -681,6 +681,12 @@ impl<K, V, const N: usize> IntoIter<K, V, N> {
                             }
                             Err(arc) => Borrowed(arc, 0),
                         };
+
+                        if kids.len() == 0 {
+                            assert_eq!(elems.len(), 0);
+                            self.work.pop();
+                        }
+
                         self.work.push(next_kid);
                     } else {
                         if elems.len() == 0 {
@@ -693,6 +699,11 @@ impl<K, V, const N: usize> IntoIter<K, V, N> {
                 Borrowed(arc, i) => {
                     if *i < arc.kids.len() {
                         let next_kid = arc.kids[*i].clone();
+
+                        if *i == arc.elems.len() {
+                            self.work.pop();
+                        }
+
                         self.work.push(Borrowed(next_kid, 0));
                     } else {
                         if *i >= arc.elems.len() {
@@ -867,6 +878,40 @@ mod test {
         test_insert(vec![(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]);
     }
 
+    fn into_iter_test(u: Vec<u8>, v: Vec<u8>) {
+        // unshared
+        let m1: BTreeMap<u8, ()> = u.iter().map(|x| (*x, ())).collect();
+        let n1: std::collections::BTreeMap<u8, ()> =
+            u.iter().map(|x| (*x, ())).collect();
+        assert!(m1.into_iter().cmp(n1.into_iter()).is_eq());
+
+        // shared
+        let m1: BTreeMap<u8, ()> = u.iter().map(|x| (*x, ())).collect();
+        let m2 = m1.clone();
+        let n1: std::collections::BTreeMap<u8, ()> =
+            u.iter().map(|x| (*x, ())).collect();
+        assert!(m2.into_iter().cmp(n1.into_iter()).is_eq());
+
+        // partly shared
+        let m1: BTreeMap<u8, ()> = u.iter().map(|x| (*x, ())).collect();
+        let n1: std::collections::BTreeMap<u8, ()> =
+            u.iter().map(|x| (*x, ())).collect();
+
+        let mut m2 = m1.clone();
+        m2.extend(v.iter().map(|x| (*x, ())));
+
+        let mut n2 = n1.clone();
+        n2.extend(v.iter().map(|x| (*x, ())));
+
+        assert!(m2.into_iter().cmp(n2.into_iter()).is_eq());
+        assert!(m1.into_iter().cmp(n1.into_iter()).is_eq());
+    }
+
+    #[test]
+    fn into_iter_regr1() {
+        into_iter_test(vec![], vec![0, 1, 2]);
+    }
+
     #[test]
     fn remove_regr1() {
         let elems = vec![
@@ -914,6 +959,10 @@ mod test {
 
         fn qc_remove(elems: TestElems) -> () {
             test_remove(elems);
+        }
+
+        fn qc_into_iter(u: Vec<u8>, v: Vec<u8>) -> () {
+            into_iter_test(u, v);
         }
     }
 }
