@@ -392,8 +392,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         K: Clone + Ord,
         V: Clone,
     {
-        let other = std::mem::take(other);
-        self.extend(other);
+        self.extend(std::mem::take(other));
     }
 
     pub fn clear(&mut self) {
