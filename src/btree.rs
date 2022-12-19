@@ -607,6 +607,42 @@ where
     }
 }
 
+impl<K, V, const N: usize> IntoIterator for BTreeMap<K, V, N>
+where
+    K: Clone,
+    V: Clone,
+{
+    type Item = (K, V);
+    type IntoIter = IntoIter<K, V, N>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let mut ii = IntoIter {
+            len: self.len,
+            work: Vec::new(),
+        };
+
+        let Some(arc) = self.root else {
+            return ii;
+        };
+
+        let act1 = if arc.kids.is_empty() {
+            IterAction::Return
+        } else {
+            IterAction::Descend
+        };
+
+        use IterNodeState::*;
+        let state1 = match Arc::try_unwrap(arc) {
+            Ok(n) => Owned(n.elems.into_iter(), n.kids.into_iter(), act1),
+            Err(arc) => Borrowed(arc, 0, act1),
+        };
+
+        ii.work.push(state1);
+
+        ii
+    }
+}
+
 pub struct Iter<'a, K, V, const N: usize> {
     w: Vec<(&'a Node<K, V, N>, usize)>,
 }
@@ -634,6 +670,115 @@ impl<'a, K, V, const N: usize> Iterator for Iter<'a, K, V, N> {
         }
 
         Some(ret)
+    }
+}
+
+enum IterAction {
+    Descend,
+    Return,
+}
+
+enum IterNodeState<K, V, const N: usize> {
+    Owned(
+        std::vec::IntoIter<(K, V)>,
+        std::vec::IntoIter<Arc<Node<K, V, N>>>,
+        IterAction,
+    ),
+    Borrowed(Arc<Node<K, V, N>>, usize, IterAction),
+}
+
+fn descend_from_owned<K, V, const N: usize>(
+    arc: Arc<Node<K, V, N>>,
+) -> IterNodeState<K, V, N> {
+    use IterAction::*;
+    use IterNodeState::*;
+
+    let next_act = if arc.kids.is_empty() { Return } else { Descend };
+
+    match Arc::try_unwrap(arc) {
+        Ok(n) => Owned(n.elems.into_iter(), n.kids.into_iter(), next_act),
+        Err(arc) => Borrowed(arc, 0, next_act),
+    }
+}
+
+pub struct IntoIter<K, V, const N: usize> {
+    len: usize,
+    work: Vec<IterNodeState<K, V, N>>,
+}
+
+impl<'a, K, V, const N: usize> Iterator for IntoIter<K, V, N>
+where
+    K: Clone,
+    V: Clone,
+{
+    type Item = (K, V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        use IterAction::*;
+        use IterNodeState::*;
+
+        loop {
+            match self.work.last_mut()? {
+                Owned(_, kids, act @ Descend) => {
+                    let Some(arc) = kids.next() else {
+                        panic!("Unable to descend");
+                    };
+
+                    if kids.len() == 0 {
+                        self.work.pop();
+                    } else {
+                        *act = Return;
+                    }
+
+                    self.work.push(descend_from_owned(arc));
+                }
+
+                Borrowed(arc, i, act @ Descend) => {
+                    let next_kid = arc.kids[*i].clone();
+                    let next_act = if next_kid.kids.is_empty() {
+                        Return
+                    } else {
+                        Descend
+                    };
+
+                    if *i == arc.kids.len() - 1 {
+                        self.work.pop();
+                    } else {
+                        *act = Return;
+                        *i += 1;
+                    }
+
+                    self.work.push(Borrowed(next_kid, 0, next_act));
+                }
+
+                Owned(elems, kids, act @ Return) => {
+                    if let Some(kv) = elems.next() {
+                        if kids.len() > 0 {
+                            *act = Descend;
+                        }
+
+                        return Some(kv);
+                    } else {
+                        assert_eq!(kids.len(), 0);
+                        self.work.pop();
+                    }
+                }
+
+                Borrowed(arc, i, act @ Return) => {
+                    if *i < arc.elems.len() {
+                        if !arc.kids.is_empty() {
+                            *act = Descend;
+                        }
+
+                        *i += 1;
+
+                        return Some(arc.elems[*i - 1].clone());
+                    } else {
+                        self.work.pop();
+                    }
+                }
+            };
+        }
     }
 }
 
