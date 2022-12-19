@@ -6,7 +6,7 @@ use std::sync::Arc;
 /// A sorted set of values.
 ///
 /// The implementation is a wrapper around [`AvlMap<T,()>`].
-#[derive(Clone, Default, Eq)]
+#[derive(Clone, Eq)]
 pub struct AvlSet<T> {
     map: AvlMap<T, ()>,
 }
@@ -460,6 +460,12 @@ impl<T: std::fmt::Debug> std::fmt::Debug for AvlSet<T> {
     }
 }
 
+impl<T> Default for AvlSet<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'a, T: Clone + Ord> Extend<&'a T> for AvlSet<T> {
     fn extend<I: IntoIterator<Item = &'a T>>(&mut self, iter: I) {
         for x in iter {
@@ -627,6 +633,12 @@ mod test {
     extern crate quickcheck;
     use super::*;
     use quickcheck::quickcheck;
+
+    // this is a compile-time test
+    fn _default_sets_for_no_default_entries() {
+        struct Foo;
+        let _ = AvlSet::<Foo>::default();
+    }
 
     fn set_checks(
         s1: &AvlSet<u8>,

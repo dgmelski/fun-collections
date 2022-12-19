@@ -210,7 +210,7 @@ impl<K: Clone + Debug, V: Clone + Debug> Debug for Node<K, V> {
 /// better performance. BTrees store more entries in each node, leading to
 /// shallower trees.  Updates need to clone fewer nodes, but clone more entries
 /// for each node cloned.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct AvlMap<K, V> {
     len: usize,
     root: OptNode<K, V>,
@@ -230,6 +230,12 @@ impl<K: Debug, V: Debug> Debug for AvlMap<K, V> {
         fmt.write_str("AvlMap(")?;
         fmt.debug_map().entries(self.iter()).finish()?;
         fmt.write_str(")")
+    }
+}
+
+impl<K, V> Default for AvlMap<K, V> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -2197,6 +2203,12 @@ mod test {
     extern crate quickcheck;
     use super::*;
     use quickcheck::quickcheck;
+
+    // this is a compile-time test
+    fn _default_maps_for_no_default_entries() {
+        struct Foo;
+        let _ = AvlMap::<usize, Foo>::default();
+    }
 
     // run with: `cargo test --features serde,serde_test`
     #[cfg(feature = "serde_test")]

@@ -386,14 +386,21 @@ pub struct BTreeMap<K, V, const N: usize = 2> {
     root: Option<NodePtr<K, V, N>>,
 }
 
-
-impl<K, V, const N: usize> Default for BTreeMap<K, V, N> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl<K, V, const N: usize> BTreeMap<K, V, N> {
+    // pub fn append(&mut self, other: &mut Self)
+    // where
+    //     K: Clone + Ord,
+    //     V: Clone,
+    // {
+    //     let other = std::mem::take(other);
+    //     self.extend(other);
+    // }
+
+    pub fn clear(&mut self) {
+        self.len = 0;
+        self.root = None;
+    }
+
     pub fn contains_key<Q>(&self, key: &Q) -> bool
     where
         K: Borrow<Q>,
@@ -556,6 +563,13 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         }
 
         old_v
+    }
+}
+
+// we implement our own default to avoid the Default constraints on K and V
+impl<K, V, const N: usize> Default for BTreeMap<K, V, N> {
+    fn default() -> Self {
+        Self { len: 0, root: None }
     }
 }
 
