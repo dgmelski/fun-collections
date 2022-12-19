@@ -2,8 +2,8 @@
 //!
 //! Invoke with
 //! ```
-//!     cargo +nightly bench [partial_test_name] --test fun_map_benchmarks \
-//!         --features enable_bench
+//!     cargo +nightly bench [partial_test_name] --test benchmarks \
+//!         --features bench
 //! ```
 //!
 //! The "enable_bench" feature is a feature we introduced in the cargo.toml to
@@ -13,7 +13,7 @@
 //!
 //! If "partial_test_name" is excluded, all benchmarks are run.  If given, any
 //! test name that contains partial_test_name will run.
-#![cfg(feature = "enable_bench")]
+#![cfg(feature = "bench")]
 #![feature(test)]
 
 extern crate test;
