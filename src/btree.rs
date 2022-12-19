@@ -52,20 +52,20 @@ impl<K, V, const N: usize> Node<K, V, N> {
         self.elems.len()
     }
 
-    fn get<Q>(&self, key: &Q) -> Option<&V>
+    fn get_key_value<Q>(&self, key: &Q) -> Option<&(K, V)>
     where
         K: Borrow<Q>,
         Q: Ord,
     {
         for i in 0..self.len() {
             match key.cmp(self.key(i).borrow()) {
-                Less => return self.child(i)?.get(key),
-                Equal => return Some(self.val(i)),
+                Less => return self.child(i)?.get_key_value(key),
+                Equal => return Some(&self.elems[i]),
                 Greater => (),
             }
         }
 
-        self.kids.last()?.get(key)
+        self.kids.last()?.get_key_value(key)
     }
 
     fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
@@ -427,7 +427,15 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         }
     }
 
-    /// Retrieves the value associated with the given key, if it is in the map.
+    fn first_key_value(&self) -> Option<(&K, &V)> {
+        let mut curr = self.root.as_ref()?;
+        while let Some(next) = curr.child(0) {
+            curr = next;
+        }
+        Some((curr.key(0), curr.val(0)))
+    }
+
+    /// Retrieves the value associated with the given key, if there is one.
     ///
     /// # Examples
     /// ```
@@ -443,7 +451,29 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         K: Borrow<Q>,
         Q: Ord,
     {
-        self.root.as_ref()?.get(key)
+        self.get_key_value(key).map(|e| e.1)
+    }
+
+    /// Retrieves the entry associated with the given key, if there is one.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::BTreeMap;
+    ///
+    /// let mut m = BTreeMap::new();
+    /// m.insert(0, 1);
+    /// assert_eq!(m.get_key_value(&0), Some((&0, &1)));
+    /// assert_eq!(m.get(&1), None);
+    /// ```
+    pub fn get_key_value<Q>(&self, key: &Q) -> Option<(&K, &V)>
+    where
+        K: Borrow<Q>,
+        Q: Ord,
+    {
+        self.root
+            .as_ref()?
+            .get_key_value(key)
+            .map(|(ref k, ref v)| (k, v))
     }
 
     pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
