@@ -427,6 +427,9 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         }
     }
 
+    // TODO: entry()
+    // TODO: first_entry()
+
     fn first_key_value(&self) -> Option<(&K, &V)> {
         let mut curr = self.root.as_ref()?;
         while let Some(next) = curr.child(0) {
@@ -529,6 +532,22 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
             }));
             None
         }
+    }
+
+    pub fn into_keys(self) -> impl Iterator<Item = K>
+    where
+        K: Clone,
+        V: Clone, // TODO: this is unfortunate
+    {
+        self.into_iter().map(|e| e.0)
+    }
+
+    pub fn into_values(self) -> impl Iterator<Item = V>
+    where
+        K: Clone, // TODO: eliminate this bound
+        V: Clone,
+    {
+        self.into_iter().map(|e| e.1)
     }
 
     pub fn is_empty(&self) -> bool {
