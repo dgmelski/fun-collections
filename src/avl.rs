@@ -1719,6 +1719,16 @@ pub struct Iter<'a, K, V> {
     len: usize,
 }
 
+impl<'a, K: Debug, V: Debug> Debug for Iter<'a, K, V> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let nxt = self.work.last().map(|rc| (&rc.key, &rc.val));
+        f.debug_struct("avl_map::Iter")
+            .field("len", &self.len)
+            .field("next", &nxt)
+            .finish()
+    }
+}
+
 impl<'a, K, V> Iterator for Iter<'a, K, V> {
     type Item = (&'a K, &'a V);
 
@@ -1751,6 +1761,15 @@ enum IterMutAction<'a, K, V> {
 pub struct IterMut<'a, K, V> {
     work: Vec<IterMutAction<'a, K, V>>,
     len: usize,
+}
+
+impl<'a, K: Debug, V: Debug> Debug for IterMut<'a, K, V> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        // TODO: remove IterMut so we can remote the next element
+        f.debug_struct("avl_map::IterMut")
+            .field("len", &self.len)
+            .finish()
+    }
 }
 
 impl<'a, K, V> Iterator for IterMut<'a, K, V>
@@ -1868,6 +1887,15 @@ impl<K, V> IntoIter<K, V> {
     }
 }
 
+impl<K: Debug, V: Debug> Debug for IntoIter<K, V> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        // TODO: remove IterMut so we can remote the next element
+        f.debug_struct("avl_map::IntoIter")
+            .field("len", &self.len)
+            .finish()
+    }
+}
+
 impl<K: Clone, V: Clone> Iterator for IntoIter<K, V> {
     type Item = (K, V);
 
@@ -1924,6 +1952,7 @@ impl<'a, K: Clone, V: Clone> IntoIterator for &'a mut AvlMap<K, V> {
     }
 }
 
+#[derive(Debug)]
 pub struct OccupiedEntry<'a, K, V> {
     key: K,
     val: &'a mut V,
@@ -1959,6 +1988,7 @@ impl<'a, K, V: Clone> OccupiedEntry<'a, K, V> {
     }
 }
 
+#[derive(Debug)]
 pub struct VacantEntry<'a, K, V> {
     key: K,
     map: &'a mut AvlMap<K, V>,

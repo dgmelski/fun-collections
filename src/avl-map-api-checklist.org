@@ -41,7 +41,7 @@ DEALINGS IN THE SOFTWARE.
 The following line adds "N/A" (Not Applicable) to to-do status options.
 #+TODO: TODO | DONE N/A
 
-* TODO Naming (crate aligns with Rust naming conventions)
+* DONE Naming (crate aligns with Rust naming conventions)
 ** DONE Casing conforms to RFC 430 ([[https://rust-lang.github.io/api-guidelines/naming.html#c-case][C-CASE]])
 ** N/A Ad-hoc conversions follow as_, to_, into_ conventions ([[https://rust-lang.github.io/api-guidelines/naming.html#c-conv][C-CONV]])
 ** DONE Getter names follow Rust convention ([[https://rust-lang.github.io/api-guidelines/naming.html#c-getter][C-GETTER]])
@@ -50,9 +50,9 @@ For the standard Iterator, we use `Item = (&'a K, &'a V)`, as BTreeMap does.
 BTreeMap::iter is offered as an example, though technically, this item seems to
 call for `Item = &'a (K, V)`.
 ** DONE Iterator type names match the methods that produce them ([[https://rust-lang.github.io/api-guidelines/naming.html#c-iter-ty][C-ITER-TY]])
-** TODO Feature names are free of placeholder words ([[https://rust-lang.github.io/api-guidelines/naming.html#c-feature][C-FEATURE]])
+** DONE Feature names are free of placeholder words ([[https://rust-lang.github.io/api-guidelines/naming.html#c-feature][C-FEATURE]])
 ** DONE Names use a consistent word order ([[https://rust-lang.github.io/api-guidelines/naming.html#c-word-order][C-WORD-ORDER]])
-* TODO Interoperability (crate interacts nicely with other library functionality)
+* DONE Interoperability (crate interacts nicely with other library functionality)
 ** DONE Types eagerly implement common traits ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-common-traits][C-COMMON-TRAITS]])
 *** N/A Copy
 *** DONE Clone
@@ -75,7 +75,7 @@ call for `Item = &'a (K, V)`.
 ** DONE Data structures implement Serde's Serialize, Deserialize ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-serde][C-SERDE]])
 *** DONE Serialize
 *** DONE Deserialize
-** TODO Types are Send and Sync where possible ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-send-sync][C-SEND-SYNC]])
+** DONE Types are Send and Sync where possible ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-send-sync][C-SEND-SYNC]])
 *** TODO Send
 *** TODO Sync
 ** DONE Error types are meaningful and well-behaved ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-good-err][C-GOOD-ERR]])
@@ -84,12 +84,12 @@ call for `Item = &'a (K, V)`.
 *** N/A Octal formatting
 *** N/A Binary formatting
 ** N/A Generic reader/writer functions take R: Read and W: Write by value ([[https://rust-lang.github.io/api-guidelines/interoperability.html#c-rw-value][C-RW-VALUE]])
-* TODO Macros (crate presents well-behaved macros)
-** TODO Input syntax is evocative of the output ([[https://rust-lang.github.io/api-guidelines/macros.html#c-evocative][C-EVOCATIVE]])
-** TODO Macros compose well with attributes ([[https://rust-lang.github.io/api-guidelines/macros.html#c-macro-attr][C-MACRO-ATTR]])
-** TODO Item macros work anywhere that items are allowed ([[https://rust-lang.github.io/api-guidelines/macros.html#c-anywhere][C-ANYWHERE]])
-** TODO Item macros support visibility specifiers ([[https://rust-lang.github.io/api-guidelines/macros.html#c-macro-vis][C-MACRO-VIS]])
-** TODO Type fragments are flexible ([[https://rust-lang.github.io/api-guidelines/macros.html#c-macro-ty][C-MACRO-TY]])
+* DONE Macros (crate presents well-behaved macros)
+** N/A Input syntax is evocative of the output ([[https://rust-lang.github.io/api-guidelines/macros.html#c-evocative][C-EVOCATIVE]])
+** N/A Macros compose well with attributes ([[https://rust-lang.github.io/api-guidelines/macros.html#c-macro-attr][C-MACRO-ATTR]])
+** N/A Item macros work anywhere that items are allowed ([[https://rust-lang.github.io/api-guidelines/macros.html#c-anywhere][C-ANYWHERE]])
+** N/A Item macros support visibility specifiers ([[https://rust-lang.github.io/api-guidelines/macros.html#c-macro-vis][C-MACRO-VIS]])
+** N/A Type fragments are flexible ([[https://rust-lang.github.io/api-guidelines/macros.html#c-macro-ty][C-MACRO-TY]])
 * TODO Documentation (crate is abundantly documented)
 ** TODO Crate level docs are thorough and include examples ([[https://rust-lang.github.io/api-guidelines/documentation.html#c-crate-doc][C-CRATE-DOC]])
 ** TODO All items have a rustdoc example ([[https://rust-lang.github.io/api-guidelines/documentation.html#c-example][C-EXAMPLE]])
@@ -107,19 +107,12 @@ call for `Item = &'a (K, V)`.
 *** TODO categories
 ** TODO Release notes document all significant changes ([[https://rust-lang.github.io/api-guidelines/documentation.html#c-relnotes][C-RELNOTES]])
 ** TODO Rustdoc does not show unhelpful implementation details ([[https://rust-lang.github.io/api-guidelines/documentation.html#c-hidden][C-HIDDEN]])
-* TODO Predictability (crate enables legible code that acts how it looks)
+* DONE Predictability (crate enables legible code that acts how it looks)
 ** N/A Smart pointers do not add inherent methods ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-smart-ptr][C-SMART-PTR]])
 ** N/A Conversions live on the most specific type involved ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-conv-specific][C-CONV-SPECIFIC]])
-** TODO Functions with a clear receiver are methods ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-method][C-METHOD]])
-For many of the set operation functions, I have both a method and a function
-version:
-
-- `m.union_with(n)` updates 'm' to be the union of 'm' and 'n'.
-- `FunMap::union(&m, &n)` returns a new map that is the union of 'm' and 'n',
-  which are unchanged.
-
-By this rule, I think the later are frowned upon, though I think it makes it
-more clear that the lhs is not updated.
+** DONE Functions with a clear receiver are methods ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-method][C-METHOD]])
+Well, done as it is going to be.  Technically, the functions like
+AvlMap::new_union is a violation.  However, I think it is clear enough.
 ** DONE Functions do not take out-parameters ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-no-out][C-NO-OUT]])
 ** DONE Operator overloads are unsurprising ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-overload][C-OVERLOAD]])
 ** DONE Only smart pointers implement Deref and DerefMut ([[https://rust-lang.github.io/api-guidelines/predictability.html#c-deref][C-DEREF]])
@@ -138,14 +131,14 @@ more clear that the lhs is not updated.
 ** DONE Functions validate their arguments ([[https://rust-lang.github.io/api-guidelines/dependability.html#c-validate][C-VALIDATE]])
 ** DONE Destructors never fail ([[https://rust-lang.github.io/api-guidelines/dependability.html#c-dtor-fail][C-DTOR-FAIL]])
 ** DONE Destructors that may block have alternatives ([[https://rust-lang.github.io/api-guidelines/dependability.html#c-dtor-block][C-DTOR-BLOCK]])
-* TODO Debuggability (crate is conducive to easy debugging)
-** TODO All public types implement Debug ([[https://rust-lang.github.io/api-guidelines/debuggability.html#c-debug][C-DEBUG]])
-** TODO Debug representation is never empty ([[https://rust-lang.github.io/api-guidelines/debuggability.html#c-debug-nonempty][C-DEBUG-NONEMPTY]])
-* TODO Future proofing (crate is free to improve without breaking users' code)
-** TODO Sealed traits protect against downstream implementations ([[https://rust-lang.github.io/api-guidelines/future-proofing.html#c-sealed][C-SEALED]])
-** TODO Structs have private fields ([[https://rust-lang.github.io/api-guidelines/future-proofing.html#c-struct-private][C-STRUCT-PRIVATE]])
-** TODO Newtypes encapsulate implementation details ([[https://rust-lang.github.io/api-guidelines/future-proofing.html#c-newtype-hide][C-NEWTYPE-HIDE]])
-** TODO Data structures do not duplicate derived trait bounds ([[https://rust-lang.github.io/api-guidelines/future-proofing.html#c-struct-bounds][C-STRUCT-BOUNDS]])
-* TODO Necessities (to whom they matter, they really matter)
-** TODO Public dependencies of a stable crate are stable ([[https://rust-lang.github.io/api-guidelines/necessities.html#c-stable][C-STABLE]])
-** TODO Crate and its dependencies have a permissive license ([[https://rust-lang.github.io/api-guidelines/necessities.html#c-permissive][C-PERMISSIVE]])
+* DONE Debuggability (crate is conducive to easy debugging)
+** DONE All public types implement Debug ([[https://rust-lang.github.io/api-guidelines/debuggability.html#c-debug][C-DEBUG]])
+** DONE Debug representation is never empty ([[https://rust-lang.github.io/api-guidelines/debuggability.html#c-debug-nonempty][C-DEBUG-NONEMPTY]])
+* DONE Future proofing (crate is free to improve without breaking users' code)
+** N/A Sealed traits protect against downstream implementations ([[https://rust-lang.github.io/api-guidelines/future-proofing.html#c-sealed][C-SEALED]])
+** DONE Structs have private fields ([[https://rust-lang.github.io/api-guidelines/future-proofing.html#c-struct-private][C-STRUCT-PRIVATE]])
+** DONE Newtypes encapsulate implementation details ([[https://rust-lang.github.io/api-guidelines/future-proofing.html#c-newtype-hide][C-NEWTYPE-HIDE]])
+** DONE Data structures do not duplicate derived trait bounds ([[https://rust-lang.github.io/api-guidelines/future-proofing.html#c-struct-bounds][C-STRUCT-BOUNDS]])
+* DONE Necessities (to whom they matter, they really matter)
+** DONE Public dependencies of a stable crate are stable ([[https://rust-lang.github.io/api-guidelines/necessities.html#c-stable][C-STABLE]])
+** DONE Crate and its dependencies have a permissive license ([[https://rust-lang.github.io/api-guidelines/necessities.html#c-permissive][C-PERMISSIVE]])
