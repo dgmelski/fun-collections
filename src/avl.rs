@@ -1723,16 +1723,15 @@ impl<'a, K, V> Iterator for Iter<'a, K, V> {
     type Item = (&'a K, &'a V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.work.pop().map(|n| {
-            self.len -= 1;
-            let entry = (&n.key, &n.val);
-            let mut curr = n.right.as_ref();
-            while let Some(m) = curr {
-                self.work.push(m);
-                curr = m.left.as_ref();
-            }
-            entry
-        })
+        let n = self.work.pop()?;
+        self.len -= 1;
+        let entry = (&n.key, &n.val);
+        let mut curr = n.right.as_ref();
+        while let Some(m) = curr {
+            self.work.push(m);
+            curr = m.left.as_ref();
+        }
+        Some(entry)
     }
 }
 
