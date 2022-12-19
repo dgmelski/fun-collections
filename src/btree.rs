@@ -1,22 +1,14 @@
 use std::borrow::Borrow;
 use std::cmp::Ordering::*;
 use std::mem::replace;
-use std::rc::Rc;
+use std::sync::Arc;
 
-type NodePtr<K, V, const N: usize> = Rc<Node<K, V, N>>;
+type NodePtr<K, V, const N: usize> = Arc<Node<K, V, N>>;
 
+#[derive(Clone)]
 struct Node<K, V, const N: usize> {
     elems: Vec<(K, V)>,
     kids: Vec<NodePtr<K, V, N>>,
-}
-
-impl<K: Clone, V: Clone, const N: usize> Clone for Node<K, V, N> {
-    fn clone(&self) -> Self {
-        Self {
-            elems: self.elems.clone(),
-            kids: self.kids.clone(),
-        }
-    }
 }
 
 enum InsertResult<K, V, const N: usize> {
@@ -32,11 +24,11 @@ impl<K, V, const N: usize> Node<K, V, N> {
     const MIN_OCCUPANCY: usize = N;
     const MAX_OCCUPANCY: usize = 2 * N;
 
-    fn child(&self, i: usize) -> Option<&Rc<Self>> {
+    fn child(&self, i: usize) -> Option<&Arc<Self>> {
         self.kids.get(i)
     }
 
-    fn child_mut(&mut self, i: usize) -> Option<&mut Rc<Self>> {
+    fn child_mut(&mut self, i: usize) -> Option<&mut Arc<Self>> {
         self.kids.get_mut(i)
     }
 
@@ -86,7 +78,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
             match key.cmp(self.key(i).borrow()) {
                 Less => {
                     let rc = self.child_mut(i)?;
-                    let n = Rc::make_mut(rc);
+                    let n = Arc::make_mut(rc);
                     return n.get_mut(key);
                 }
 
@@ -96,7 +88,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
         }
 
         let rc = self.kids.last_mut()?;
-        let n = Rc::make_mut(rc);
+        let n = Arc::make_mut(rc);
         n.get_mut(key)
     }
 
@@ -122,7 +114,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
         // If we are a leaf, pretend that we visited a child and it resulted in
         // needing to insert a new separator at this level.
         let res = match self.child_mut(ub_x) {
-            Some(n) => Rc::make_mut(n).insert(key, val),
+            Some(n) => Arc::make_mut(n).insert(key, val),
             None => Split((None, key, val)),
         };
 
@@ -157,7 +149,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
             let (mid_k, mid_v) = other_elems.pop().unwrap();
 
             // make a node for the lhs
-            let lhs = Some(Rc::new(Node {
+            let lhs = Some(Arc::new(Node {
                 elems: other_elems,
                 kids: other_kids,
             }));
@@ -192,7 +184,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
             "rot_lf from an impovershed child"
         );
 
-        let n = Rc::make_mut(right);
+        let n = Arc::make_mut(right);
 
         let (k2, v2) = n.elems.remove(0);
         let k1_to_k2 = if n.kids.is_empty() {
@@ -212,7 +204,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
             "rot_lf into a rich child"
         );
 
-        let left = Rc::make_mut(left);
+        let left = Arc::make_mut(left);
         left.elems.push((k1, v1));
         if let Some(k1_to_k2) = k1_to_k2 {
             left.kids.push(k1_to_k2);
@@ -234,7 +226,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
             "rot_rt from impoverished child"
         );
 
-        let left = Rc::make_mut(left);
+        let left = Arc::make_mut(left);
         let (k0, v0) = left.elems.pop().unwrap();
         let k0_to_k1 = left.kids.pop();
 
@@ -244,7 +236,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
 
         // move k1 and v1 down and to the right of the pivot
         let right = self.child_mut(idx + 1).unwrap();
-        let right = Rc::make_mut(right);
+        let right = Arc::make_mut(right);
         right.elems.insert(0, (k1, v1));
         if let Some(k0_to_k1) = k0_to_k1 {
             right.kids.insert(0, k0_to_k1);
@@ -260,7 +252,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
         // take the left child and the separator key & val
         let (mid_k, mid_v) = self.elems.remove(at);
         let lhs_rc: NodePtr<K, V, N> = self.kids.remove(at);
-        let mut lhs_n = match Rc::try_unwrap(lhs_rc) {
+        let mut lhs_n = match Arc::try_unwrap(lhs_rc) {
             Ok(n) => n,
             Err(rc) => (*rc).clone(),
         };
@@ -270,7 +262,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
 
         // get a private copy of the rhs
         let rhs_rc = self.child_mut(at).unwrap();
-        let rhs_ref = Rc::make_mut(rhs_rc);
+        let rhs_ref = Arc::make_mut(rhs_rc);
 
         // We own & can take from lhs_n, but we want rhs's elements at the end.
         // Swap lhs & rhs vecs so we can use a cheaper append for merging.
@@ -311,7 +303,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
     {
         if let Some(rt) = self.kids.last_mut() {
             // self is a branch; recurse to the rightmost child
-            let rt = Rc::make_mut(rt);
+            let rt = Arc::make_mut(rt);
             let ret = rt.rm_greatest();
             if let &IsUnderPop(true) = &ret.2 {
                 (ret.0, ret.1, self.rebal(self.elems.len()))
@@ -339,7 +331,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
                     }
 
                     let lt_k = self.child_mut(i).unwrap();
-                    let lt_k = Rc::make_mut(lt_k);
+                    let lt_k = Arc::make_mut(lt_k);
                     let ret = lt_k.remove(key);
                     if let &(_, IsUnderPop(true)) = &ret {
                         return (ret.0, self.rebal(i));
@@ -358,7 +350,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
                     }
 
                     let lt_k = self.child_mut(i).unwrap();
-                    let lt_k = Rc::make_mut(lt_k);
+                    let lt_k = Arc::make_mut(lt_k);
                     let (k, v, is_under_pop) = lt_k.rm_greatest();
                     *self.key_mut(i) = k;
                     let old_v = replace(self.val_mut(i), v);
@@ -378,7 +370,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
         }
 
         let gt_k = self.kids.last_mut().unwrap();
-        let gt_k = Rc::make_mut(gt_k);
+        let gt_k = Arc::make_mut(gt_k);
         let ret = gt_k.remove(key);
         if let &IsUnderPop(true) = &ret.1 {
             (ret.0, self.rebal(self.elems.len()))
@@ -466,7 +458,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         Q: Ord,
     {
         let rc = self.root.as_mut()?;
-        let n = Rc::make_mut(rc);
+        let n = Arc::make_mut(rc);
         n.get_mut(key)
     }
 
@@ -487,12 +479,12 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         V: Clone,
     {
         if let Some(r) = self.root.as_mut() {
-            match Rc::make_mut(r).insert(key, val) {
+            match Arc::make_mut(r).insert(key, val) {
                 InsertResult::Replaced(v) => Some(v),
 
                 InsertResult::Split((lhs, k, v)) => {
                     self.len += 1;
-                    self.root = Some(Rc::new(Node {
+                    self.root = Some(Arc::new(Node {
                         elems: vec![(k, v)],
                         kids: vec![lhs.unwrap(), self.root.take().unwrap()],
                     }));
@@ -506,7 +498,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
             }
         } else {
             self.len = 1;
-            self.root = Some(Rc::new(Node {
+            self.root = Some(Arc::new(Node {
                 elems: vec![(key, val)],
                 kids: Vec::new(),
             }));
@@ -563,7 +555,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         }
 
         let rc = self.root.as_mut().unwrap();
-        let n = Rc::make_mut(rc);
+        let n = Arc::make_mut(rc);
         let (old_v, is_under_pop) = n.remove(key);
 
         if old_v.is_some() {
@@ -644,7 +636,7 @@ impl<'a, K, V, const N: usize> Iterator for Iter<'a, K, V, N> {
 
 #[cfg(test)]
 fn chk_node_ptr<'a, K: Ord, V, const N: usize>(
-    n: Option<&'a Rc<Node<K, V, N>>>,
+    n: Option<&'a Arc<Node<K, V, N>>>,
     prev: Option<&'a K>,
 ) -> (usize, Option<&'a K>) {
     match n {
