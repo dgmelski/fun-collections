@@ -387,14 +387,14 @@ pub struct BTreeMap<K, V, const N: usize = 2> {
 }
 
 impl<K, V, const N: usize> BTreeMap<K, V, N> {
-    // pub fn append(&mut self, other: &mut Self)
-    // where
-    //     K: Clone + Ord,
-    //     V: Clone,
-    // {
-    //     let other = std::mem::take(other);
-    //     self.extend(other);
-    // }
+    pub fn append(&mut self, other: &mut Self)
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
+        let other = std::mem::take(other);
+        self.extend(other);
+    }
 
     pub fn clear(&mut self) {
         self.len = 0;
