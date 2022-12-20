@@ -478,7 +478,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         })
     }
 
-    fn first_key_value(&self) -> Option<(&K, &V)> {
+    pub fn first_key_value(&self) -> Option<(&K, &V)> {
         let mut curr = self.root.as_ref()?;
         while let Some(next) = curr.child(0) {
             curr = next;
