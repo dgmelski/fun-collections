@@ -562,10 +562,26 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
             curr = rc.child(0);
         }
 
-        Iter { w }
+        Iter { w, len: self.len() }
     }
 
-    // TODO: iter_mut
+    pub fn iter_mut(&mut self) -> IterMut<'_, K, V, N>
+    where
+        K: Clone,
+        V: Clone,
+    {
+        let mut w = Vec::new();
+        let mut curr = self.root.as_mut();
+        while let Some(arc) = curr {
+            let n = Arc::make_mut(arc);
+            let elems = n.elems.iter_mut();
+            let mut kids = n.kids.iter_mut();
+            curr = kids.next();
+            w.push((elems, kids));
+        }
+
+        IterMut { w, len: self.len }
+    }
 
     pub fn keys(&self) -> impl Iterator<Item = &K> {
         self.iter().map(|e| e.0)
@@ -703,6 +719,7 @@ where
 
 pub struct Iter<'a, K, V, const N: usize> {
     w: Vec<(&'a Node<K, V, N>, usize)>,
+    len: usize,
 }
 
 impl<'a, K, V, const N: usize> Iterator for Iter<'a, K, V, N> {
@@ -727,7 +744,49 @@ impl<'a, K, V, const N: usize> Iterator for Iter<'a, K, V, N> {
             curr = rc.child(0);
         }
 
+        self.len -= 1;
+
         Some(ret)
+    }
+}
+
+pub struct IterMut<'a, K, V, const N: usize> {
+    w: Vec<(
+        std::slice::IterMut<'a, (K, V)>,
+        std::slice::IterMut<'a, Arc<Node<K, V, N>>>,
+    )>,
+    len: usize,
+}
+
+impl<'a, K, V, const N: usize> Iterator for IterMut<'a, K, V, N>
+where
+    K: Clone,
+    V: Clone,
+{
+    type Item = (&'a K, &'a mut V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (elems, kids) = self.w.last_mut()?;
+        let ret = elems.next().unwrap();
+        let mut next = kids.next();
+
+        if elems.len() == 0 {
+            assert_eq!(kids.len(), 0);
+            self.w.pop();
+        }
+
+        while let Some(arc) = next {
+            let n = Arc::make_mut(arc);
+            let elems = n.elems.iter_mut();
+            let mut kids = n.kids.iter_mut();
+            next = kids.next();
+            self.w.push((elems, kids));
+        }
+
+        self.len -= 1;
+
+        let (ref k, ref mut v) = ret;
+        Some((k, v))
     }
 }
 
@@ -984,6 +1043,31 @@ mod test {
         assert!(m1.into_iter().cmp(n1.into_iter()).is_eq());
     }
 
+    fn iter_mut_test(v1: Vec<u8>, v2: Vec<u8>) {
+        let mut m1 = BTreeMap::new();
+        let mut n1 = std::collections::BTreeMap::new();
+        for i in v1.clone() {
+            m1.insert(i, 0);
+            n1.insert(i, 0);
+        }
+
+        let mut m2 = m1.clone();
+        let mut n2 = n1.clone();
+        for i in v2.clone() {
+            m2.insert(i, 1);
+            n2.insert(i, 1);
+        }
+
+        m1.iter_mut().for_each(|(k, v)| *v = (*k).wrapping_mul(2));
+        n1.iter_mut().for_each(|(k, v)| *v = (*k).wrapping_mul(2));
+
+        m2.iter_mut().for_each(|(k, v)| *v = (*k).wrapping_mul(3));
+        n2.iter_mut().for_each(|(k, v)| *v = (*k).wrapping_mul(3));
+
+        assert!(m1.iter().cmp(n1.iter()).is_eq());
+        assert!(m2.iter().cmp(n2.iter()).is_eq());
+    }
+
     #[test]
     fn into_iter_regr1() {
         into_iter_test(vec![], vec![0, 1, 2]);
@@ -1040,6 +1124,10 @@ mod test {
 
         fn qc_into_iter(u: Vec<u8>, v: Vec<u8>) -> () {
             into_iter_test(u, v);
+        }
+
+        fn qc_iter_mut(u: Vec<u8>, v: Vec<u8>) -> () {
+            iter_mut_test(u, v);
         }
     }
 }
