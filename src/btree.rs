@@ -57,7 +57,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
     fn get_key_value<Q>(&self, key: &Q) -> Option<&(K, V)>
     where
         K: Borrow<Q>,
-        Q: Ord,
+        Q: Ord + ?Sized,
     {
         for i in 0..self.len() {
             match key.cmp(self.key(i).borrow()) {
@@ -344,7 +344,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
     where
         K: Borrow<Q> + Clone,
         V: Clone,
-        Q: Ord,
+        Q: Ord + ?Sized,
     {
         for i in 0..(self.elems.len()) {
             match key.cmp(self.key(i).borrow()) {
@@ -416,7 +416,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
     pub fn contains_key<Q>(&self, key: &Q) -> bool
     where
         K: Borrow<Q>,
-        Q: Ord,
+        Q: Ord + ?Sized,
     {
         let mut curr = match self.root.as_ref() {
             None => return false,
@@ -500,7 +500,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
     pub fn get<Q>(&self, key: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
-        Q: Ord,
+        Q: Ord + ?Sized,
     {
         self.get_key_value(key).map(|e| e.1)
     }
@@ -519,7 +519,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
     pub fn get_key_value<Q>(&self, key: &Q) -> Option<(&K, &V)>
     where
         K: Borrow<Q>,
-        Q: Ord,
+        Q: Ord + ?Sized,
     {
         self.root
             .as_ref()?
@@ -732,7 +732,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
     where
         K: Borrow<Q> + Clone,
         V: Clone,
-        Q: Ord,
+        Q: Ord + ?Sized,
     {
         // avoid unnecessary cloning
         if !self.contains_key(key) {
@@ -866,8 +866,8 @@ impl<K, V, const N: usize> Map for BTreeMap<K, V, N> {
     fn get_mut_<Q>(&mut self, k: &Q) -> Option<&mut V>
     where
         K: Borrow<Q> + Clone,
-        Q: Ord + ?Sized,
         V: Clone,
+        Q: Ord + ?Sized,
     {
         self.get_mut(k)
     }
