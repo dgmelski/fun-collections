@@ -548,16 +548,18 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
     pub fn into_keys(self) -> impl Iterator<Item = K>
     where
         K: Clone,
-        V: Clone, // TODO: this is unfortunate
+        V: Clone, // needed to clone shared nodes
     {
+        // TODO: needlessly clones values from owned nodes
         self.into_iter().map(|e| e.0)
     }
 
     pub fn into_values(self) -> impl Iterator<Item = V>
     where
-        K: Clone, // TODO: eliminate this bound
+        K: Clone, // needed to clone shared nodes
         V: Clone,
     {
+        // TODO: needlessly clones keys from owned nodes
         self.into_iter().map(|e| e.1)
     }
 
@@ -682,17 +684,57 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         self.rm_and_rebal(|n| n.remove(key)).map(|e| e.1)
     }
 
-    // TODO: retain()
-    // TOOD: split_off()
+    pub fn retain<F>(&mut self, mut f: F)
+    where
+        K: Clone + Ord,
+        V: Clone,
+        F: FnMut(&K, &mut V) -> bool,
+    {
+        // TODO: this can probably be more efficient. For example, we know the
+        // keys are sorted, so we can probably build the map more efficiently.
+        // (We do not know how many keys there are, however.)
+        *self = std::mem::take(self)
+            .into_iter()
+            .filter_map(
+                |(k, mut v)| {
+                    if f(&k, &mut v) {
+                        Some((k, v))
+                    } else {
+                        None
+                    }
+                },
+            )
+            .collect();
+    }
+
+    pub fn split_off<Q>(&mut self, key: &Q) -> Self
+    where
+        Q: Ord + ?Sized,
+        K: Borrow<Q> + Clone + Ord,
+        V: Clone,
+    {
+        // TODO: this can probably be more efficient
+        let (a, b) = std::mem::take(self)
+            .into_iter()
+            .partition(|(k, _)| key < k.borrow());
+
+        *self = a;
+        b
+    }
+
     // TOOD: try_insert()
 
     pub fn values(&self) -> impl Iterator<Item = &V> {
         self.iter().map(|e| e.1)
     }
 
-    // pub fn values_mut(&mut self) -> impl Iterator<Item = &mut V> {
-    //     self.iter_mut.map(|e| e.1)
-    // }
+    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut V>
+    where
+        K: Clone,
+        V: Clone,
+    {
+        self.iter_mut().map(|e| e.1)
+    }
 }
 
 // we implement our own default to avoid the Default constraints on K and V
