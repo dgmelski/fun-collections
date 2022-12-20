@@ -28,13 +28,13 @@ impl<T, const N: usize> BTreeSet<T, N> {
         self.map.contains_key(value)
     }
 
-    // /// Returns an iterator over elements in self and not in other
-    // pub fn difference<'a>(&'a self, other: &'a Self) -> Difference<'a, T>
-    // where
-    //     T: Ord,
-    // {
-    //     Difference::new(self.iter(), other.iter())
-    // }
+    /// Returns an iterator over elements in self and not in other
+    pub fn difference<'a>(&'a self, other: &'a Self) -> Difference<'a, T, N>
+    where
+        T: Ord,
+    {
+        Difference::new(self.iter(), other.iter())
+    }
 
     // TODO: drain_filter? (Part of unstable API)
 
@@ -61,121 +61,45 @@ impl<T, const N: usize> BTreeSet<T, N> {
         self.map.insert(value, ()).is_none()
     }
 
-    // /// Returns an iterator of the values that are in both self and other.
-    // pub fn intersection<'a>(&'a self, other: &'a Self) -> Intersection<'a, T>
-    // where
-    //     T: Ord,
-    // {
-    //     Intersection::new(self.iter(), other.iter())
-    // }
+    /// Returns an iterator of the values that are in both self and other.
+    pub fn intersection<'a>(&'a self, other: &'a Self) -> Intersection<'a, T, N>
+    where
+        T: Ord,
+    {
+        Intersection::new(self.iter(), other.iter())
+    }
 
-    // /// Returns true if self and other have no common values and false otherwise
-    // pub fn is_disjoint(&self, other: &Self) -> bool
-    // where
-    //     T: Ord,
-    // {
-    //     self.intersection(other).next().is_none()
-    // }
+    /// Returns true if self and other have no common values and false otherwise
+    pub fn is_disjoint(&self, other: &Self) -> bool
+    where
+        T: Ord,
+    {
+        self.intersection(other).next().is_none()
+    }
 
     /// Returns true if self is the empty set, false otherwise.
     pub fn is_empty(&self) -> bool {
         self.map.is_empty()
     }
 
-    // /// Tests if self is a subset of other.
-    // pub fn is_subset(&self, other: &Self) -> bool
-    // where
-    //     T: Ord,
-    // {
-    //     if self.is_empty() {
-    //         return true;
-    //     } else if self.len() > other.len() {
-    //         return false;
-    //     }
+    /// Tests if self is a subset of other.
+    pub fn is_subset(&self, other: &Self) -> bool
+    where
+        T: Ord,
+    {
+        // purportedly slow
+        self.is_empty()
+            || (self.len() < other.len()
+                && self.difference(other).next().is_none())
+    }
 
-    //     fn has_all<K, V>(
-    //         lhs: &Arc<Node<K, V>>,
-    //         w: &mut Vec<(&Arc<Node<K, V>>, bool)>,
-    //     ) -> bool
-    //     where
-    //         K: Ord,
-    //     {
-    //         // Strategy: we do an inorder recursive traversal of lhs (the
-    //         // suspected subset). Simultaneously, we keep an 'iterator' for the
-    //         // rhs (the suspected superset).  We also update the iterator
-    //         // 'in-order' but we look for opportunities to fast-forward.
-
-    //         // first traverse to lhs's left child
-    //         if let Some(lhs_left) = lhs.left.as_ref() {
-    //             if !has_all(lhs_left, w) {
-    //                 return false;
-    //             }
-    //         }
-
-    //         // now, look for lhs.key in rhs using our iterator
-    //         while let Some((rhs, is_left_done)) = w.last_mut() {
-    //             // pointer check to short circuit further comparisons
-    //             if Arc::ptr_eq(lhs, rhs) {
-    //                 w.pop();
-    //                 return true;
-    //             }
-
-    //             match lhs.key.cmp(&rhs.key) {
-    //                 Less => {
-    //                     // The only way we can find a lesser key than rhs.key
-    //                     // is to traverse to its left.  If we already matched
-    //                     // all of the keys there, it won't help to look again.
-    //                     if *is_left_done {
-    //                         return false;
-    //                     }
-
-    //                     *is_left_done = true;
-    //                     let rhs_left = rhs.left.as_ref().unwrap();
-    //                     w.push((rhs_left, rhs_left.left.is_none()));
-    //                 }
-
-    //                 Equal => {
-    //                     // We visited all the lesser keys on the lhs and we
-    //                     // do not need any remaining lesser keys on the rhs.
-    //                     // Move on to greater keys.
-    //                     let rhs = w.pop().unwrap().0;
-    //                     if let Some(rhs_right) = rhs.right.as_ref() {
-    //                         w.push((rhs_right, rhs_right.left.is_none()));
-    //                     }
-
-    //                     if let Some(lhs_right) = lhs.right.as_ref() {
-    //                         return has_all(lhs_right, w);
-    //                     } else {
-    //                         return true;
-    //                     }
-    //                 }
-
-    //                 Greater => {
-    //                     // the greater nodes in the rhs are to the right or up
-    //                     // TODO: we may be able to pop multiple nodes from rhs
-    //                     let rhs = w.pop().unwrap().0;
-    //                     if let Some(rhs_right) = rhs.right.as_ref() {
-    //                         w.push((rhs_right, rhs_right.left.is_none()));
-    //                     }
-    //                 }
-    //             }
-    //         }
-
-    //         false
-    //     }
-
-    //     let lhs = self.map.root.as_ref().unwrap();
-    //     let rhs = other.map.root.as_ref().unwrap();
-    //     has_all(lhs, &mut vec![(rhs, rhs.left.is_none())])
-    // }
-
-    // /// tests if self is a superset of other.
-    // pub fn is_superset(&self, other: &Self) -> bool
-    // where
-    //     T: Ord,
-    // {
-    //     other.is_subset(self)
-    // }
+    /// tests if self is a superset of other.
+    pub fn is_superset(&self, other: &Self) -> bool
+    where
+        T: Ord,
+    {
+        other.is_subset(self)
+    }
 
     /// Returns an iterator over self's values in sorted order.
     pub fn iter(&self) -> Iter<T, N> {
@@ -296,43 +220,15 @@ impl<T, const N: usize> BTreeSet<T, N> {
     //     ret
     // }
 
-    // /// Retain values for which f returns true and discard others
-    // pub fn retain<F>(&mut self, mut f: F)
-    // where
-    //     T: Clone + Ord,
-    //     F: FnMut(&T) -> bool,
-    // {
-    //     fn dfs<V, F>(n: Node<V, ()>, f: &mut F, acc: &mut BTreeMap<V, ()>)
-    //     where
-    //         F: FnMut(&V) -> bool,
-    //         V: Clone + Ord,
-    //     {
-    //         if let Some(mut lf) = n.left {
-    //             Arc::make_mut(&mut lf);
-    //             if let Ok(x) = Arc::try_unwrap(lf) {
-    //                 dfs(x, f, acc);
-    //             }
-    //         }
-
-    //         if f(&n.key) {
-    //             acc.insert(n.key, ());
-    //         }
-
-    //         if let Some(mut rt) = n.right {
-    //             Arc::make_mut(&mut rt);
-    //             if let Ok(x) = Arc::try_unwrap(rt) {
-    //                 dfs(x, f, acc);
-    //             }
-    //         }
-    //     }
-
-    //     let Some(mut root) = self.map.root.take() else { return; };
-    //     Arc::make_mut(&mut root);
-    //     let Ok(root) = Arc::try_unwrap(root) else { panic!("try_unwrap fail?") };
-    //     let mut acc = BTreeMap::new();
-    //     dfs(root, &mut f, &mut acc);
-    //     self.map = acc;
-    // }
+    /// Retain values for which f returns true and discard others
+    pub fn retain<F>(&mut self, f: F)
+    where
+        T: Clone + Ord,
+        F: FnMut(&T) -> bool,
+    {
+        let s = std::mem::take(self);
+        self.extend(s.into_iter().filter(f));
+    }
 
     /// Removes all elements greater or equal to key and returns them.
     pub fn split_off<Q>(&mut self, key: &Q) -> Self
@@ -345,13 +241,13 @@ impl<T, const N: usize> BTreeSet<T, N> {
         }
     }
 
-    // /// Returns an iterator over elements in self or other but not both.
-    // pub fn symmetric_difference<'a>(
-    //     &'a self,
-    //     other: &'a Self,
-    // ) -> SymmetricDifference<'a, T> {
-    //     SymmetricDifference::new(self.iter(), other.iter())
-    // }
+    /// Returns an iterator over elements in self or other but not both.
+    pub fn symmetric_difference<'a>(
+        &'a self,
+        other: &'a Self,
+    ) -> SymmetricDifference<'a, T, N> {
+        SymmetricDifference::new(self.iter(), other.iter())
+    }
 
     // /// Removes and returns the set member that matches value.
     // ///
@@ -378,12 +274,12 @@ impl<T, const N: usize> BTreeSet<T, N> {
     //     }
     // }
 
-    // /// Returns an iterator over the elements of self and other, ordered by key.
-    // ///
-    // /// Common elements are only returned once.
-    // pub fn union<'a>(&'a self, other: &'a Self) -> Union<'a, T> {
-    //     Union::new(self.iter(), other.iter())
-    // }
+    /// Returns an iterator over the elements of self and other, ordered by key.
+    ///
+    /// Common elements are only returned once.
+    pub fn union<'a>(&'a self, other: &'a Self) -> Union<'a, T, N> {
+        Union::new(self.iter(), other.iter())
+    }
 }
 
 pub struct Iter<'a, T, const N: usize> {
