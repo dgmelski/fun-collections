@@ -398,10 +398,10 @@ impl<'a, T, const N: usize> Iterator for Iter<'a, T, N> {
     }
 }
 
-// crate::make_set_op_iter!(Difference, Iter<'a, T, N>, 0b100);
-// crate::make_set_op_iter!(Intersection, Iter<'a, T, N>, 0b010);
-// crate::make_set_op_iter!(Union, Iter<'a, T, N>, 0b111);
-// crate::make_set_op_iter!(SymmetricDifference, Iter<'a, T, N>, 0b101);
+crate::make_set_op_iter!(Difference, Iter<'a, T, N>, 0b100, N);
+crate::make_set_op_iter!(Intersection, Iter<'a, T, N>, 0b010, N);
+crate::make_set_op_iter!(Union, Iter<'a, T, N>, 0b111, N);
+crate::make_set_op_iter!(SymmetricDifference, Iter<'a, T, N>, 0b101, N);
 
 pub struct IntoIter<T, const N: usize> {
     iter: crate::btree::IntoIter<T, (), N>,

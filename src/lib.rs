@@ -157,12 +157,12 @@ impl<T: Ord, I: Iterator<Item = T>, const P: u32> std::iter::FusedIterator
 }
 
 macro_rules! make_set_op_iter {
-    ( $name:ident, $iter:ty, $policy:literal ) => {
-        pub struct $name<'a, T: 'a> {
+    ( $name:ident, $iter:ty, $policy:literal $(, $N:ident)*) => {
+        pub struct $name<'a, T: 'a $(, const $N: usize)*> {
             iter: crate::SetOpIter<$iter, $policy>,
         }
 
-        impl<'a, T> $name<'a, T> {
+        impl<'a, T $(, const $N: usize)*> $name<'a, T $(, $N)*> {
             fn new(lhs: $iter, rhs: $iter) -> Self {
                 Self {
                     iter: crate::SetOpIter::new(lhs, rhs),
@@ -170,7 +170,8 @@ macro_rules! make_set_op_iter {
             }
         }
 
-        impl<'a, T: 'a + Ord> Iterator for $name<'a, T> {
+        impl<'a, T: 'a + Ord $(, const $N: usize)*> Iterator
+        for $name<'a, T $(, $N)*> {
             type Item = &'a T;
 
             fn next(&mut self) -> Option<Self::Item> {
@@ -178,7 +179,8 @@ macro_rules! make_set_op_iter {
             }
         }
 
-        impl<'a, T: 'a + Ord> std::iter::FusedIterator for $name<'a, T> {}
+        impl<'a, T: 'a + Ord$(, const $N: usize)*> std::iter::FusedIterator
+        for $name<'a, T $(, $N)*> {}
     };
 }
 
