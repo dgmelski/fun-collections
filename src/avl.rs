@@ -1127,7 +1127,7 @@ impl<K, V> AvlMap<K, V> {
     /// ```
     pub fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
     where
-        K: Borrow<Q> + Clone + Ord,
+        K: Borrow<Q> + Clone,
         Q: Ord + ?Sized,
         V: Clone,
     {
