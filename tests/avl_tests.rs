@@ -17,6 +17,18 @@ fn rot_rt_regr() {
     assert_eq!(iter.next(), None);
 }
 
+#[test]
+fn entry_test() {
+    let mut m = AvlMap::from([(0, 0), (1, 1), (2, 2)]);
+    m.entry(0).and_modify(|v| *v = 7);
+    assert_eq!(m.entry(3).or_default(), &0);
+    assert_eq!(m.entry(4).or_insert(4), &4);
+
+    assert_eq!(m.get(&0), Some(&7));
+    assert_eq!(m.get(&3), Some(&0));
+    assert_eq!(m.get(&4), Some(&4));
+}
+
 quickcheck! {
     fn qc_cmp_with_btree(xs: Vec<(u8, u32)>) -> () {
         let mut btree = std::collections::BTreeMap::new();

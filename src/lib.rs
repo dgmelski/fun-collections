@@ -182,3 +182,164 @@ macro_rules! make_set_op_iter {
 }
 
 use make_set_op_iter;
+
+#[derive(Debug)]
+pub struct OccupiedEntry<'a, K, V> {
+    key: K,
+    val: &'a mut V,
+}
+
+impl<'a, K, V: Clone> OccupiedEntry<'a, K, V> {
+    pub fn get(&self) -> &V {
+        self.val
+    }
+
+    pub fn get_mut(&mut self) -> &mut V {
+        self.val
+    }
+
+    pub fn insert(&mut self, new_val: V) -> V {
+        std::mem::replace(self.val, new_val)
+    }
+
+    pub fn into_mut(self) -> &'a mut V {
+        self.val
+    }
+
+    pub fn key(&self) -> &K {
+        &self.key
+    }
+
+    pub fn remove(self) -> V {
+        self.val.clone()
+    }
+
+    pub fn remove_entry(self) -> (K, V) {
+        (self.key, self.val.clone())
+    }
+}
+
+pub trait Map {
+    type Key;
+    type Value;
+
+    fn get_mut_<Q>(&mut self, key: &Q) -> Option<&mut Self::Value>
+    where
+        Self::Key: std::borrow::Borrow<Q> + Clone,
+        Self::Value: Clone,
+        Q: Ord + ?Sized;
+
+    fn insert_(
+        &mut self,
+        key: Self::Key,
+        val: Self::Value,
+    ) -> Option<Self::Value>
+    where
+        Self::Key: Clone + Ord,
+        Self::Value: Clone;
+}
+
+#[derive(Debug)]
+pub struct VacantEntry<'a, M: Map> {
+    key: M::Key,
+    map: &'a mut M,
+}
+
+impl<'a, M: Map> VacantEntry<'a, M> {
+    pub fn insert(self, val: M::Value) -> &'a mut M::Value
+    where
+        M::Key: Clone + Ord,
+        M::Value: Clone,
+    {
+        // TODO: the clone() here is lamentable
+        self.map.insert_(self.key.clone(), val);
+        self.map.get_mut_(&self.key).unwrap()
+    }
+
+    pub fn into_key(self) -> M::Key {
+        self.key
+    }
+
+    pub fn key(&self) -> &M::Key {
+        &self.key
+    }
+}
+
+#[derive(Debug)]
+pub enum Entry<'a, M: Map> {
+    Occupied(OccupiedEntry<'a, M::Key, M::Value>),
+    Vacant(VacantEntry<'a, M>),
+}
+
+impl<'a, M: Map> Entry<'a, M> {
+    pub fn and_modify<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(&mut M::Value),
+    {
+        if let Entry::Occupied(occ) = &mut self {
+            f(occ.val);
+        }
+
+        self
+    }
+
+    pub fn key(&self) -> &M::Key {
+        match self {
+            Entry::Occupied(x) => &x.key,
+            Entry::Vacant(x) => &x.key,
+        }
+    }
+
+    pub fn or_default(self) -> &'a mut M::Value
+    where
+        M::Key: Clone + Ord,
+        M::Value: Clone + Default,
+    {
+        match self {
+            Entry::Occupied(x) => x.into_mut(),
+            Entry::Vacant(x) => x.insert(M::Value::default()),
+        }
+    }
+
+    pub fn or_insert(self, default: M::Value) -> &'a mut M::Value
+    where
+        M::Key: Clone + Ord,
+        M::Value: Clone,
+    {
+        match self {
+            Entry::Occupied(x) => x.into_mut(),
+            Entry::Vacant(x) => x.insert(default),
+        }
+    }
+
+    pub fn or_insert_with<F: FnOnce() -> M::Value>(
+        self,
+        default: F,
+    ) -> &'a mut M::Value
+    where
+        M::Key: Clone + Ord,
+        M::Value: Clone,
+    {
+        match self {
+            Entry::Occupied(x) => x.into_mut(),
+            Entry::Vacant(x) => x.insert(default()),
+        }
+    }
+
+    pub fn or_insert_with_key<F: FnOnce(&M::Key) -> M::Value>(
+        self,
+        default: F,
+    ) -> &'a mut M::Value
+    where
+        M::Key: Clone + Ord,
+        M::Value: Clone,
+    {
+        match self {
+            Entry::Occupied(x) => x.into_mut(),
+            Entry::Vacant(x) => {
+                let v = default(&x.key);
+                x.insert(v)
+            }
+        }
+    }
+}
