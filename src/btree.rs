@@ -296,7 +296,28 @@ impl<K, V, const N: usize> Node<K, V, N> {
         IsUnderPop(self.elems.len() < Self::MIN_OCCUPANCY)
     }
 
-    fn rm_greatest(&mut self) -> (K, V, IsUnderPop)
+    fn pop_first(&mut self) -> Option<((K, V), IsUnderPop)>
+    where
+        K: Clone,
+        V: Clone,
+    {
+        if let Some(rt) = self.child_mut(0) {
+            // self is a branch; recurse to the rightmost child
+            let rt = Arc::make_mut(rt);
+            let ret = rt.pop_first();
+            if let Some((kv, IsUnderPop(true))) = ret {
+                Some((kv, self.rebal(0)))
+            } else {
+                ret
+            }
+        } else {
+            // self is a leaf
+            let kv = self.elems.remove(0);
+            Some((kv, IsUnderPop(self.elems.len() < Self::MIN_OCCUPANCY)))
+        }
+    }
+
+    fn pop_last(&mut self) -> Option<((K, V), IsUnderPop)>
     where
         K: Clone,
         V: Clone,
@@ -304,20 +325,20 @@ impl<K, V, const N: usize> Node<K, V, N> {
         if let Some(rt) = self.kids.last_mut() {
             // self is a branch; recurse to the rightmost child
             let rt = Arc::make_mut(rt);
-            let ret = rt.rm_greatest();
-            if let &IsUnderPop(true) = &ret.2 {
-                (ret.0, ret.1, self.rebal(self.elems.len()))
+            let ret = rt.pop_last();
+            if let Some((kv, IsUnderPop(true))) = ret {
+                Some((kv, self.rebal(self.elems.len())))
             } else {
                 ret
             }
         } else {
             // self is a leaf
-            let (k, v) = self.elems.pop().unwrap();
-            (k, v, IsUnderPop(self.elems.len() < Self::MIN_OCCUPANCY))
+            let kv = self.elems.pop().unwrap();
+            Some((kv, IsUnderPop(self.elems.len() < Self::MIN_OCCUPANCY)))
         }
     }
 
-    fn remove<Q>(&mut self, key: &Q) -> (Option<V>, IsUnderPop)
+    fn remove<Q>(&mut self, key: &Q) -> Option<((K, V), IsUnderPop)>
     where
         K: Borrow<Q> + Clone,
         V: Clone,
@@ -326,38 +347,32 @@ impl<K, V, const N: usize> Node<K, V, N> {
         for i in 0..(self.elems.len()) {
             match key.cmp(self.key(i).borrow()) {
                 Less => {
-                    if self.is_leaf() {
-                        return (None, IsUnderPop(false));
-                    }
-
-                    let lt_k = self.child_mut(i).unwrap();
+                    let lt_k = self.child_mut(i)?;
                     let lt_k = Arc::make_mut(lt_k);
-                    let ret = lt_k.remove(key);
-                    if let &(_, IsUnderPop(true)) = &ret {
-                        return (ret.0, self.rebal(i));
-                    } else {
-                        return ret;
-                    }
+                    let (kv, IsUnderPop(is_under_pop)) = lt_k.remove(key)?;
+                    return Some((
+                        kv,
+                        IsUnderPop(is_under_pop && self.rebal(i).0),
+                    ));
                 }
 
                 Equal => {
                     if self.is_leaf() {
-                        let old_v = self.elems.remove(i).1;
-                        return (
-                            Some(old_v),
+                        let old_kv = self.elems.remove(i);
+                        return Some((
+                            old_kv,
                             IsUnderPop(self.elems.len() < Self::MIN_OCCUPANCY),
-                        );
+                        ));
                     }
 
                     let lt_k = self.child_mut(i).unwrap();
                     let lt_k = Arc::make_mut(lt_k);
-                    let (k, v, is_under_pop) = lt_k.rm_greatest();
-                    *self.key_mut(i) = k;
-                    let old_v = replace(self.val_mut(i), v);
+                    let (kv, is_under_pop) = lt_k.pop_last().unwrap();
+                    let old_kv = replace(&mut self.elems[i], kv);
                     if is_under_pop.0 {
-                        return (Some(old_v), self.rebal(i));
+                        return Some((old_kv, self.rebal(i)));
                     } else {
-                        return (Some(old_v), IsUnderPop(false));
+                        return Some((old_kv, IsUnderPop(false)));
                     }
                 }
 
@@ -365,18 +380,14 @@ impl<K, V, const N: usize> Node<K, V, N> {
             }
         }
 
-        if self.is_leaf() {
-            return (None, IsUnderPop(false));
-        }
-
-        let gt_k = self.kids.last_mut().unwrap();
+        // greater than all in this node; try descending rightmost child
+        let gt_k = self.kids.last_mut()?;
         let gt_k = Arc::make_mut(gt_k);
-        let ret = gt_k.remove(key);
-        if let &IsUnderPop(true) = &ret.1 {
-            (ret.0, self.rebal(self.elems.len()))
-        } else {
-            ret
-        }
+        let (kv, IsUnderPop(is_under_pop)) = gt_k.remove(key)?;
+        return Some((
+            kv,
+            IsUnderPop(is_under_pop && self.rebal(self.elems.len()).0),
+        ));
     }
 }
 
@@ -605,8 +616,41 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         Self { len: 0, root: None }
     }
 
-    // TODO: pop_first
-    // TOOD: pop_last
+    fn rm_and_rebal<RM>(&mut self, remover: RM) -> Option<(K, V)>
+    where
+        K: Clone,
+        V: Clone,
+        RM: FnOnce(&mut Node<K, V, N>) -> Option<((K, V), IsUnderPop)>,
+    {
+        let rc = self.root.as_mut()?;
+        let n = Arc::make_mut(rc);
+        let (old_kv, is_under_pop) = remover(n)?;
+
+        self.len -= 1;
+
+        if is_under_pop.0 && n.elems.is_empty() {
+            self.root = n.kids.pop();
+        }
+
+        Some(old_kv)
+    }
+
+    pub fn pop_first(&mut self) -> Option<(K, V)>
+    where
+        K: Clone,
+        V: Clone,
+    {
+        self.rm_and_rebal(|n| n.pop_first())
+    }
+
+    pub fn pop_last(&mut self) -> Option<(K, V)>
+    where
+        K: Clone,
+        V: Clone,
+    {
+        self.rm_and_rebal(|n| n.pop_last())
+    }
+
     // TODO: range
     // TODO: range_mut
 
@@ -635,19 +679,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
             return None;
         }
 
-        let rc = self.root.as_mut().unwrap();
-        let n = Arc::make_mut(rc);
-        let (old_v, is_under_pop) = n.remove(key);
-
-        if old_v.is_some() {
-            self.len -= 1;
-        }
-
-        if is_under_pop.0 && n.elems.is_empty() {
-            self.root = n.kids.pop();
-        }
-
-        old_v
+        self.rm_and_rebal(|n| n.remove(key)).map(|e| e.1)
     }
 
     // TODO: retain()
