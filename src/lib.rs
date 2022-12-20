@@ -74,6 +74,7 @@ pub use avl::AvlMap;
 
 pub mod btree;
 pub type BTreeMap<K, V> = btree::BTreeMap<K, V, 7>;
+pub type BTreeSet<T> = btree::btree_set::BTreeSet<T, 7>;
 
 struct SortedMergeIter<I: Iterator> {
     lhs: std::iter::Peekable<I>,

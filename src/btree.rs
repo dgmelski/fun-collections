@@ -5,6 +5,8 @@ use std::sync::Arc;
 
 use crate::{Entry, Map, OccupiedEntry, VacantEntry};
 
+pub mod btree_set;
+
 type NodePtr<K, V, const N: usize> = Arc<Node<K, V, N>>;
 
 #[derive(Clone)]
@@ -824,6 +826,8 @@ where
     }
 }
 
+impl<K: Eq, V: Eq, const N: usize> Eq for BTreeMap<K, V, N> {}
+
 impl<K, V, const N: usize> From<[(K, V); N]> for BTreeMap<K, V, N>
 where
     K: Clone + Ord,
@@ -878,6 +882,37 @@ impl<K, V, const N: usize> Map for BTreeMap<K, V, N> {
         V: Clone,
     {
         self.insert(key, val)
+    }
+}
+
+impl<K, V, const N: usize> PartialEq for BTreeMap<K, V, N>
+where
+    K: PartialEq,
+    V: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.len() == other.len()
+            && self.iter().zip(other.iter()).all(|(x, y)| x == y)
+    }
+}
+
+impl<K, V, const N: usize> PartialOrd for BTreeMap<K, V, N>
+where
+    K: PartialOrd,
+    V: PartialOrd,
+{
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.iter().partial_cmp(other.iter())
+    }
+}
+
+impl<K, V, const N: usize> Ord for BTreeMap<K, V, N>
+where
+    K: Ord,
+    V: Ord,
+{
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.iter().cmp(other.iter())
     }
 }
 
