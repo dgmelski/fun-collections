@@ -455,7 +455,28 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         }
     }
 
-    // TODO: first_entry()
+    /// Return an Entry for the least key in the map.
+    pub fn first_entry(&mut self, key: K) -> Entry<'_, Self>
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
+        // avoid "double borrow" problem
+        if self.is_empty() {
+            return Entry::Vacant(VacantEntry { key, map: self });
+        }
+
+        let curr = self.root.as_mut().unwrap();
+        let mut n = Arc::make_mut(curr);
+        while !n.kids.is_empty() {
+            n = Arc::make_mut(&mut n.kids[0]);
+        }
+
+        Entry::Occupied(OccupiedEntry {
+            key,
+            val: &mut n.elems[0].1,
+        })
+    }
 
     fn first_key_value(&self) -> Option<(&K, &V)> {
         let mut curr = self.root.as_ref()?;
@@ -616,7 +637,28 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         self.iter().map(|e| e.0)
     }
 
-    // TODO: last_entry()
+    /// Return an Entry for the least key in the map.
+    pub fn last_entry(&mut self, key: K) -> Entry<'_, Self>
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
+        // avoid "double borrow" problem
+        if self.is_empty() {
+            return Entry::Vacant(VacantEntry { key, map: self });
+        }
+
+        let curr = self.root.as_mut().unwrap();
+        let mut n = Arc::make_mut(curr);
+        while let Some(arc) = n.kids.last_mut() {
+            n = Arc::make_mut(arc);
+        }
+
+        Entry::Occupied(OccupiedEntry {
+            key,
+            val: &mut n.elems.last_mut().unwrap().1,
+        })
+    }
 
     pub fn last_key_value(&self) -> Option<(&K, &V)> {
         let mut curr = self.root.as_ref()?;
