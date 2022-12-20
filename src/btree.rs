@@ -72,7 +72,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
     where
         K: Borrow<Q> + Clone,
         V: Clone,
-        Q: Ord,
+        Q: Ord + ?Sized,
     {
         for i in 0..self.len() {
             match key.cmp(self.key(i).borrow()) {
@@ -494,7 +494,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
     where
         K: Borrow<Q> + Clone,
         V: Clone,
-        Q: Ord,
+        Q: Ord + ?Sized,
     {
         let rc = self.root.as_mut()?;
         let n = Arc::make_mut(rc);
