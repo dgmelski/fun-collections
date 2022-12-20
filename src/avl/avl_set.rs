@@ -55,16 +55,7 @@ impl<T> AvlSet<T> {
         T: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        let mut curr = &self.map.root;
-        while let Some(n) = curr {
-            match value.cmp(n.key.borrow()) {
-                Less => curr = &n.left,
-                Equal => return Some(&n.key),
-                Greater => curr = &n.right,
-            }
-        }
-
-        None
+        self.map.get_key_value(value).map(|e| e.0)
     }
 
     /// Inserts the given value and returns true if self did not already have
