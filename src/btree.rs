@@ -3,6 +3,8 @@ use std::cmp::Ordering::*;
 use std::mem::replace;
 use std::sync::Arc;
 
+use crate::{Entry, Map, OccupiedEntry, VacantEntry};
+
 type NodePtr<K, V, const N: usize> = Arc<Node<K, V, N>>;
 
 #[derive(Clone)]
@@ -438,7 +440,21 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         }
     }
 
-    // TODO: entry()
+    /// Returns an Entry that simplifies some update operations.
+    pub fn entry(&mut self, key: K) -> Entry<'_, Self>
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
+        // TODO: all the same, do we need the double lookup?
+        if self.contains_key(&key) {
+            let val = self.get_mut(&key).unwrap();
+            Entry::Occupied(OccupiedEntry { key, val })
+        } else {
+            Entry::Vacant(VacantEntry { key, map: self })
+        }
+    }
+
     // TODO: first_entry()
 
     fn first_key_value(&self) -> Option<(&K, &V)> {
@@ -798,6 +814,28 @@ where
 
     fn into_iter(self) -> Self::IntoIter {
         IntoIter::new(self)
+    }
+}
+
+impl<K, V, const N: usize> Map for BTreeMap<K, V, N> {
+    type Key = K;
+    type Value = V;
+
+    fn get_mut_<Q>(&mut self, k: &Q) -> Option<&mut V>
+    where
+        K: Borrow<Q> + Clone,
+        Q: Ord + ?Sized,
+        V: Clone,
+    {
+        self.get_mut(k)
+    }
+
+    fn insert_(&mut self, key: K, val: V) -> Option<V>
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
+        self.insert(key, val)
     }
 }
 
