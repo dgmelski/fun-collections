@@ -737,6 +737,16 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
     }
 }
 
+impl<K, V, const N: usize> std::fmt::Debug for BTreeMap<K, V, N>
+where
+    K: std::fmt::Debug,
+    V: std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_map().entries(self.iter()).finish()
+    }
+}
+
 // we implement our own default to avoid the Default constraints on K and V
 impl<K, V, const N: usize> Default for BTreeMap<K, V, N> {
     fn default() -> Self {
@@ -796,6 +806,19 @@ pub struct Iter<'a, K, V, const N: usize> {
     len: usize,
 }
 
+impl<'a, K, V, const N: usize> std::fmt::Debug for Iter<'a, K, V, N>
+where
+    K: std::fmt::Debug,
+    V: std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("btree::Iter")
+            .field("len", &self.len)
+            .field("next", &self.w.last().and_then(|(n, i)| n.elems.get(*i)))
+            .finish()
+    }
+}
+
 impl<'a, K, V, const N: usize> Iterator for Iter<'a, K, V, N> {
     type Item = (&'a K, &'a V);
 
@@ -830,6 +853,22 @@ pub struct IterMut<'a, K, V, const N: usize> {
         std::slice::IterMut<'a, Arc<Node<K, V, N>>>,
     )>,
     len: usize,
+}
+
+impl<'a, K, V, const N: usize> std::fmt::Debug for IterMut<'a, K, V, N>
+where
+    K: std::fmt::Debug,
+    V: std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("btree::IterMut")
+            .field("len", &self.len)
+            .field(
+                "node_elems",
+                &self.w.last().and_then(|(elems, _)| Some(elems)),
+            )
+            .finish()
+    }
 }
 
 impl<'a, K, V, const N: usize> Iterator for IterMut<'a, K, V, N>
@@ -947,6 +986,42 @@ impl<K, V, const N: usize> IntoIter<K, V, N> {
         ii.descend();
 
         ii
+    }
+}
+
+impl<K, V, const N: usize> std::fmt::Debug for IntoIter<K, V, N>
+where
+    K: std::fmt::Debug,
+    V: std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name: &str;
+        let desc: &dyn std::fmt::Debug;
+        let some_elems: Option<&std::vec::IntoIter<(K, V)>>;
+        let some_kv: Option<&(K, V)>;
+        match self.work.last() {
+            None => {
+                name = "next";
+                desc = &None::<(K, V)>;
+            }
+
+            Some(IntoIterErg::Owned(elems, _)) => {
+                name = "node_elems";
+                some_elems = Some(elems);
+                desc = &some_elems;
+            }
+
+            Some(IntoIterErg::Borrowed(n, i)) => {
+                name = "next";
+                some_kv = n.elems.get(*i);
+                desc = &some_kv;
+            }
+        };
+
+        f.debug_struct("btree::IntoIter")
+            .field("len", &self.len)
+            .field(name, desc)
+            .finish()
     }
 }
 
