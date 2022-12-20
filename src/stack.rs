@@ -11,7 +11,6 @@ struct List<T> {
     rest: OptList<T>,
 }
 
-#[derive(Clone)]
 /// Implements a stack with constant time `push`, `pop`, and `clone` operations.
 ///
 /// The stored elements must implement `Clone`.  During `pop` operations, popped
@@ -41,6 +40,7 @@ struct List<T> {
 /// assert_eq!(t.pop(), Some(Box::new(2))); // pop moves Box(2) (unshared)
 /// assert_eq!(t.pop(), Some(Box::new(0))); // pop moves Box(0) (now unshared)
 /// ```
+#[derive(Clone)]
 pub struct Stack<T> {
     len: usize,
     elems: OptList<T>,
@@ -108,7 +108,7 @@ impl<T: Clone> Iterator for IntoIter<T> {
     }
 }
 
-impl<T: Clone> Stack<T> {
+impl<T> Stack<T> {
     /// Creates an empty stack.
     ///
     /// # Examples
@@ -246,12 +246,18 @@ impl<T: Clone> Stack<T> {
     /// assert_eq!(s.pop(), Some(8));
     /// assert_eq!(s.pop(), Some(2));
     /// ```
-    pub fn top_mut(&mut self) -> Option<&mut T> {
+    pub fn top_mut(&mut self) -> Option<&mut T>
+    where
+        T: Clone,
+    {
         self.elems.as_mut().map(|rc| &mut Rc::make_mut(rc).elem)
     }
 
     /// Returns the top of the stack or `None` if empty.
-    pub fn pop(&mut self) -> Option<T> {
+    pub fn pop(&mut self) -> Option<T>
+    where
+        T: Clone,
+    {
         let opt_list = self.elems.take();
         match opt_list {
             None => None,
@@ -298,8 +304,13 @@ impl<T: Clone> Stack<T> {
     /// assert!(s.is_empty());
     /// ```
     pub fn clear(&mut self) {
-        self.elems.take();
         self.len = 0;
+
+        // avoid deep recursion when dropping a large, unshared list
+        let mut hd = self.elems.take();
+        while let Some(next) = hd.as_mut().and_then(Rc::get_mut) {
+            hd = next.rest.take();
+        }
     }
 
     /// Tests if the element x occurs in the stack.
@@ -353,7 +364,10 @@ impl<T: Clone> Stack<T> {
     /// assert_eq!(s.pop(), Some('a'));
     /// assert_eq!(s.pop(), None);
     /// ```
-    pub fn remove(&mut self, at: usize) -> T {
+    pub fn remove(&mut self, at: usize) -> T
+    where
+        T: Clone,
+    {
         if at >= self.len {
             panic!("Asked to remove item # {at}, but only {} items.", self.len)
         }
@@ -409,7 +423,10 @@ impl<T: Clone> Stack<T> {
     /// assert!(s.into_iter().cmp((0..7).rev()).is_eq());
     /// assert!(t.into_iter().cmp((7..21).rev()).is_eq());
     /// ```
-    pub fn split_off(&mut self, mut at: usize) -> Self {
+    pub fn split_off(&mut self, mut at: usize) -> Self
+    where
+        T: Clone,
+    {
         if at > self.len {
             panic!("Asked to split off {at} items but only {} avail.", self.len)
         }
@@ -456,7 +473,7 @@ impl<T: Clone> Stack<T> {
     }
 }
 
-impl<T: Clone + Debug> Debug for Stack<T> {
+impl<T: Debug> Debug for Stack<T> {
     /// Prints the `Stack` to the supplied `Formatter`.
     ///
     /// # Examples
@@ -475,7 +492,7 @@ impl<T: Clone + Debug> Debug for Stack<T> {
     }
 }
 
-impl<T: Clone> Default for Stack<T> {
+impl<T> Default for Stack<T> {
     fn default() -> Self {
         Stack::new()
     }
@@ -484,10 +501,7 @@ impl<T: Clone> Default for Stack<T> {
 impl<T> Drop for Stack<T> {
     // avoid deep recursion when dropping a large stack
     fn drop(&mut self) {
-        let mut hd = self.elems.take();
-        while let Some(next) = hd.as_mut().and_then(Rc::get_mut) {
-            hd = next.rest.take();
-        }
+        self.clear();
     }
 }
 
@@ -514,14 +528,14 @@ impl<T: Clone> IntoIterator for Stack<T> {
     }
 }
 
-impl<T: Clone + PartialEq> PartialEq for Stack<T> {
+impl<T: PartialEq> PartialEq for Stack<T> {
     // TODO: test
     fn eq(&self, rhs: &Self) -> bool {
         self.len == rhs.len && self.iter().zip(rhs.iter()).all(|(a, b)| a == b)
     }
 }
 
-impl<T: Clone + Eq> Eq for Stack<T> {}
+impl<T: Eq> Eq for Stack<T> {}
 
 impl<T: Clone + PartialOrd> PartialOrd for Stack<T> {
     // tODO: test
