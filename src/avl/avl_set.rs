@@ -637,14 +637,14 @@ mod test {
         t1: &std::collections::BTreeSet<u8>,
         t2: &std::collections::BTreeSet<u8>,
     ) {
-        assert!(s1.intersection(&s2).cmp(t1.intersection(&t2)).is_eq());
-        assert_eq!(s1.is_disjoint(&s2), t1.is_disjoint(&t2));
-        assert_eq!(s1.is_subset(&s2), t1.is_subset(&t2));
-        assert_eq!(s1.is_superset(&s2), t1.is_superset(&t2));
-        assert!(s1.union(&s2).cmp(t1.union(&t2)).is_eq());
+        assert!(s1.intersection(s2).cmp(t1.intersection(t2)).is_eq());
+        assert_eq!(s1.is_disjoint(s2), t1.is_disjoint(t2));
+        assert_eq!(s1.is_subset(s2), t1.is_subset(t2));
+        assert_eq!(s1.is_superset(s2), t1.is_superset(t2));
+        assert!(s1.union(s2).cmp(t1.union(t2)).is_eq());
         assert!(s1
-            .symmetric_difference(&s2)
-            .cmp(t1.symmetric_difference(&t2))
+            .symmetric_difference(s2)
+            .cmp(t1.symmetric_difference(t2))
             .is_eq());
     }
 

@@ -2170,7 +2170,7 @@ mod test {
     }
 
     fn split_test<K: Clone + Ord, V: Clone>(mut fmap: AvlMap<K, V>, k: &K) {
-        let rhs = fmap.split_off(&k);
+        let rhs = fmap.split_off(k);
         fmap.chk();
         rhs.chk();
         assert!(fmap.last_key_value().map_or(true, |(k2, _)| k2 < k));
@@ -2179,7 +2179,7 @@ mod test {
 
     // systematically try deleting each element of fmap
     fn chk_all_removes(fmap: AvlMap<u8, u8>) {
-        for (k, v) in fmap.clone().iter() {
+        for (k, v) in fmap.iter() {
             let mut fmap2 = fmap.clone();
             assert_eq!(fmap2.remove(k), Some(*v));
             fmap2.chk();
@@ -2296,7 +2296,7 @@ mod test {
 
     type TestEntries = Vec<(u8, u16)>;
 
-    fn intersection_test(v1: TestEntries, v2: TestEntries) -> () {
+    fn intersection_test(v1: TestEntries, v2: TestEntries) {
         let f1 = AvlMap::from_iter(v1.into_iter());
         let f2 = AvlMap::from_iter(v2.into_iter());
         let both = AvlMap::new_intersect(f1.clone(), f2.clone());
@@ -2328,7 +2328,7 @@ mod test {
     //         .for_each(|(k, v)| assert_eq!(Some(v), either.get(k)));
     // }
 
-    fn diff_test(v1: TestEntries, v2: TestEntries) -> () {
+    fn diff_test(v1: TestEntries, v2: TestEntries) {
         let f1 = AvlMap::from_iter(v1.into_iter());
         let f2 = AvlMap::from_iter(v2.into_iter());
         let diff = AvlMap::new_diff(f1.clone(), f2.clone());
@@ -2345,7 +2345,7 @@ mod test {
         assert!(f2.iter().all(|(k, _)| !diff.contains_key(k)));
     }
 
-    fn sym_diff_test(v1: TestEntries, v2: TestEntries) -> () {
+    fn sym_diff_test(v1: TestEntries, v2: TestEntries) {
         let f1 = AvlMap::from_iter(v1.into_iter());
         let f2 = AvlMap::from_iter(v2.into_iter());
         let sym_diff = AvlMap::new_sym_diff(f1.clone(), f2.clone());

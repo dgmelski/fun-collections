@@ -645,27 +645,6 @@ mod tests {
         assert_eq!(s2.pop(), Some(1));
     }
 
-    #[test]
-    fn iter_lifetime() {
-        let mut s = Stack::new();
-        for i in vec![0, 1, 2] {
-            s.push(i);
-        }
-
-        let mut iter = s.iter();
-        let a2 = iter.next();
-        let a1 = iter.next();
-        let a0 = iter.next();
-        drop(iter);
-
-        // The references from the iterator are borrowed from 's' and live even
-        // after drop(iter).  The compiler complains if we drop(s) here.
-
-        assert_eq!(*a2.unwrap(), 2);
-        assert_eq!(*a1.unwrap(), 1);
-        assert_eq!(*a0.unwrap(), 0);
-    }
-
     struct CloneCounter {
         pub counter: Rc<RefCell<usize>>,
     }
@@ -794,17 +773,17 @@ mod tests {
             log: log.clone(),
         };
 
-        let mut s1: Stack<_> = (0..3).into_iter().map(|i| new_dr(i)).collect();
+        let mut s1: Stack<_> = (0..3).into_iter().map(new_dr).collect();
         let mut s2 = s1.clone();
 
-        s1.extend((3..6).into_iter().map(|i| new_dr(i)));
-        s2.extend((6..9).into_iter().map(|i| new_dr(i)));
+        s1.extend((3..6).into_iter().map(new_dr));
+        s2.extend((6..9).into_iter().map(new_dr));
 
         drop(s2); // should only drop the unshared nodes
-        assert!((*log).borrow().iter().map(|&x| x).cmp((6..9).rev()).is_eq());
+        assert!((*log).borrow().iter().copied().cmp((6..9).rev()).is_eq());
 
         s1 = Stack::new(); // implicit drop of old value of s1
-        assert!((*log).borrow().iter().map(|&x| x).cmp((0..9).rev()).is_eq());
+        assert!((*log).borrow().iter().copied().cmp((0..9).rev()).is_eq());
         assert!(s1.is_empty());
     }
 

@@ -69,11 +69,29 @@ macro_rules! for_each_map_type {
                 $macro_name!(BTreeMap);
             }
 
+            mod shared_btree_minpop_0003 {
+                use test::Bencher;
+
+                type BTreeMap<K, V> =
+                    lazy_clone_collections::btree::BTreeMap<K, V, 3>;
+
+                $macro_name!(BTreeMap);
+            }
+
             mod shared_btree_minpop_0007 {
                 use test::Bencher;
 
                 type BTreeMap<K, V> =
                     lazy_clone_collections::btree::BTreeMap<K, V, 7>;
+
+                $macro_name!(BTreeMap);
+            }
+
+            mod shared_btree_minpop_0015 {
+                use test::Bencher;
+
+                type BTreeMap<K, V> =
+                    lazy_clone_collections::btree::BTreeMap<K, V, 15>;
 
                 $macro_name!(BTreeMap);
             }
@@ -333,7 +351,7 @@ fn avl_into_iter(b: &mut test::Bencher) {
     let vs: Vec<_> = (0..1000).map(|i| (i, ())).collect();
     b.iter(|| {
         let m: lazy_clone_collections::AvlMap<_, _> =
-            vs.iter().map(|p| p.clone()).collect();
+            vs.iter().copied().collect();
         m.into_iter().map(|e| e.0).sum::<usize>();
     });
 }

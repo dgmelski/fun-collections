@@ -114,7 +114,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
             ub_x += 1;
         }
 
-        // Recurse to the appropriate child if it exists (we're not a leaf).
+        // Recurse to the appropriate child if it exists (ie, we're not a leaf).
         // If we are a leaf, pretend that we visited a child and it resulted in
         // needing to insert a new separator at this level.
         let res = match self.child_mut(ub_x) {
@@ -388,10 +388,10 @@ impl<K, V, const N: usize> Node<K, V, N> {
         let gt_k = self.kids.last_mut()?;
         let gt_k = Arc::make_mut(gt_k);
         let (kv, IsUnderPop(is_under_pop)) = gt_k.remove(key)?;
-        return Some((
+        Some((
             kv,
             IsUnderPop(is_under_pop && self.rebal(self.elems.len()).0),
-        ));
+        ))
     }
 }
 
@@ -962,11 +962,13 @@ impl<'a, K, V, const N: usize> Iterator for Iter<'a, K, V, N> {
     }
 }
 
+type IterMutWorklist<'a, K, V, const N: usize> = Vec<(
+    std::slice::IterMut<'a, (K, V)>,
+    std::slice::IterMut<'a, Arc<Node<K, V, N>>>,
+)>;
+
 pub struct IterMut<'a, K, V, const N: usize> {
-    w: Vec<(
-        std::slice::IterMut<'a, (K, V)>,
-        std::slice::IterMut<'a, Arc<Node<K, V, N>>>,
-    )>,
+    w: IterMutWorklist<'a, K, V, N>,
     len: usize,
 }
 
@@ -978,10 +980,7 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("btree::IterMut")
             .field("len", &self.len)
-            .field(
-                "node_elems",
-                &self.w.last().and_then(|(elems, _)| Some(elems)),
-            )
+            .field("node_elems", &self.w.last().map(|(elems, _)| elems))
             .finish()
     }
 }
@@ -1140,7 +1139,7 @@ where
     }
 }
 
-impl<'a, K, V, const N: usize> Iterator for IntoIter<K, V, N>
+impl<K, V, const N: usize> Iterator for IntoIter<K, V, N>
 where
     K: Clone,
     V: Clone,
@@ -1151,10 +1150,7 @@ where
         use IntoIterErg::*;
 
         let ret = match self.work.last_mut()? {
-            Owned(elems, _) => {
-                let ret = elems.next().unwrap();
-                ret
-            }
+            Owned(elems, _) => elems.next().unwrap(),
 
             Borrowed(arc, i) => {
                 let ret = arc.elems[*i].clone();
@@ -1190,10 +1186,12 @@ fn chk_node_ptr<'a, K: Ord, V, const N: usize>(
 #[cfg(test)]
 impl<K: Ord, V, const N: usize> Node<K, V, N> {
     fn chk(&self, prev: Option<&K>) -> (usize, Option<&K>) {
-        assert!(self.elems.len() > 0, "no entries");
+        assert!(!self.elems.is_empty(), "no entries");
 
         let (ht, prev) = chk_node_ptr(self.child(0), prev);
-        prev.map(|k| assert!(k < self.key(0), "order violation"));
+        if let Some(k) = prev {
+            assert!(k < self.key(0), "order violation");
+        }
         let mut prev = Some(self.key(0));
 
         for i in 1..self.len() {
@@ -1237,7 +1235,7 @@ mod test {
         assert_eq!(m.len(), 0);
     }
 
-    fn test_insert(elems: TestElems) -> () {
+    fn test_insert(elems: TestElems) {
         let mut m1 = BTreeMap::new();
         let mut m2 = std::collections::BTreeMap::new();
         for (k, v) in elems {
@@ -1254,7 +1252,7 @@ mod test {
         assert!(m1.iter().cmp(m2.iter()).is_eq());
     }
 
-    fn test_remove(elems: TestElems) -> () {
+    fn test_remove(elems: TestElems) {
         let mut m1 = BTreeMap::new();
         let mut m2 = std::collections::HashMap::new();
         for (k, v) in elems {
@@ -1287,7 +1285,7 @@ mod test {
 
         // shared
         let m1: BTreeMap<u8, ()> = u.iter().map(|x| (*x, ())).collect();
-        let m2 = m1.clone();
+        let m2 = m1;
         let n1: std::collections::BTreeMap<u8, ()> =
             u.iter().map(|x| (*x, ())).collect();
         assert!(m2.into_iter().cmp(n1.into_iter()).is_eq());
@@ -1310,14 +1308,14 @@ mod test {
     fn iter_mut_test(v1: Vec<u8>, v2: Vec<u8>) {
         let mut m1 = BTreeMap::new();
         let mut n1 = std::collections::BTreeMap::new();
-        for i in v1.clone() {
+        for i in v1 {
             m1.insert(i, 0);
             n1.insert(i, 0);
         }
 
         let mut m2 = m1.clone();
         let mut n2 = n1.clone();
-        for i in v2.clone() {
+        for i in v2 {
             m2.insert(i, 1);
             n2.insert(i, 1);
         }

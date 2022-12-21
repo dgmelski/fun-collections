@@ -87,7 +87,6 @@ impl<T, const N: usize> BTreeSet<T, N> {
     where
         T: Ord,
     {
-        // purportedly slow
         self.is_empty()
             || (self.len() < other.len()
                 && self.difference(other).next().is_none())

@@ -13,9 +13,8 @@ quickcheck! {
         let mut fs = vec![Stack::new()];
         let mut vs = vec![Vec::new()];
 
-        let mut i = 0;
 
-        for &x in xs.iter() {
+        for (i, &x) in xs.iter().enumerate() {
             // Use the bottom bits to select a mutation operation.  Use the rest
             // as an operand, if required.
             let op = x % 16;
@@ -51,14 +50,12 @@ quickcheck! {
 
             for j in 0..fs.len() {
                 for k in vs[j][0..(2.min(vs[j].len()))].iter() {
-                    assert!(fs[j].contains(&k));
+                    assert!(fs[j].contains(k));
                 }
                 assert_eq!(fs[j].is_empty(), vs[j].is_empty());
                 assert_eq!(fs[j].len(), vs[j].len());
                 assert!(fs[j].iter().cmp(vs[j].iter().rev()).is_eq());
             }
-
-            i += 1;
         }
 
         true
