@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Eq)]
+#[derive(Clone, Eq)]
 pub struct BTreeSet<T, const N: usize> {
     map: BTreeMap<T, (), N>,
 }
@@ -125,61 +125,69 @@ impl<T, const N: usize> BTreeSet<T, N> {
         }
     }
 
-    // /// Creates a new set with the elements of lhs that are not in rhs.
-    // pub fn new_diff(lhs: Self, rhs: Self) -> Self
-    // where
-    //     T: Clone + Ord,
-    // {
-    //     let root = super::diff(lhs.map.root, rhs.map.root);
-    //     Self {
-    //         map: BTreeMap {
-    //             len: super::len(&root),
-    //             root,
-    //         },
-    //     }
-    // }
+    /// Creates a new set with the elements of lhs that are not in rhs.
+    pub fn new_diff(mut lhs: Self, rhs: Self) -> Self
+    where
+        T: Clone + Ord,
+    {
+        if lhs.len() * 4 < rhs.len() {
+            lhs.into_iter().filter(|k| !rhs.contains(k)).collect()
+        } else {
+            for k in rhs {
+                lhs.remove(&k);
+            }
+            lhs
+        }
+    }
 
-    // /// Creates a new set with the elements of lhs that are also in rhs.
-    // pub fn new_intersection(lhs: Self, rhs: Self) -> Self
-    // where
-    //     T: Clone + Ord,
-    // {
-    //     let root = super::intersect(lhs.map.root, rhs.map.root);
-    //     Self {
-    //         map: BTreeMap {
-    //             len: super::len(&root),
-    //             root,
-    //         },
-    //     }
-    // }
+    /// Creates a new set with the elements of lhs that are also in rhs.
+    pub fn new_intersection(lhs: Self, rhs: Self) -> Self
+    where
+        T: Clone + Ord,
+    {
+        if lhs.len() < rhs.len() {
+            lhs.into_iter().filter(|k| rhs.contains(k)).collect()
+        } else {
+            rhs.into_iter().filter(|k| lhs.contains(k)).collect()
+        }
+    }
 
-    // /// Creates a new set with the elements of both lhs and rhs.
-    // pub fn new_union(lhs: Self, rhs: Self) -> Self
-    // where
-    //     T: Clone + Ord,
-    // {
-    //     let root = super::union(lhs.map.root, rhs.map.root);
-    //     Self {
-    //         map: BTreeMap {
-    //             len: super::len(&root),
-    //             root,
-    //         },
-    //     }
-    // }
+    /// Creates a new set with the elements of both lhs and rhs.
+    pub fn new_union(mut lhs: Self, mut rhs: Self) -> Self
+    where
+        T: Clone + Ord,
+    {
+        if rhs.len() >= lhs.len() * 4 {
+            // rhs is much bigger.  Move lhs to rhs, but give rhs precedence
+            for k in lhs {
+                rhs.map.entry(k).or_default();
+            }
+            rhs
+        } else {
+            lhs.extend(rhs);
+            lhs
+        }
+    }
 
-    // /// Creates a new set with the elements that are in lhs or rhs but not both.
-    // pub fn new_sym_diff(lhs: Self, rhs: Self) -> Self
-    // where
-    //     T: Clone + Ord,
-    // {
-    //     let root = super::sym_diff(lhs.map.root, rhs.map.root);
-    //     Self {
-    //         map: BTreeMap {
-    //             len: super::len(&root),
-    //             root,
-    //         },
-    //     }
-    // }
+    /// Creates a new set with the elements that are in lhs or rhs but not both.
+    pub fn new_sym_diff(lhs: Self, rhs: Self) -> Self
+    where
+        T: Clone + Ord,
+    {
+        let (mut lhs, rhs) = if lhs.len() >= rhs.len() {
+            (lhs, rhs)
+        } else {
+            (rhs, lhs)
+        };
+
+        for k in rhs {
+            if !lhs.remove(&k) {
+                lhs.insert(k);
+            }
+        }
+
+        lhs
+    }
 
     /// Removes the first element from the set and returns it.
     pub fn pop_first(&mut self) -> Option<T>
@@ -311,29 +319,29 @@ impl<T: Clone, const N: usize> Iterator for IntoIter<T, N> {
     }
 }
 
-// impl<K: Clone + Ord, const N: usize> std::ops::BitAnd for &BTreeSet<K, N> {
-//     type Output = BTreeSet<K, N>;
+impl<K: Clone + Ord, const N: usize> std::ops::BitAnd for &BTreeSet<K, N> {
+    type Output = BTreeSet<K, N>;
 
-//     fn bitand(self, rhs: Self) -> Self::Output {
-//         Self::Output::new_intersection(self.clone(), rhs.clone())
-//     }
-// }
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Self::Output::new_intersection(self.clone(), rhs.clone())
+    }
+}
 
-// impl<K: Clone + Ord, const N: usize> std::ops::BitOr for &BTreeSet<K, N> {
-//     type Output = BTreeSet<K, N>;
+impl<K: Clone + Ord, const N: usize> std::ops::BitOr for &BTreeSet<K, N> {
+    type Output = BTreeSet<K, N>;
 
-//     fn bitor(self, rhs: Self) -> Self::Output {
-//         BTreeSet::new_union(self.clone(), rhs.clone())
-//     }
-// }
+    fn bitor(self, rhs: Self) -> Self::Output {
+        BTreeSet::new_union(self.clone(), rhs.clone())
+    }
+}
 
-// impl<K: Clone + Ord, const N: usize> std::ops::BitXor for &BTreeSet<K, N> {
-//     type Output = BTreeSet<K, N>;
+impl<K: Clone + Ord, const N: usize> std::ops::BitXor for &BTreeSet<K, N> {
+    type Output = BTreeSet<K, N>;
 
-//     fn bitxor(self, rhs: Self) -> Self::Output {
-//         BTreeSet::new_sym_diff(self.clone(), rhs.clone())
-//     }
-// }
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        BTreeSet::new_sym_diff(self.clone(), rhs.clone())
+    }
+}
 
 impl<T: std::fmt::Debug, const N: usize> std::fmt::Debug for BTreeSet<T, N> {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -426,10 +434,10 @@ impl<T: PartialOrd, const N: usize> PartialOrd for BTreeSet<T, N> {
     }
 }
 
-// impl<K: Clone + Ord, const N: usize> std::ops::Sub for &BTreeSet<K, N> {
-//     type Output = BTreeSet<K, N>;
+impl<K: Clone + Ord, const N: usize> std::ops::Sub for &BTreeSet<K, N> {
+    type Output = BTreeSet<K, N>;
 
-//     fn sub(self, rhs: Self) -> Self::Output {
-//         BTreeSet::new_diff(self.clone(), rhs.clone())
-//     }
-// }
+    fn sub(self, rhs: Self) -> Self::Output {
+        BTreeSet::new_diff(self.clone(), rhs.clone())
+    }
+}
