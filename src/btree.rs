@@ -1,6 +1,7 @@
 use std::borrow::Borrow;
 use std::cmp::Ordering::*;
 use std::collections::VecDeque;
+use std::iter::{ExactSizeIterator, FusedIterator};
 use std::mem::replace;
 use std::sync::Arc;
 
@@ -981,8 +982,8 @@ impl<'a, K, V, const N: usize> Iterator for Iter<'a, K, V, N> {
 struct IterMutErg<'a, K, V, const N: usize> {
     elems: std::slice::IterMut<'a, (K, V)>,
     kids: std::slice::IterMut<'a, Arc<Node<K, V, N>>>,
-    needs_left_descent: bool,
-    needs_right_descent: bool,
+    needs_lf_des: bool,
+    needs_rt_des: bool,
 }
 
 impl<'a, K, V, const N: usize> IterMutErg<'a, K, V, N> {
@@ -1000,18 +1001,18 @@ impl<'a, K, V, const N: usize> IterMutErg<'a, K, V, N> {
         IterMutErg {
             elems: n.elems.iter_mut(),
             kids: n.kids.iter_mut(),
-            needs_left_descent: needs_descent,
-            needs_right_descent: needs_descent,
+            needs_lf_des: needs_descent,
+            needs_rt_des: needs_descent,
         }
     }
 
     fn next(&mut self) -> Option<&'a mut (K, V)> {
-        self.needs_left_descent = self.kids.len() != 0;
+        self.needs_lf_des = self.kids.len() != 0;
         self.elems.next()
     }
 
     fn next_back(&mut self) -> Option<&'a mut (K, V)> {
-        self.needs_right_descent = self.kids.len() != 0;
+        self.needs_rt_des = self.kids.len() != 0;
         self.elems.next_back()
     }
 }
@@ -1020,6 +1021,23 @@ impl<'a, K, V, const N: usize> IterMutErg<'a, K, V, N> {
 pub struct IterMut<'a, K, V, const N: usize> {
     work: std::collections::VecDeque<IterMutErg<'a, K, V, N>>,
     len: usize,
+}
+
+impl<'a, K, V, const N: usize> ExactSizeIterator for IterMut<'a, K, V, N>
+where
+    K: Clone,
+    V: Clone,
+{
+    fn len(&self) -> usize {
+        self.len
+    }
+}
+
+impl<'a, K, V, const N: usize> FusedIterator for IterMut<'a, K, V, N>
+where
+    K: Clone,
+    V: Clone,
+{
 }
 
 impl<'a, K, V, const N: usize> Iterator for IterMut<'a, K, V, N>
@@ -1032,12 +1050,12 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         let mut erg = self.work.front_mut()?;
 
-        if erg.needs_left_descent {
+        if erg.needs_lf_des {
             while let Some(kid) = erg.kids.next() {
                 if erg.is_empty() {
                     self.work.pop_front();
                 } else {
-                    erg.needs_left_descent = false;
+                    erg.needs_lf_des = false;
                 }
                 self.work.push_front(IterMutErg::new(kid));
                 erg = self.work.front_mut().unwrap();
@@ -1065,12 +1083,12 @@ where
     fn next_back(&mut self) -> Option<Self::Item> {
         let mut erg = self.work.back_mut()?;
 
-        if erg.needs_right_descent {
+        if erg.needs_rt_des {
             while let Some(kid) = erg.kids.next_back() {
                 if erg.is_empty() {
                     self.work.pop_back();
                 } else {
-                    erg.needs_right_descent = false;
+                    erg.needs_rt_des = false;
                 }
                 self.work.push_back(IterMutErg::new(kid));
                 erg = self.work.back_mut().unwrap();
