@@ -15,6 +15,19 @@ struct Node<K, V, const N: usize> {
     kids: Vec<NodePtr<K, V, N>>,
 }
 
+impl<K, V, const N: usize> std::fmt::Debug for Node<K, V, N>
+where
+    K: std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "Node({:?}..{:?})",
+            self.elems.first().unwrap().0,
+            self.elems.last().unwrap().0
+        ))
+    }
+}
+
 enum InsertResult<K, V, const N: usize> {
     Replaced(V),
     Split((Option<NodePtr<K, V, N>>, K, V)),
@@ -971,6 +984,7 @@ type IterMutWorklist<'a, K, V, const N: usize> = Vec<(
     std::slice::IterMut<'a, Arc<Node<K, V, N>>>,
 )>;
 
+#[derive(Debug)]
 pub struct IterMut<'a, K, V, const N: usize> {
     fwd: IterMutWorklist<'a, K, V, N>,
     rev: IterMutWorklist<'a, K, V, N>,
@@ -1098,19 +1112,6 @@ impl<'a, K, V, const N: usize> IterMut<'a, K, V, N> {
         self.descend_right(curr);
 
         Some(())
-    }
-}
-
-impl<'a, K, V, const N: usize> std::fmt::Debug for IterMut<'a, K, V, N>
-where
-    K: std::fmt::Debug,
-    V: std::fmt::Debug,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("btree::IterMut")
-            .field("len", &self.len)
-            .field("node_elems", &self.fwd.last().map(|(elems, _)| elems))
-            .finish()
     }
 }
 
