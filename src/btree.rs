@@ -632,7 +632,11 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
             w.push((elems, kids));
         }
 
-        IterMut { w, len: self.len }
+        IterMut {
+            fwd: w,
+            rev: Vec::new(),
+            len: self.len,
+        }
     }
 
     pub fn keys(&self) -> impl Iterator<Item = &K> {
@@ -968,8 +972,133 @@ type IterMutWorklist<'a, K, V, const N: usize> = Vec<(
 )>;
 
 pub struct IterMut<'a, K, V, const N: usize> {
-    w: IterMutWorklist<'a, K, V, N>,
+    fwd: IterMutWorklist<'a, K, V, N>,
+    rev: IterMutWorklist<'a, K, V, N>,
     len: usize,
+}
+
+impl<'a, K, V, const N: usize> IterMut<'a, K, V, N> {
+    fn try_rot_lf(&mut self) -> Option<&'a mut Arc<Node<K, V, N>>> {
+        let (elems, kids) = self.rev.get_mut(0)?;
+
+        if elems.len() == 0 && kids.len() == 0 {
+            let _ = self.rev.remove(0);
+            return self.try_rot_lf();
+        }
+
+        if kids.len() < elems.len() {
+            return None;
+        }
+
+        let ret = kids.next();
+
+        if elems.len() == 0 && kids.len() == 0 {
+            let _ = self.rev.remove(0);
+        }
+
+        ret
+    }
+
+    fn try_rot_rt(&mut self) -> Option<&'a mut Arc<Node<K, V, N>>> {
+        let (elems, kids) = self.fwd.get_mut(0)?;
+
+        if elems.len() == 0 && kids.len() == 0 {
+            let _ = self.fwd.remove(0);
+            return self.try_rot_rt();
+        }
+
+        if kids.len() < elems.len() {
+            return None;
+        }
+
+        let ret = kids.next_back();
+
+        if elems.len() == 0 && kids.len() == 0 {
+            let _ = self.fwd.remove(0);
+        }
+
+        ret
+    }
+
+    fn descend_left(&mut self, mut curr: Option<&'a mut Arc<Node<K, V, N>>>)
+    where
+        K: Clone,
+        V: Clone,
+    {
+        while let Some(arc) = curr {
+            let n = Arc::make_mut(arc);
+            let elems = n.elems.iter_mut();
+            let mut kids = n.kids.iter_mut();
+            curr = kids.next();
+            self.fwd.push((elems, kids));
+        }
+    }
+
+    fn descend_right(&mut self, mut curr: Option<&'a mut Arc<Node<K, V, N>>>)
+    where
+        K: Clone,
+        V: Clone,
+    {
+        while let Some(arc) = curr {
+            let n = Arc::make_mut(arc);
+            let elems = n.elems.iter_mut();
+            let mut kids = n.kids.iter_mut();
+            curr = kids.next_back();
+            self.rev.push((elems, kids));
+        }
+    }
+
+    fn advance_fwd(&mut self) -> Option<()>
+    where
+        K: Clone,
+        V: Clone,
+    {
+        let mut curr;
+        if let Some((elems, kids)) = self.fwd.last_mut() {
+            curr = kids.next();
+
+            if elems.len() == 0 {
+                assert_eq!(kids.len(), 0);
+                self.fwd.pop();
+            }
+
+            if curr.is_none() && self.fwd.is_empty() {
+                curr = self.try_rot_lf();
+            }
+        } else {
+            curr = self.try_rot_lf();
+        }
+
+        self.descend_left(curr);
+
+        Some(())
+    }
+
+    fn advance_rev(&mut self) -> Option<()>
+    where
+        K: Clone,
+        V: Clone,
+    {
+        let mut curr;
+        if let Some((elems, kids)) = self.rev.last_mut() {
+            curr = kids.next_back();
+
+            if elems.len() == 0 {
+                assert_eq!(kids.len(), 0);
+                self.rev.pop();
+            }
+
+            if curr.is_none() && self.rev.is_empty() {
+                curr = self.try_rot_rt();
+            }
+        } else {
+            curr = self.try_rot_rt();
+        }
+
+        self.descend_right(curr);
+
+        Some(())
+    }
 }
 
 impl<'a, K, V, const N: usize> std::fmt::Debug for IterMut<'a, K, V, N>
@@ -980,7 +1109,7 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("btree::IterMut")
             .field("len", &self.len)
-            .field("node_elems", &self.w.last().map(|(elems, _)| elems))
+            .field("node_elems", &self.fwd.last().map(|(elems, _)| elems))
             .finish()
     }
 }
@@ -993,22 +1122,45 @@ where
     type Item = (&'a K, &'a mut V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (elems, kids) = self.w.last_mut()?;
-        let ret = elems.next().unwrap();
-        let mut next = kids.next();
+        let ret = self
+            .fwd
+            .last_mut()
+            .and_then(|e| e.0.next())
+            .or_else(|| self.rev.get_mut(0).and_then(|e| e.0.next()))?;
 
-        if elems.len() == 0 {
-            assert_eq!(kids.len(), 0);
-            self.w.pop();
+        self.advance_fwd();
+
+        self.len -= 1;
+
+        let (ref k, ref mut v) = ret;
+        Some((k, v))
+    }
+}
+
+impl<'a, K, V, const N: usize> DoubleEndedIterator for IterMut<'a, K, V, N>
+where
+    K: Clone,
+    V: Clone,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        // do lazy initialization of rev iterator stack
+        if self.rev.is_empty() {
+            if let Some((elems, kids)) = self.fwd.get_mut(0) {
+                assert!(elems.len() >= kids.len());
+                if elems.len() == kids.len() {
+                    let curr = kids.next_back();
+                    self.descend_right(curr);
+                }
+            }
         }
 
-        while let Some(arc) = next {
-            let n = Arc::make_mut(arc);
-            let elems = n.elems.iter_mut();
-            let mut kids = n.kids.iter_mut();
-            next = kids.next();
-            self.w.push((elems, kids));
-        }
+        let ret = {
+            let t = self.rev.last_mut();
+            let t = t.and_then(|e| e.0.next_back());
+            t.or_else(|| self.fwd.get_mut(0).and_then(|e| e.0.next_back()))?
+        };
+
+        self.advance_rev();
 
         self.len -= 1;
 
@@ -1330,6 +1482,81 @@ mod test {
         assert!(m2.iter().cmp(n2.iter()).is_eq());
     }
 
+    fn iter_mut_rev_test(v: Vec<u8>) {
+        let v: Vec<(u8, u8)> = v.into_iter().map(|k| (k, 0)).collect();
+        let mut m1: BTreeMap<_, _> = v.clone().into_iter().collect();
+        let mut n1: std::collections::BTreeMap<_, _> = v.into_iter().collect();
+
+        let mut i = m1.iter_mut();
+        let mut j = n1.iter_mut();
+        while let Some((k1, v1)) = i.next_back() {
+            let Some((k2, v2)) = j.next_back() else {
+                panic!("early end");
+            };
+
+            assert_eq!(k1, k2);
+            assert_eq!(v1, v2);
+        }
+
+        assert_eq!(j.next(), None);
+    }
+
+    #[test]
+    fn iter_mut_rev_regr1() {
+        iter_mut_rev_test(vec![0, 1, 2]);
+    }
+
+    fn iter_mut_alt_test(v: Vec<u8>, dirs: Vec<bool>) {
+        let v: Vec<(u8, u8)> = v.into_iter().map(|k| (k, 0)).collect();
+        let mut m1: BTreeMap<_, _> = v.clone().into_iter().collect();
+        let n1: std::collections::BTreeMap<_, _> = v.into_iter().collect();
+
+        // switch back to vec for better debugging output
+        let mut v: Vec<_> = n1.into_iter().collect();
+
+        let mut i = m1.iter_mut();
+        for is_fwd in dirs {
+            // println!("i: {:?}", i);
+            if is_fwd {
+                // println!("fwd {:?}", v);
+                assert_eq!(i.next().map(|e| *e.0), v.first().map(|e| e.0));
+                if !v.is_empty() {
+                    v.remove(0);
+                }
+            } else {
+                // println!("rev {:?}", v);
+                assert_eq!(i.next_back().map(|e| *e.0), v.pop().map(|e| e.0));
+            }
+        }
+    }
+
+    #[test]
+    fn iter_mut_alt_regr1() {
+        iter_mut_alt_test(
+            vec![0, 1, 2, 3, 4, 5],
+            vec![true, true, true, false, true, true],
+        );
+    }
+
+    #[test]
+    fn iter_mut_alt_regr2() {
+        iter_mut_alt_test(
+            vec![3, 7, 8, 1, 9, 4, 0, 10, 2, 11, 5, 12, 13, 6, 14],
+            vec![true, true, true, true, true, true, true, false, true, false],
+        );
+    }
+
+    #[test]
+    fn iter_mut_alt_regr3() {
+        iter_mut_alt_test(
+            vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+            vec![
+                true, true, true, true, true, true, true, false, true, true,
+                true, true, true, true,
+            ],
+        );
+    }
+
     #[test]
     fn into_iter_regr1() {
         into_iter_test(vec![], vec![0, 1, 2]);
@@ -1390,6 +1617,14 @@ mod test {
 
         fn qc_iter_mut(u: Vec<u8>, v: Vec<u8>) -> () {
             iter_mut_test(u, v);
+        }
+
+        fn qc_iter_mut_rev(u: Vec<u8>) -> () {
+            iter_mut_rev_test(u);
+        }
+
+        fn qc_iter_mut_alt(u: Vec<u8>, dirs: Vec<bool>) -> () {
+            iter_mut_alt_test(u, dirs);
         }
     }
 }
