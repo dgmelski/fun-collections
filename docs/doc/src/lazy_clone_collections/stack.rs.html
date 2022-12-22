@@ -794,10 +794,37 @@
 <a href="#794" id="794">794</a>
 <a href="#795" id="795">795</a>
 <a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::cmp::Ordering::<span class="kw-2">*</span>;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::fmt::{Debug, Formatter};
 <span class="kw">use </span>std::rc::Rc;
+
+<span class="kw">type </span>OptList&lt;T&gt; = <span class="prelude-ty">Option</span>&lt;Rc&lt;List&lt;T&gt;&gt;&gt;;
 
 <span class="attr">#[derive(Clone)]
 </span><span class="kw">struct </span>List&lt;T&gt; {
@@ -805,10 +832,7 @@
     rest: OptList&lt;T&gt;,
 }
 
-<span class="kw">type </span>OptList&lt;T&gt; = <span class="prelude-ty">Option</span>&lt;Rc&lt;List&lt;T&gt;&gt;&gt;;
-
-<span class="attr">#[derive(Clone)]
-</span><span class="doccomment">/// Implements a stack with constant time `push`, `pop`, and `clone` operations.
+<span class="doccomment">/// Implements a stack with constant time `push`, `pop`, and `clone` operations.
 ///
 /// The stored elements must implement `Clone`.  During `pop` operations, popped
 /// items are moved if they are not shared among different stacks and cloned if
@@ -837,6 +861,7 @@
 /// assert_eq!(t.pop(), Some(Box::new(2))); // pop moves Box(2) (unshared)
 /// assert_eq!(t.pop(), Some(Box::new(0))); // pop moves Box(0) (now unshared)
 /// ```
+</span><span class="attr">#[derive(Clone)]
 </span><span class="kw">pub struct </span>Stack&lt;T&gt; {
     len: usize,
     elems: OptList&lt;T&gt;,
@@ -904,7 +929,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;T: Clone&gt; Stack&lt;T&gt; {
+<span class="kw">impl</span>&lt;T&gt; Stack&lt;T&gt; {
     <span class="doccomment">/// Creates an empty stack.
     ///
     /// # Examples
@@ -1042,12 +1067,18 @@
     /// assert_eq!(s.pop(), Some(8));
     /// assert_eq!(s.pop(), Some(2));
     /// ```
-    </span><span class="kw">pub fn </span>top_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>T&gt; {
+    </span><span class="kw">pub fn </span>top_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>T&gt;
+    <span class="kw">where
+        </span>T: Clone,
+    {
         <span class="self">self</span>.elems.as_mut().map(|rc| <span class="kw-2">&amp;mut </span>Rc::make_mut(rc).elem)
     }
 
     <span class="doccomment">/// Returns the top of the stack or `None` if empty.
-    </span><span class="kw">pub fn </span>pop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt; {
+    </span><span class="kw">pub fn </span>pop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt;
+    <span class="kw">where
+        </span>T: Clone,
+    {
         <span class="kw">let </span>opt_list = <span class="self">self</span>.elems.take();
         <span class="kw">match </span>opt_list {
             <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
@@ -1094,8 +1125,13 @@
     /// assert!(s.is_empty());
     /// ```
     </span><span class="kw">pub fn </span>clear(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.elems.take();
         <span class="self">self</span>.len = <span class="number">0</span>;
+
+        <span class="comment">// avoid deep recursion when dropping a large, unshared list
+        </span><span class="kw">let </span><span class="kw-2">mut </span>hd = <span class="self">self</span>.elems.take();
+        <span class="kw">while let </span><span class="prelude-val">Some</span>(next) = hd.as_mut().and_then(Rc::get_mut) {
+            hd = next.rest.take();
+        }
     }
 
     <span class="doccomment">/// Tests if the element x occurs in the stack.
@@ -1149,7 +1185,10 @@
     /// assert_eq!(s.pop(), Some(&#39;a&#39;));
     /// assert_eq!(s.pop(), None);
     /// ```
-    </span><span class="kw">pub fn </span>remove(<span class="kw-2">&amp;mut </span><span class="self">self</span>, at: usize) -&gt; T {
+    </span><span class="kw">pub fn </span>remove(<span class="kw-2">&amp;mut </span><span class="self">self</span>, at: usize) -&gt; T
+    <span class="kw">where
+        </span>T: Clone,
+    {
         <span class="kw">if </span>at &gt;= <span class="self">self</span>.len {
             <span class="macro">panic!</span>(<span class="string">&quot;Asked to remove item # {at}, but only {} items.&quot;</span>, <span class="self">self</span>.len)
         }
@@ -1205,7 +1244,10 @@
     /// assert!(s.into_iter().cmp((0..7).rev()).is_eq());
     /// assert!(t.into_iter().cmp((7..21).rev()).is_eq());
     /// ```
-    </span><span class="kw">pub fn </span>split_off(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>at: usize) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>split_off(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>at: usize) -&gt; <span class="self">Self
+    </span><span class="kw">where
+        </span>T: Clone,
+    {
         <span class="kw">if </span>at &gt; <span class="self">self</span>.len {
             <span class="macro">panic!</span>(<span class="string">&quot;Asked to split off {at} items but only {} avail.&quot;</span>, <span class="self">self</span>.len)
         }
@@ -1252,7 +1294,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;T: Clone + Debug&gt; Debug <span class="kw">for </span>Stack&lt;T&gt; {
+<span class="kw">impl</span>&lt;T: Debug&gt; Debug <span class="kw">for </span>Stack&lt;T&gt; {
     <span class="doccomment">/// Prints the `Stack` to the supplied `Formatter`.
     ///
     /// # Examples
@@ -1271,7 +1313,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;T: Clone&gt; Default <span class="kw">for </span>Stack&lt;T&gt; {
+<span class="kw">impl</span>&lt;T&gt; Default <span class="kw">for </span>Stack&lt;T&gt; {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         Stack::new()
     }
@@ -1280,18 +1322,7 @@
 <span class="kw">impl</span>&lt;T&gt; Drop <span class="kw">for </span>Stack&lt;T&gt; {
     <span class="comment">// avoid deep recursion when dropping a large stack
     </span><span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">let </span><span class="kw-2">mut </span>hd_opt = <span class="self">self</span>.elems.as_mut().take();
-        <span class="kw">while let </span><span class="prelude-val">Some</span>(rc) = hd_opt {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(hd) = Rc::get_mut(rc) {
-                <span class="comment">// As sole owner of the top of the stack, we can break its link
-                // to the rest of the stack so it will be freed w/o recursing.
-                </span>hd_opt = hd.rest.as_mut().take();
-            } <span class="kw">else </span>{
-                <span class="comment">// There are other owners for the rest of the stack; it won&#39;t
-                // be dropped at this time.
-                </span><span class="kw">break</span>;
-            }
-        }
+        <span class="self">self</span>.clear();
     }
 }
 
@@ -1318,14 +1349,14 @@
     }
 }
 
-<span class="kw">impl</span>&lt;T: Clone + PartialEq&gt; PartialEq <span class="kw">for </span>Stack&lt;T&gt; {
+<span class="kw">impl</span>&lt;T: PartialEq&gt; PartialEq <span class="kw">for </span>Stack&lt;T&gt; {
     <span class="comment">// TODO: test
     </span><span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, rhs: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
         <span class="self">self</span>.len == rhs.len &amp;&amp; <span class="self">self</span>.iter().zip(rhs.iter()).all(|(a, b)| a == b)
     }
 }
 
-<span class="kw">impl</span>&lt;T: Clone + Eq&gt; Eq <span class="kw">for </span>Stack&lt;T&gt; {}
+<span class="kw">impl</span>&lt;T: Eq&gt; Eq <span class="kw">for </span>Stack&lt;T&gt; {}
 
 <span class="kw">impl</span>&lt;T: Clone + PartialOrd&gt; PartialOrd <span class="kw">for </span>Stack&lt;T&gt; {
     <span class="comment">// tODO: test
@@ -1435,27 +1466,6 @@
         <span class="macro">assert_eq!</span>(s2.pop(), <span class="prelude-val">Some</span>(<span class="number">1</span>));
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>iter_lifetime() {
-        <span class="kw">let </span><span class="kw-2">mut </span>s = Stack::new();
-        <span class="kw">for </span>i <span class="kw">in </span><span class="macro">vec!</span>[<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>] {
-            s.push(i);
-        }
-
-        <span class="kw">let </span><span class="kw-2">mut </span>iter = s.iter();
-        <span class="kw">let </span>a2 = iter.next();
-        <span class="kw">let </span>a1 = iter.next();
-        <span class="kw">let </span>a0 = iter.next();
-        drop(iter);
-
-        <span class="comment">// The references from the iterator are borrowed from &#39;s&#39; and live even
-        // after drop(iter).  The compiler complains if we drop(s) here.
-
-        </span><span class="macro">assert_eq!</span>(<span class="kw-2">*</span>a2.unwrap(), <span class="number">2</span>);
-        <span class="macro">assert_eq!</span>(<span class="kw-2">*</span>a1.unwrap(), <span class="number">1</span>);
-        <span class="macro">assert_eq!</span>(<span class="kw-2">*</span>a0.unwrap(), <span class="number">0</span>);
-    }
-
     <span class="kw">struct </span>CloneCounter {
         <span class="kw">pub </span>counter: Rc&lt;RefCell&lt;usize&gt;&gt;,
     }
@@ -1556,6 +1566,46 @@
         <span class="kw">let </span>t = s.split_off(<span class="number">3</span>);
         <span class="macro">assert!</span>(s.into_iter().cmp((<span class="number">0</span>..<span class="number">3</span>).rev()).is_eq());
         <span class="macro">assert!</span>(t.is_empty());
+    }
+
+    <span class="kw">type </span>DropLog = Rc&lt;RefCell&lt;Vec&lt;usize&gt;&gt;&gt;;
+
+    <span class="attr">#[derive(Clone)]
+    </span><span class="kw">struct </span>DropRecorder {
+        i: usize,
+        log: DropLog,
+    }
+
+    <span class="kw">impl </span>Drop <span class="kw">for </span>DropRecorder {
+        <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+            (<span class="kw-2">*</span><span class="self">self</span>.log).borrow_mut().push(<span class="self">self</span>.i);
+        }
+    }
+
+    <span class="attr">#[test]
+    </span><span class="comment">// Unfortunately, this does not test if our drop implementation breaks deep
+    // recursion.  The stack nodes are &quot;Dropped&quot; in the same order, only the
+    // order of freeing memory is changed.  We might test that by implementing
+    // Drop for List, but then we cannot move fields out of List.
+    </span><span class="kw">fn </span>drop_test() {
+        <span class="kw">let </span>log = Rc::new(RefCell::new(Vec::new()));
+        <span class="kw">let </span>new_dr = |i: usize| DropRecorder {
+            i,
+            log: log.clone(),
+        };
+
+        <span class="kw">let </span><span class="kw-2">mut </span>s1: Stack&lt;<span class="kw">_</span>&gt; = (<span class="number">0</span>..<span class="number">3</span>).into_iter().map(new_dr).collect();
+        <span class="kw">let </span><span class="kw-2">mut </span>s2 = s1.clone();
+
+        s1.extend((<span class="number">3</span>..<span class="number">6</span>).into_iter().map(new_dr));
+        s2.extend((<span class="number">6</span>..<span class="number">9</span>).into_iter().map(new_dr));
+
+        drop(s2); <span class="comment">// should only drop the unshared nodes
+        </span><span class="macro">assert!</span>((<span class="kw-2">*</span>log).borrow().iter().copied().cmp((<span class="number">6</span>..<span class="number">9</span>).rev()).is_eq());
+
+        s1 = Stack::new(); <span class="comment">// implicit drop of old value of s1
+        </span><span class="macro">assert!</span>((<span class="kw-2">*</span>log).borrow().iter().copied().cmp((<span class="number">0</span>..<span class="number">9</span>).rev()).is_eq());
+        <span class="macro">assert!</span>(s1.is_empty());
     }
 
     <span class="macro">quickcheck! </span>{

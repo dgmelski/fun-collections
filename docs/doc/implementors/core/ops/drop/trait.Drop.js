@@ -1,4 +1,3 @@
 (function() {var implementors = {
-"fun_collections":[["impl&lt;T&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/ops/drop/trait.Drop.html\" title=\"trait core::ops::drop::Drop\">Drop</a> for <a class=\"struct\" href=\"fun_collections/struct.FunStack.html\" title=\"struct fun_collections::FunStack\">FunStack</a>&lt;T&gt;"]],
 "lazy_clone_collections":[["impl&lt;T&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/ops/drop/trait.Drop.html\" title=\"trait core::ops::drop::Drop\">Drop</a> for <a class=\"struct\" href=\"lazy_clone_collections/struct.Stack.html\" title=\"struct lazy_clone_collections::Stack\">Stack</a>&lt;T&gt;"]]
 };if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

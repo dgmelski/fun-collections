@@ -1,1 +1,1 @@
-window.ALL_CRATES = ["fun_collections","lazy_clone_collections"];
+window.ALL_CRATES = ["lazy_clone_collections"];

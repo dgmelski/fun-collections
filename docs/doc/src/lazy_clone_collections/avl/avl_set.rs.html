@@ -484,76 +484,326 @@
 <a href="#484" id="484">484</a>
 <a href="#485" id="485">485</a>
 <a href="#486" id="486">486</a>
-</pre><pre class="rust"><code><span class="kw">use super</span>::{AvlMap, Iter, Node};
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a>
+<a href="#504" id="504">504</a>
+<a href="#505" id="505">505</a>
+<a href="#506" id="506">506</a>
+<a href="#507" id="507">507</a>
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
+<a href="#520" id="520">520</a>
+<a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
+<a href="#553" id="553">553</a>
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
+<a href="#620" id="620">620</a>
+<a href="#621" id="621">621</a>
+<a href="#622" id="622">622</a>
+<a href="#623" id="623">623</a>
+<a href="#624" id="624">624</a>
+<a href="#625" id="625">625</a>
+<a href="#626" id="626">626</a>
+<a href="#627" id="627">627</a>
+<a href="#628" id="628">628</a>
+<a href="#629" id="629">629</a>
+<a href="#630" id="630">630</a>
+<a href="#631" id="631">631</a>
+<a href="#632" id="632">632</a>
+<a href="#633" id="633">633</a>
+<a href="#634" id="634">634</a>
+<a href="#635" id="635">635</a>
+<a href="#636" id="636">636</a>
+<a href="#637" id="637">637</a>
+<a href="#638" id="638">638</a>
+<a href="#639" id="639">639</a>
+<a href="#640" id="640">640</a>
+<a href="#641" id="641">641</a>
+<a href="#642" id="642">642</a>
+<a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a>
+<a href="#662" id="662">662</a>
+<a href="#663" id="663">663</a>
+<a href="#664" id="664">664</a>
+<a href="#665" id="665">665</a>
+<a href="#666" id="666">666</a>
+<a href="#667" id="667">667</a>
+<a href="#668" id="668">668</a>
+<a href="#669" id="669">669</a>
+<a href="#670" id="670">670</a>
+<a href="#671" id="671">671</a>
+<a href="#672" id="672">672</a>
+<a href="#673" id="673">673</a>
+<a href="#674" id="674">674</a>
+<a href="#675" id="675">675</a>
+<a href="#676" id="676">676</a>
+<a href="#677" id="677">677</a>
+<a href="#678" id="678">678</a>
+<a href="#679" id="679">679</a>
+<a href="#680" id="680">680</a>
+<a href="#681" id="681">681</a>
+<a href="#682" id="682">682</a>
+<a href="#683" id="683">683</a>
+<a href="#684" id="684">684</a>
+<a href="#685" id="685">685</a>
+<a href="#686" id="686">686</a>
+<a href="#687" id="687">687</a>
+<a href="#688" id="688">688</a>
+<a href="#689" id="689">689</a>
+<a href="#690" id="690">690</a>
+<a href="#691" id="691">691</a>
+<a href="#692" id="692">692</a>
+<a href="#693" id="693">693</a>
+<a href="#694" id="694">694</a>
+<a href="#695" id="695">695</a>
+<a href="#696" id="696">696</a>
+<a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
+<a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a>
+<a href="#707" id="707">707</a>
+<a href="#708" id="708">708</a>
+<a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
+<a href="#711" id="711">711</a>
+<a href="#712" id="712">712</a>
+<a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
+<a href="#717" id="717">717</a>
+<a href="#718" id="718">718</a>
+<a href="#719" id="719">719</a>
+<a href="#720" id="720">720</a>
+<a href="#721" id="721">721</a>
+<a href="#722" id="722">722</a>
+<a href="#723" id="723">723</a>
+<a href="#724" id="724">724</a>
+<a href="#725" id="725">725</a>
+<a href="#726" id="726">726</a>
+<a href="#727" id="727">727</a>
+<a href="#728" id="728">728</a>
+<a href="#729" id="729">729</a>
+<a href="#730" id="730">730</a>
+<a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+</pre><pre class="rust"><code><span class="kw">use super</span>::{AvlMap, Node};
 <span class="kw">use </span>std::borrow::Borrow;
 <span class="kw">use </span>std::cmp::Ordering::<span class="kw-2">*</span>;
-<span class="kw">use </span>std::rc::Rc;
+<span class="kw">use </span>std::sync::Arc;
 
 <span class="doccomment">/// A sorted set of values.
 ///
-/// The implementation is mostly a thin wrapper around [`AvlMap`].
-</span><span class="attr">#[derive(Clone, Default)]
-</span><span class="kw">pub struct </span>AvlSet&lt;V&gt;(AvlMap&lt;V, ()&gt;);
+/// The implementation is a wrapper around [`AvlMap&lt;T,()&gt;`].
+</span><span class="attr">#[derive(Clone, Eq)]
+</span><span class="kw">pub struct </span>AvlSet&lt;T&gt; {
+    map: AvlMap&lt;T, ()&gt;,
+}
 
-<span class="kw">impl</span>&lt;V&gt; AvlSet&lt;V&gt; {
+<span class="kw">impl</span>&lt;T&gt; AvlSet&lt;T&gt; {
+    <span class="doccomment">/// Moves all elements from other into self and leaves other empty.
+    </span><span class="kw">pub fn </span>append(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: <span class="kw-2">&amp;mut </span><span class="self">Self</span>)
+    <span class="kw">where
+        </span>T: Ord + Clone,
+    {
+        <span class="self">self</span>.map.append(<span class="kw-2">&amp;mut </span>other.map);
+    }
+
     <span class="doccomment">/// Removes all the entries from self.
     </span><span class="kw">pub fn </span>clear(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.<span class="number">0</span>.clear();
+        <span class="self">self</span>.map.clear();
     }
 
     <span class="doccomment">/// Tests if self contains the given value.
     </span><span class="kw">pub fn </span>contains&lt;Q&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, value: <span class="kw-2">&amp;</span>Q) -&gt; bool
     <span class="kw">where
-        </span>V: Borrow&lt;Q&gt;,
+        </span>T: Borrow&lt;Q&gt;,
         Q: Ord + <span class="question-mark">?</span>Sized,
     {
-        <span class="self">self</span>.<span class="number">0</span>.contains(value)
+        <span class="self">self</span>.map.contains_key(value)
     }
 
     <span class="doccomment">/// Returns an iterator over elements in self and not in other
-    </span><span class="kw">pub fn </span>difference&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>) -&gt; Difference&lt;<span class="lifetime">&#39;a</span>, V&gt;
+    </span><span class="kw">pub fn </span>difference&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>) -&gt; Difference&lt;<span class="lifetime">&#39;a</span>, T&gt;
     <span class="kw">where
-        </span>V: Ord,
+        </span>T: Ord,
     {
         Difference::new(<span class="self">self</span>.iter(), other.iter())
     }
 
-    <span class="doccomment">/// Returns the least value in the set.
-    </span><span class="kw">pub fn </span>first(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>V&gt; {
-        <span class="self">self</span>.<span class="number">0</span>.first_key_value().map(|(k, <span class="kw">_</span>)| k)
+    <span class="comment">// TODO: drain_filter? (Part of unstable API)
+
+    </span><span class="doccomment">/// Returns the least value in the set.
+    </span><span class="kw">pub fn </span>first(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt; {
+        <span class="self">self</span>.map.first_key_value().map(|(k, <span class="kw">_</span>)| k)
     }
 
     <span class="doccomment">/// Returns a reference to the element matching value, if it exists
-    </span><span class="kw">pub fn </span>get&lt;Q&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, value: <span class="kw-2">&amp;</span>Q) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>V&gt;
+    </span><span class="kw">pub fn </span>get&lt;Q&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, value: <span class="kw-2">&amp;</span>Q) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt;
     <span class="kw">where
-        </span>V: Borrow&lt;Q&gt;,
+        </span>T: Borrow&lt;Q&gt;,
         Q: Ord + <span class="question-mark">?</span>Sized,
     {
-        <span class="kw">let </span><span class="kw-2">mut </span>curr = <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.root;
-        <span class="kw">while let </span><span class="prelude-val">Some</span>(n) = curr {
-            <span class="kw">match </span>value.cmp(n.key.borrow()) {
-                Less =&gt; curr = <span class="kw-2">&amp;</span>n.left,
-                Equal =&gt; <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>n.key),
-                Greater =&gt; curr = <span class="kw-2">&amp;</span>n.right,
-            }
-        }
-
-        <span class="prelude-val">None
-    </span>}
+        <span class="self">self</span>.map.get_key_value(value).map(|e| e.<span class="number">0</span>)
+    }
 
     <span class="doccomment">/// Inserts the given value and returns true if self did not already have
     /// the value and returns false otherwise.
-    </span><span class="kw">pub fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, value: V) -&gt; bool
+    </span><span class="kw">pub fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, value: T) -&gt; bool
     <span class="kw">where
-        </span>V: Clone + Ord,
+        </span>T: Clone + Ord,
     {
-        <span class="self">self</span>.<span class="number">0</span>.insert(value, ()).is_none()
+        <span class="self">self</span>.map.insert(value, ()).is_none()
     }
 
     <span class="doccomment">/// Returns an iterator of the values that are in both self and other.
-    </span><span class="kw">pub fn </span>intersection&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>) -&gt; Intersection&lt;<span class="lifetime">&#39;a</span>, V&gt;
+    </span><span class="kw">pub fn </span>intersection&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>) -&gt; Intersection&lt;<span class="lifetime">&#39;a</span>, T&gt;
     <span class="kw">where
-        </span>V: Ord,
+        </span>T: Ord,
     {
         Intersection::new(<span class="self">self</span>.iter(), other.iter())
     }
@@ -561,20 +811,20 @@
     <span class="doccomment">/// Returns true if self and other have no common values and false otherwise
     </span><span class="kw">pub fn </span>is_disjoint(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool
     <span class="kw">where
-        </span>V: Ord,
+        </span>T: Ord,
     {
         <span class="self">self</span>.intersection(other).next().is_none()
     }
 
     <span class="doccomment">/// Returns true if self is the empty set, false otherwise.
     </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.<span class="number">0</span>.is_empty()
+        <span class="self">self</span>.map.is_empty()
     }
 
     <span class="doccomment">/// Tests if self is a subset of other.
     </span><span class="kw">pub fn </span>is_subset(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool
     <span class="kw">where
-        </span>V: Ord,
+        </span>T: Ord,
     {
         <span class="kw">if </span><span class="self">self</span>.is_empty() {
             <span class="kw">return </span><span class="bool-val">true</span>;
@@ -583,8 +833,8 @@
         }
 
         <span class="kw">fn </span>has_all&lt;K, V&gt;(
-            lhs: <span class="kw-2">&amp;</span>Rc&lt;Node&lt;K, V&gt;&gt;,
-            w: <span class="kw-2">&amp;mut </span>Vec&lt;(<span class="kw-2">&amp;</span>Rc&lt;Node&lt;K, V&gt;&gt;, bool)&gt;,
+            lhs: <span class="kw-2">&amp;</span>Arc&lt;Node&lt;K, V&gt;&gt;,
+            w: <span class="kw-2">&amp;mut </span>Vec&lt;(<span class="kw-2">&amp;</span>Arc&lt;Node&lt;K, V&gt;&gt;, bool)&gt;,
         ) -&gt; bool
         <span class="kw">where
             </span>K: Ord,
@@ -604,7 +854,7 @@
             <span class="comment">// now, look for lhs.key in rhs using our iterator
             </span><span class="kw">while let </span><span class="prelude-val">Some</span>((rhs, is_left_done)) = w.last_mut() {
                 <span class="comment">// pointer check to short circuit further comparisons
-                </span><span class="kw">if </span>Rc::ptr_eq(lhs, rhs) {
+                </span><span class="kw">if </span>Arc::ptr_eq(lhs, rhs) {
                     w.pop();
                     <span class="kw">return </span><span class="bool-val">true</span>;
                 }
@@ -641,6 +891,7 @@
 
                     Greater =&gt; {
                         <span class="comment">// the greater nodes in the rhs are to the right or up
+                        // TODO: we may be able to pop multiple nodes from rhs
                         </span><span class="kw">let </span>rhs = w.pop().unwrap().<span class="number">0</span>;
                         <span class="kw">if let </span><span class="prelude-val">Some</span>(rhs_right) = rhs.right.as_ref() {
                             w.push((rhs_right, rhs_right.left.is_none()));
@@ -652,32 +903,111 @@
             <span class="bool-val">false
         </span>}
 
-        <span class="kw">let </span>lhs = <span class="self">self</span>.<span class="number">0</span>.root.as_ref().unwrap();
-        <span class="kw">let </span>rhs = other.<span class="number">0</span>.root.as_ref().unwrap();
+        <span class="kw">let </span>lhs = <span class="self">self</span>.map.root.as_ref().unwrap();
+        <span class="kw">let </span>rhs = other.map.root.as_ref().unwrap();
         has_all(lhs, <span class="kw-2">&amp;mut </span><span class="macro">vec!</span>[(rhs, rhs.left.is_none())])
     }
 
     <span class="doccomment">/// tests if self is a superset of other.
     </span><span class="kw">pub fn </span>is_superset(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool
     <span class="kw">where
-        </span>V: Ord,
+        </span>T: Ord,
     {
         other.is_subset(<span class="self">self</span>)
     }
 
     <span class="doccomment">/// Returns an iterator over self&#39;s values in sorted order.
-    </span><span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; SetIter&lt;V&gt; {
-        SetIter(<span class="self">self</span>.<span class="number">0</span>.iter())
+    </span><span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Iter&lt;T&gt; {
+        Iter {
+            iter: <span class="self">self</span>.map.iter(),
+        }
     }
 
     <span class="doccomment">/// Returns the greatest value in self.
-    </span><span class="kw">pub fn </span>last(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>V&gt; {
-        <span class="self">self</span>.<span class="number">0</span>.last_key_value().map(|e| e.<span class="number">0</span>)
+    </span><span class="kw">pub fn </span>last(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt; {
+        <span class="self">self</span>.map.last_key_value().map(|e| e.<span class="number">0</span>)
     }
 
     <span class="doccomment">/// Returns the number of elements in self.
     </span><span class="kw">pub fn </span>len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.<span class="number">0</span>.len()
+        <span class="self">self</span>.map.len()
+    }
+
+    <span class="doccomment">/// Returns a new, empty set.
+    </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ map: AvlMap::new() }
+    }
+
+    <span class="doccomment">/// Creates a new set with the elements of lhs that are not in rhs.
+    </span><span class="kw">pub fn </span>new_diff(lhs: <span class="self">Self</span>, rhs: <span class="self">Self</span>) -&gt; <span class="self">Self
+    </span><span class="kw">where
+        </span>T: Clone + Ord,
+    {
+        <span class="kw">let </span>root = <span class="kw">super</span>::diff(lhs.map.root, rhs.map.root);
+        <span class="self">Self </span>{
+            map: AvlMap {
+                len: <span class="kw">super</span>::len(<span class="kw-2">&amp;</span>root),
+                root,
+            },
+        }
+    }
+
+    <span class="doccomment">/// Creates a new set with the elements of lhs that are also in rhs.
+    </span><span class="kw">pub fn </span>new_intersection(lhs: <span class="self">Self</span>, rhs: <span class="self">Self</span>) -&gt; <span class="self">Self
+    </span><span class="kw">where
+        </span>T: Clone + Ord,
+    {
+        <span class="kw">let </span>root = <span class="kw">super</span>::intersect(lhs.map.root, rhs.map.root);
+        <span class="self">Self </span>{
+            map: AvlMap {
+                len: <span class="kw">super</span>::len(<span class="kw-2">&amp;</span>root),
+                root,
+            },
+        }
+    }
+
+    <span class="doccomment">/// Creates a new set with the elements of both lhs and rhs.
+    </span><span class="kw">pub fn </span>new_union(lhs: <span class="self">Self</span>, rhs: <span class="self">Self</span>) -&gt; <span class="self">Self
+    </span><span class="kw">where
+        </span>T: Clone + Ord,
+    {
+        <span class="kw">let </span>root = <span class="kw">super</span>::union(lhs.map.root, rhs.map.root);
+        <span class="self">Self </span>{
+            map: AvlMap {
+                len: <span class="kw">super</span>::len(<span class="kw-2">&amp;</span>root),
+                root,
+            },
+        }
+    }
+
+    <span class="doccomment">/// Creates a new set with the elements that are in lhs or rhs but not both.
+    </span><span class="kw">pub fn </span>new_sym_diff(lhs: <span class="self">Self</span>, rhs: <span class="self">Self</span>) -&gt; <span class="self">Self
+    </span><span class="kw">where
+        </span>T: Clone + Ord,
+    {
+        <span class="kw">let </span>root = <span class="kw">super</span>::sym_diff(lhs.map.root, rhs.map.root);
+        <span class="self">Self </span>{
+            map: AvlMap {
+                len: <span class="kw">super</span>::len(<span class="kw-2">&amp;</span>root),
+                root,
+            },
+        }
+    }
+
+    <span class="doccomment">/// Removes the first element from the set and returns it.
+    </span><span class="kw">pub fn </span>pop_first(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt;
+    <span class="kw">where
+        </span>T: Clone,
+    {
+        <span class="self">self</span>.map.pop_first().map(|e| e.<span class="number">0</span>)
+    }
+
+    <span class="doccomment">/// Removes the last element from the set and returns it.
+    </span><span class="kw">pub fn </span>pop_last(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt;
+    <span class="kw">where
+        </span>T: Clone,
+    {
+        <span class="self">self</span>.map.pop_last().map(|e| e.<span class="number">0</span>)
     }
 
     <span class="comment">// TODO: range
@@ -686,16 +1016,16 @@
     /// present and false otherwise.
     </span><span class="kw">pub fn </span>remove&lt;Q&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, value: <span class="kw-2">&amp;</span>Q) -&gt; bool
     <span class="kw">where
-        </span>V: Borrow&lt;Q&gt; + Clone + Ord,
+        </span>T: Borrow&lt;Q&gt; + Clone + Ord,
         Q: Ord + <span class="question-mark">?</span>Sized,
     {
-        <span class="self">self</span>.<span class="number">0</span>.remove(value).is_some()
+        <span class="self">self</span>.map.remove(value).is_some()
     }
 
     <span class="doccomment">/// Replace and return the matching value in the map.
-    </span><span class="kw">pub fn </span>replace(<span class="kw-2">&amp;mut </span><span class="self">self</span>, value: V) -&gt; <span class="prelude-ty">Option</span>&lt;V&gt;
+    </span><span class="kw">pub fn </span>replace(<span class="kw-2">&amp;mut </span><span class="self">self</span>, value: T) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt;
     <span class="kw">where
-        </span>V: Clone + Ord,
+        </span>T: Clone + Ord,
     {
         <span class="comment">// TODO: adapt insert so we don&#39;t need multiple calls.
         </span><span class="kw">let </span>ret = <span class="self">self</span>.take(<span class="kw-2">&amp;</span>value);
@@ -706,8 +1036,8 @@
     <span class="doccomment">/// Retain values for which f returns true and discard others
     </span><span class="kw">pub fn </span>retain&lt;F&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>f: F)
     <span class="kw">where
-        </span>V: Clone + Ord,
-        F: FnMut(<span class="kw-2">&amp;</span>V) -&gt; bool,
+        </span>T: Clone + Ord,
+        F: FnMut(<span class="kw-2">&amp;</span>T) -&gt; bool,
     {
         <span class="kw">fn </span>dfs&lt;V, F&gt;(n: Node&lt;V, ()&gt;, f: <span class="kw-2">&amp;mut </span>F, acc: <span class="kw-2">&amp;mut </span>AvlMap&lt;V, ()&gt;)
         <span class="kw">where
@@ -715,8 +1045,8 @@
             V: Clone + Ord,
         {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>lf) = n.left {
-                Rc::make_mut(<span class="kw-2">&amp;mut </span>lf);
-                <span class="kw">if let </span><span class="prelude-val">Ok</span>(x) = Rc::try_unwrap(lf) {
+                Arc::make_mut(<span class="kw-2">&amp;mut </span>lf);
+                <span class="kw">if let </span><span class="prelude-val">Ok</span>(x) = Arc::try_unwrap(lf) {
                     dfs(x, f, acc);
                 }
             }
@@ -726,47 +1056,60 @@
             }
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>rt) = n.right {
-                Rc::make_mut(<span class="kw-2">&amp;mut </span>rt);
-                <span class="kw">if let </span><span class="prelude-val">Ok</span>(x) = Rc::try_unwrap(rt) {
+                Arc::make_mut(<span class="kw-2">&amp;mut </span>rt);
+                <span class="kw">if let </span><span class="prelude-val">Ok</span>(x) = Arc::try_unwrap(rt) {
                     dfs(x, f, acc);
                 }
             }
         }
 
-        <span class="kw">let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>root) = <span class="self">self</span>.<span class="number">0</span>.root.take() <span class="kw">else </span>{ <span class="kw">return</span>; };
-        Rc::make_mut(<span class="kw-2">&amp;mut </span>root);
-        <span class="kw">let </span><span class="prelude-val">Ok</span>(root) = Rc::try_unwrap(root) <span class="kw">else </span>{ <span class="macro">panic!</span>(<span class="string">&quot;try_unwrap fail?&quot;</span>) };
+        <span class="kw">let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>root) = <span class="self">self</span>.map.root.take() <span class="kw">else </span>{ <span class="kw">return</span>; };
+        Arc::make_mut(<span class="kw-2">&amp;mut </span>root);
+        <span class="kw">let </span><span class="prelude-val">Ok</span>(root) = Arc::try_unwrap(root) <span class="kw">else </span>{ <span class="macro">panic!</span>(<span class="string">&quot;try_unwrap fail?&quot;</span>) };
         <span class="kw">let </span><span class="kw-2">mut </span>acc = AvlMap::new();
         dfs(root, <span class="kw-2">&amp;mut </span>f, <span class="kw-2">&amp;mut </span>acc);
-        <span class="self">self</span>.<span class="number">0 </span>= acc;
+        <span class="self">self</span>.map = acc;
     }
 
     <span class="doccomment">/// Removes all elements greater or equal to key and returns them.
     </span><span class="kw">pub fn </span>split_off&lt;Q&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>Q) -&gt; <span class="self">Self
     </span><span class="kw">where
-        </span>V: Borrow&lt;Q&gt; + Clone + Ord,
+        </span>T: Borrow&lt;Q&gt; + Clone + Ord,
         Q: Ord + <span class="question-mark">?</span>Sized,
     {
-        <span class="self">Self</span>(<span class="self">self</span>.<span class="number">0</span>.split_off(key))
+        <span class="self">Self </span>{
+            map: <span class="self">self</span>.map.split_off(key),
+        }
     }
 
     <span class="doccomment">/// Returns an iterator over elements in self or other but not both.
     </span><span class="kw">pub fn </span>symmetric_difference&lt;<span class="lifetime">&#39;a</span>&gt;(
         <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>,
         other: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>,
-    ) -&gt; SymmetricDifference&lt;<span class="lifetime">&#39;a</span>, V&gt; {
+    ) -&gt; SymmetricDifference&lt;<span class="lifetime">&#39;a</span>, T&gt; {
         SymmetricDifference::new(<span class="self">self</span>.iter(), other.iter())
     }
 
     <span class="doccomment">/// Removes and returns the set member that matches value.
-    </span><span class="kw">pub fn </span>take&lt;Q&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, value: <span class="kw-2">&amp;</span>Q) -&gt; <span class="prelude-ty">Option</span>&lt;V&gt;
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::AvlSet;
+    ///
+    /// let mut s = AvlSet::new();
+    /// s.insert(&quot;abc&quot;.to_string());
+    /// s.insert(&quot;def&quot;.to_string());
+    /// assert_eq!(s.take(&quot;abc&quot;), Some(String::from(&quot;abc&quot;)));
+    /// assert_eq!(s.len(), 1);
+    /// ```
+    </span><span class="kw">pub fn </span>take&lt;Q&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, value: <span class="kw-2">&amp;</span>Q) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt;
     <span class="kw">where
-        </span>V: Borrow&lt;Q&gt; + Clone + Ord,
+        </span>T: Borrow&lt;Q&gt; + Clone + Ord,
         Q: Ord + <span class="question-mark">?</span>Sized,
     {
-        <span class="kw">if let </span>(opt_v @ <span class="prelude-val">Some</span>(<span class="kw">_</span>), <span class="kw">_</span>) = <span class="kw">super</span>::rm(<span class="kw-2">&amp;mut </span><span class="self">self</span>.<span class="number">0</span>.root, value) {
-            <span class="self">self</span>.<span class="number">0</span>.len -= <span class="number">1</span>;
-            opt_v.map(|e| e.<span class="number">0</span>)
+        <span class="kw">if let </span><span class="prelude-val">Some</span>((k, <span class="kw">_</span>)) = <span class="kw">super</span>::rm(<span class="kw-2">&amp;mut </span><span class="self">self</span>.map.root, value).<span class="number">0 </span>{
+            <span class="self">self</span>.map.len -= <span class="number">1</span>;
+            <span class="prelude-val">Some</span>(k)
         } <span class="kw">else </span>{
             <span class="prelude-val">None
         </span>}
@@ -775,94 +1118,39 @@
     <span class="doccomment">/// Returns an iterator over the elements of self and other, ordered by key.
     ///
     /// Common elements are only returned once.
-    </span><span class="kw">pub fn </span>union&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>) -&gt; Union&lt;<span class="lifetime">&#39;a</span>, V&gt; {
+    </span><span class="kw">pub fn </span>union&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>) -&gt; Union&lt;<span class="lifetime">&#39;a</span>, T&gt; {
         Union::new(<span class="self">self</span>.iter(), other.iter())
     }
-
-    <span class="doccomment">/// Returns a new, empty set.
-    </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>(AvlMap::new())
-    }
-
-    <span class="doccomment">/// Creates a new set with the elements of lhs that are not in rhs.
-    </span><span class="kw">pub fn </span>new_diff(lhs: <span class="self">Self</span>, rhs: <span class="self">Self</span>) -&gt; <span class="self">Self
-    </span><span class="kw">where
-        </span>V: Clone + Ord,
-    {
-        <span class="kw">let </span>root = <span class="kw">super</span>::diff(lhs.<span class="number">0</span>.root, rhs.<span class="number">0</span>.root);
-        <span class="self">Self</span>(AvlMap {
-            len: <span class="kw">super</span>::len(<span class="kw-2">&amp;</span>root),
-            root,
-        })
-    }
-
-    <span class="doccomment">/// Creates a new set with the elements of lhs that are also in rhs.
-    </span><span class="kw">pub fn </span>new_intersection(lhs: <span class="self">Self</span>, rhs: <span class="self">Self</span>) -&gt; <span class="self">Self
-    </span><span class="kw">where
-        </span>V: Clone + Ord,
-    {
-        <span class="kw">let </span>root = <span class="kw">super</span>::intersect(lhs.<span class="number">0</span>.root, rhs.<span class="number">0</span>.root);
-        <span class="self">Self</span>(AvlMap {
-            len: <span class="kw">super</span>::len(<span class="kw-2">&amp;</span>root),
-            root,
-        })
-    }
-
-    <span class="doccomment">/// Creates a new set with the elements of both lhs and rhs.
-    </span><span class="kw">pub fn </span>new_union(lhs: <span class="self">Self</span>, rhs: <span class="self">Self</span>) -&gt; <span class="self">Self
-    </span><span class="kw">where
-        </span>V: Clone + Ord,
-    {
-        <span class="kw">let </span>root = <span class="kw">super</span>::union(lhs.<span class="number">0</span>.root, rhs.<span class="number">0</span>.root);
-        <span class="self">Self</span>(AvlMap {
-            len: <span class="kw">super</span>::len(<span class="kw-2">&amp;</span>root),
-            root,
-        })
-    }
-
-    <span class="doccomment">/// Creates a new set with the elements that are in lhs or rhs but not both.
-    </span><span class="kw">pub fn </span>new_sym_diff(lhs: <span class="self">Self</span>, rhs: <span class="self">Self</span>) -&gt; <span class="self">Self
-    </span><span class="kw">where
-        </span>V: Clone + Ord,
-    {
-        <span class="kw">let </span>root = <span class="kw">super</span>::sym_diff(lhs.<span class="number">0</span>.root, rhs.<span class="number">0</span>.root);
-        <span class="self">Self</span>(AvlMap {
-            len: <span class="kw">super</span>::len(<span class="kw-2">&amp;</span>root),
-            root,
-        })
-    }
 }
 
-<span class="kw">impl</span>&lt;T: Clone + Ord&gt; Extend&lt;T&gt; <span class="kw">for </span>AvlSet&lt;T&gt; {
-    <span class="kw">fn </span>extend&lt;I: IntoIterator&lt;Item = T&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, iter: I) {
-        <span class="kw">for </span>x <span class="kw">in </span>iter {
-            <span class="self">self</span>.insert(x);
-        }
-    }
+<span class="kw">pub struct </span>Iter&lt;<span class="lifetime">&#39;a</span>, T&gt; {
+    iter: <span class="kw">crate</span>::avl::Iter&lt;<span class="lifetime">&#39;a</span>, T, ()&gt;,
 }
 
-<span class="kw">impl</span>&lt;T: Clone + Ord&gt; FromIterator&lt;T&gt; <span class="kw">for </span>AvlSet&lt;T&gt; {
-    <span class="kw">fn </span>from_iter&lt;I: IntoIterator&lt;Item = T&gt;&gt;(iter: I) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span><span class="kw-2">mut </span>s = AvlSet::new();
-        s.extend(iter);
-        s
-    }
-}
-
-<span class="kw">pub struct </span>SetIter&lt;<span class="lifetime">&#39;a</span>, T&gt;(Iter&lt;<span class="lifetime">&#39;a</span>, T, ()&gt;);
-
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, T&gt; Iterator <span class="kw">for </span>SetIter&lt;<span class="lifetime">&#39;a</span>, T&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, T&gt; Iterator <span class="kw">for </span>Iter&lt;<span class="lifetime">&#39;a</span>, T&gt; {
     <span class="kw">type </span>Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>T;
 
     <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Item&gt; {
-        <span class="self">self</span>.<span class="number">0</span>.next().map(|e| e.<span class="number">0</span>)
+        <span class="self">self</span>.iter.next().map(|e| e.<span class="number">0</span>)
     }
 }
 
-<span class="macro">crate::make_set_op_iter!</span>(Difference, SetIter&lt;<span class="lifetime">&#39;a</span>, T&gt;, <span class="number">0b100</span>);
-<span class="macro">crate::make_set_op_iter!</span>(Intersection, SetIter&lt;<span class="lifetime">&#39;a</span>, T&gt;, <span class="number">0b010</span>);
-<span class="macro">crate::make_set_op_iter!</span>(Union, SetIter&lt;<span class="lifetime">&#39;a</span>, T&gt;, <span class="number">0b111</span>);
-<span class="macro">crate::make_set_op_iter!</span>(SymmetricDifference, SetIter&lt;<span class="lifetime">&#39;a</span>, T&gt;, <span class="number">0b101</span>);
+<span class="macro">crate::make_set_op_iter!</span>(Difference, Iter&lt;<span class="lifetime">&#39;a</span>, T&gt;, <span class="number">0b100</span>);
+<span class="macro">crate::make_set_op_iter!</span>(Intersection, Iter&lt;<span class="lifetime">&#39;a</span>, T&gt;, <span class="number">0b010</span>);
+<span class="macro">crate::make_set_op_iter!</span>(Union, Iter&lt;<span class="lifetime">&#39;a</span>, T&gt;, <span class="number">0b111</span>);
+<span class="macro">crate::make_set_op_iter!</span>(SymmetricDifference, Iter&lt;<span class="lifetime">&#39;a</span>, T&gt;, <span class="number">0b101</span>);
+
+<span class="kw">pub struct </span>IntoIter&lt;T&gt; {
+    iter: <span class="kw">crate</span>::avl::IntoIter&lt;T, ()&gt;,
+}
+
+<span class="kw">impl</span>&lt;T: Clone&gt; Iterator <span class="kw">for </span>IntoIter&lt;T&gt; {
+    <span class="kw">type </span>Item = T;
+
+    <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Item&gt; {
+        <span class="self">self</span>.iter.next().map(|e| e.<span class="number">0</span>)
+    }
+}
 
 <span class="kw">impl</span>&lt;K: Clone + Ord&gt; std::ops::BitAnd <span class="kw">for </span><span class="kw-2">&amp;</span>AvlSet&lt;K&gt; {
     <span class="kw">type </span>Output = AvlSet&lt;K&gt;;
@@ -880,6 +1168,105 @@
     }
 }
 
+<span class="kw">impl</span>&lt;K: Clone + Ord&gt; std::ops::BitXor <span class="kw">for </span><span class="kw-2">&amp;</span>AvlSet&lt;K&gt; {
+    <span class="kw">type </span>Output = AvlSet&lt;K&gt;;
+
+    <span class="kw">fn </span>bitxor(<span class="self">self</span>, rhs: <span class="self">Self</span>) -&gt; <span class="self">Self</span>::Output {
+        AvlSet::new_sym_diff(<span class="self">self</span>.clone(), rhs.clone())
+    }
+}
+
+<span class="kw">impl</span>&lt;T: std::fmt::Debug&gt; std::fmt::Debug <span class="kw">for </span>AvlSet&lt;T&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, fmt: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; std::fmt::Result {
+        fmt.write_str(<span class="string">&quot;AvlSet(&quot;</span>)<span class="question-mark">?</span>;
+        fmt.debug_set().entries(<span class="self">self</span>.iter()).finish()<span class="question-mark">?</span>;
+        fmt.write_str(<span class="string">&quot;)&quot;</span>)
+    }
+}
+
+<span class="kw">impl</span>&lt;T&gt; Default <span class="kw">for </span>AvlSet&lt;T&gt; {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::new()
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, T: Clone + Ord&gt; Extend&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>T&gt; <span class="kw">for </span>AvlSet&lt;T&gt; {
+    <span class="kw">fn </span>extend&lt;I: IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>T&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, iter: I) {
+        <span class="kw">for </span>x <span class="kw">in </span>iter {
+            <span class="self">self</span>.insert(x.clone());
+        }
+    }
+}
+
+<span class="kw">impl</span>&lt;T: Clone + Ord&gt; Extend&lt;T&gt; <span class="kw">for </span>AvlSet&lt;T&gt; {
+    <span class="kw">fn </span>extend&lt;I: IntoIterator&lt;Item = T&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, iter: I) {
+        <span class="kw">for </span>x <span class="kw">in </span>iter {
+            <span class="self">self</span>.insert(x);
+        }
+    }
+}
+
+<span class="kw">impl</span>&lt;T: Clone + Ord, <span class="kw">const </span>N: usize&gt; From&lt;[T; N]&gt; <span class="kw">for </span>AvlSet&lt;T&gt; {
+    <span class="kw">fn </span>from(value: [T; N]) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::from_iter(value.into_iter())
+    }
+}
+
+<span class="kw">impl</span>&lt;T: Clone + Ord&gt; FromIterator&lt;T&gt; <span class="kw">for </span>AvlSet&lt;T&gt; {
+    <span class="kw">fn </span>from_iter&lt;I: IntoIterator&lt;Item = T&gt;&gt;(iter: I) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>s = AvlSet::new();
+        s.extend(iter);
+        s
+    }
+}
+
+<span class="kw">impl</span>&lt;T: std::hash::Hash&gt; std::hash::Hash <span class="kw">for </span>AvlSet&lt;T&gt; {
+    <span class="kw">fn </span>hash&lt;H: std::hash::Hasher&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>H) {
+        <span class="self">self</span>.map.len.hash(state);
+        <span class="kw">for </span>v <span class="kw">in </span><span class="self">self</span>.iter() {
+            v.hash(state);
+        }
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, T&gt; IntoIterator <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>AvlSet&lt;T&gt; {
+    <span class="kw">type </span>Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>T;
+    <span class="kw">type </span>IntoIter = Iter&lt;<span class="lifetime">&#39;a</span>, T&gt;;
+
+    <span class="kw">fn </span>into_iter(<span class="self">self</span>) -&gt; <span class="self">Self</span>::IntoIter {
+        <span class="self">self</span>.iter()
+    }
+}
+
+<span class="kw">impl</span>&lt;T: Clone&gt; IntoIterator <span class="kw">for </span>AvlSet&lt;T&gt; {
+    <span class="kw">type </span>Item = T;
+    <span class="kw">type </span>IntoIter = IntoIter&lt;T&gt;;
+
+    <span class="kw">fn </span>into_iter(<span class="self">self</span>) -&gt; <span class="self">Self</span>::IntoIter {
+        IntoIter {
+            iter: <span class="self">self</span>.map.into_iter(),
+        }
+    }
+}
+
+<span class="kw">impl</span>&lt;T: Ord&gt; Ord <span class="kw">for </span>AvlSet&lt;T&gt; {
+    <span class="kw">fn </span>cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; std::cmp::Ordering {
+        <span class="self">self</span>.map.cmp(<span class="kw-2">&amp;</span>other.map)
+    }
+}
+
+<span class="kw">impl</span>&lt;T: PartialEq&gt; PartialEq <span class="kw">for </span>AvlSet&lt;T&gt; {
+    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>AvlSet&lt;T&gt;) -&gt; bool {
+        <span class="self">self</span>.map.eq(<span class="kw-2">&amp;</span>other.map)
+    }
+}
+
+<span class="kw">impl</span>&lt;T: PartialOrd&gt; PartialOrd <span class="kw">for </span>AvlSet&lt;T&gt; {
+    <span class="kw">fn </span>partial_cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;std::cmp::Ordering&gt; {
+        <span class="self">self</span>.map.partial_cmp(<span class="kw-2">&amp;</span>other.map)
+    }
+}
+
 <span class="kw">impl</span>&lt;K: Clone + Ord&gt; std::ops::Sub <span class="kw">for </span><span class="kw-2">&amp;</span>AvlSet&lt;K&gt; {
     <span class="kw">type </span>Output = AvlSet&lt;K&gt;;
 
@@ -888,11 +1275,80 @@
     }
 }
 
-<span class="kw">impl</span>&lt;K: Clone + Ord&gt; std::ops::BitXor <span class="kw">for </span><span class="kw-2">&amp;</span>AvlSet&lt;K&gt; {
-    <span class="kw">type </span>Output = AvlSet&lt;K&gt;;
+<span class="attr">#[cfg(feature = <span class="string">&quot;serde&quot;</span>)]
+</span><span class="kw">mod </span>avl_serde {
+    <span class="kw">use </span><span class="kw">super</span>::AvlSet;
+    <span class="kw">use </span>serde::de::{Deserialize, SeqAccess, Visitor};
+    <span class="kw">use </span>std::fmt;
+    <span class="kw">use </span>std::marker::PhantomData;
 
-    <span class="kw">fn </span>bitxor(<span class="self">self</span>, rhs: <span class="self">Self</span>) -&gt; <span class="self">Self</span>::Output {
-        AvlSet::new_sym_diff(<span class="self">self</span>.clone(), rhs.clone())
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>AvlSetVisitor&lt;T&gt; {
+        marker: PhantomData&lt;<span class="kw">fn</span>() -&gt; AvlSet&lt;T&gt;&gt;,
+    }
+
+    <span class="kw">impl</span>&lt;T&gt; AvlSetVisitor&lt;T&gt; {
+        <span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+            AvlSetVisitor {
+                marker: PhantomData,
+            }
+        }
+    }
+
+    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>, T&gt; Visitor&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>AvlSetVisitor&lt;T&gt;
+    <span class="kw">where
+        </span>T: Clone + Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; + Ord,
+    {
+        <span class="kw">type </span>Value = AvlSet&lt;T&gt;;
+
+        <span class="comment">// Format a message stating what data this Visitor expects to receive.
+        </span><span class="kw">fn </span>expecting(<span class="kw-2">&amp;</span><span class="self">self</span>, formatter: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
+            formatter.write_str(<span class="string">&quot;lazy_clone_collections::AvlSet&quot;</span>)
+        }
+
+        <span class="kw">fn </span>visit_seq&lt;M&gt;(<span class="self">self</span>, <span class="kw-2">mut </span>access: M) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Value, M::Error&gt;
+        <span class="kw">where
+            </span>M: SeqAccess&lt;<span class="lifetime">&#39;de</span>&gt;,
+        {
+            <span class="kw">let </span><span class="kw-2">mut </span>set = AvlSet::&lt;T&gt;::new();
+
+            <span class="kw">while let </span><span class="prelude-val">Some</span>(elem) = access.next_element()<span class="question-mark">? </span>{
+                set.insert(elem);
+            }
+
+            <span class="prelude-val">Ok</span>(set)
+        }
+    }
+}
+
+<span class="attr">#[cfg(feature = <span class="string">&quot;serde&quot;</span>)]
+</span><span class="kw">impl</span>&lt;T&gt; serde::ser::Serialize <span class="kw">for </span>AvlSet&lt;T&gt;
+<span class="kw">where
+    </span>T: serde::ser::Serialize,
+{
+    <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+    <span class="kw">where
+        </span>S: serde::ser::Serializer,
+    {
+        <span class="kw">use </span>serde::ser::SerializeSeq;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>seq = serializer.serialize_seq(<span class="prelude-val">Some</span>(<span class="self">self</span>.len()))<span class="question-mark">?</span>;
+        <span class="kw">for </span>k <span class="kw">in </span><span class="self">self </span>{
+            seq.serialize_element(k)<span class="question-mark">?</span>;
+        }
+        seq.end()
+    }
+}
+
+<span class="attr">#[cfg(feature = <span class="string">&quot;serde&quot;</span>)]
+</span><span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>, T&gt; serde::de::Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>AvlSet&lt;T&gt;
+<span class="kw">where
+    </span>T: Clone + serde::de::Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; + Ord,
+{
+    <span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt;
+    <span class="kw">where
+        </span>D: serde::de::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+    {
+        deserializer.deserialize_seq(<span class="self">self</span>::avl_serde::AvlSetVisitor::new())
     }
 }
 
@@ -902,20 +1358,26 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span>quickcheck::quickcheck;
 
+    <span class="comment">// this is a compile-time test
+    </span><span class="kw">fn </span>_default_sets_for_no_default_entries() {
+        <span class="kw">struct </span>Foo;
+        <span class="kw">let _ </span>= AvlSet::&lt;Foo&gt;::default();
+    }
+
     <span class="kw">fn </span>set_checks(
         s1: <span class="kw-2">&amp;</span>AvlSet&lt;u8&gt;,
         s2: <span class="kw-2">&amp;</span>AvlSet&lt;u8&gt;,
         t1: <span class="kw-2">&amp;</span>std::collections::BTreeSet&lt;u8&gt;,
         t2: <span class="kw-2">&amp;</span>std::collections::BTreeSet&lt;u8&gt;,
     ) {
-        <span class="macro">assert!</span>(s1.intersection(<span class="kw-2">&amp;</span>s2).cmp(t1.intersection(<span class="kw-2">&amp;</span>t2)).is_eq());
-        <span class="macro">assert_eq!</span>(s1.is_disjoint(<span class="kw-2">&amp;</span>s2), t1.is_disjoint(<span class="kw-2">&amp;</span>t2));
-        <span class="macro">assert_eq!</span>(s1.is_subset(<span class="kw-2">&amp;</span>s2), t1.is_subset(<span class="kw-2">&amp;</span>t2));
-        <span class="macro">assert_eq!</span>(s1.is_superset(<span class="kw-2">&amp;</span>s2), t1.is_superset(<span class="kw-2">&amp;</span>t2));
-        <span class="macro">assert!</span>(s1.union(<span class="kw-2">&amp;</span>s2).cmp(t1.union(<span class="kw-2">&amp;</span>t2)).is_eq());
+        <span class="macro">assert!</span>(s1.intersection(s2).cmp(t1.intersection(t2)).is_eq());
+        <span class="macro">assert_eq!</span>(s1.is_disjoint(s2), t1.is_disjoint(t2));
+        <span class="macro">assert_eq!</span>(s1.is_subset(s2), t1.is_subset(t2));
+        <span class="macro">assert_eq!</span>(s1.is_superset(s2), t1.is_superset(t2));
+        <span class="macro">assert!</span>(s1.union(s2).cmp(t1.union(t2)).is_eq());
         <span class="macro">assert!</span>(s1
-            .symmetric_difference(<span class="kw-2">&amp;</span>s2)
-            .cmp(t1.symmetric_difference(<span class="kw-2">&amp;</span>t2))
+            .symmetric_difference(s2)
+            .cmp(t1.symmetric_difference(t2))
             .is_eq());
     }
 
@@ -958,6 +1420,38 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>set_test_regr1() {
         set_test(<span class="macro">vec!</span>[], <span class="macro">vec!</span>[<span class="number">0</span>]);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>dbg_fmt_test() {
+        <span class="kw">let </span>m = AvlSet::from([<span class="string">&#39;a&#39;</span>, <span class="string">&#39;b&#39;</span>]);
+        <span class="macro">assert_eq!</span>(<span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, m), <span class="string">r#&quot;AvlSet({&#39;a&#39;, &#39;b&#39;})&quot;#</span>);
+    }
+
+    <span class="comment">// run with: `cargo test --features serde,serde_test`
+    </span><span class="attr">#[cfg(feature = <span class="string">&quot;serde_test&quot;</span>)]
+    </span><span class="kw">mod </span>serde_test {
+        <span class="kw">use </span><span class="kw">crate</span>::AvlSet;
+        <span class="kw">use </span>serde_test::{assert_tokens, Token};
+
+        <span class="attr">#[test]
+        </span><span class="kw">fn </span>test_serde() {
+            <span class="kw">let </span><span class="kw-2">mut </span>s = AvlSet::new();
+            s.insert(<span class="string">&#39;a&#39;</span>);
+            s.insert(<span class="string">&#39;b&#39;</span>);
+            s.insert(<span class="string">&#39;c&#39;</span>);
+
+            assert_tokens(
+                <span class="kw-2">&amp;</span>s,
+                <span class="kw-2">&amp;</span>[
+                    Token::Seq { len: <span class="prelude-val">Some</span>(<span class="number">3</span>) },
+                    Token::Char(<span class="string">&#39;a&#39;</span>),
+                    Token::Char(<span class="string">&#39;b&#39;</span>),
+                    Token::Char(<span class="string">&#39;c&#39;</span>),
+                    Token::SeqEnd,
+                ],
+            );
+        }
     }
 
     <span class="macro">quickcheck! </span>{
