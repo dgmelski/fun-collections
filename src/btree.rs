@@ -1,5 +1,6 @@
 use std::borrow::Borrow;
 use std::cmp::Ordering::*;
+use std::collections::VecDeque;
 use std::mem::replace;
 use std::sync::Arc;
 
@@ -635,20 +636,17 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         K: Clone,
         V: Clone,
     {
-        let mut w = Vec::new();
-        let mut curr = self.root.as_mut();
-        while let Some(arc) = curr {
-            let n = Arc::make_mut(arc);
-            let elems = n.elems.iter_mut();
-            let mut kids = n.kids.iter_mut();
-            curr = kids.next();
-            w.push((elems, kids));
-        }
-
-        IterMut {
-            fwd: w,
-            rev: Vec::new(),
-            len: self.len,
+        if let Some(arc) = self.root.as_mut() {
+            let erg = IterMutErg::new(arc);
+            IterMut {
+                work: VecDeque::from([erg]),
+                len: self.len,
+            }
+        } else {
+            IterMut {
+                work: VecDeque::new(),
+                len: 0,
+            }
         }
     }
 
@@ -979,140 +977,49 @@ impl<'a, K, V, const N: usize> Iterator for Iter<'a, K, V, N> {
     }
 }
 
-type IterMutWorklist<'a, K, V, const N: usize> = Vec<(
-    std::slice::IterMut<'a, (K, V)>,
-    std::slice::IterMut<'a, Arc<Node<K, V, N>>>,
-)>;
+#[derive(Debug)]
+struct IterMutErg<'a, K, V, const N: usize> {
+    elems: std::slice::IterMut<'a, (K, V)>,
+    kids: std::slice::IterMut<'a, Arc<Node<K, V, N>>>,
+    needs_left_descent: bool,
+    needs_right_descent: bool,
+}
+
+impl<'a, K, V, const N: usize> IterMutErg<'a, K, V, N> {
+    fn is_empty(&self) -> bool {
+        self.elems.len() == 0 && self.kids.len() == 0
+    }
+
+    fn new(n: &'a mut Arc<Node<K, V, N>>) -> Self
+    where
+        K: Clone,
+        V: Clone,
+    {
+        let n = Arc::make_mut(n);
+        let needs_descent = !n.kids.is_empty();
+        IterMutErg {
+            elems: n.elems.iter_mut(),
+            kids: n.kids.iter_mut(),
+            needs_left_descent: needs_descent,
+            needs_right_descent: needs_descent,
+        }
+    }
+
+    fn next(&mut self) -> Option<&'a mut (K, V)> {
+        self.needs_left_descent = self.kids.len() != 0;
+        self.elems.next()
+    }
+
+    fn next_back(&mut self) -> Option<&'a mut (K, V)> {
+        self.needs_right_descent = self.kids.len() != 0;
+        self.elems.next_back()
+    }
+}
 
 #[derive(Debug)]
 pub struct IterMut<'a, K, V, const N: usize> {
-    fwd: IterMutWorklist<'a, K, V, N>,
-    rev: IterMutWorklist<'a, K, V, N>,
+    work: std::collections::VecDeque<IterMutErg<'a, K, V, N>>,
     len: usize,
-}
-
-impl<'a, K, V, const N: usize> IterMut<'a, K, V, N> {
-    fn try_rot_lf(&mut self) -> Option<&'a mut Arc<Node<K, V, N>>> {
-        let (elems, kids) = self.rev.get_mut(0)?;
-
-        if elems.len() == 0 && kids.len() == 0 {
-            let _ = self.rev.remove(0);
-            return self.try_rot_lf();
-        }
-
-        if kids.len() < elems.len() {
-            return None;
-        }
-
-        let ret = kids.next();
-
-        if elems.len() == 0 && kids.len() == 0 {
-            let _ = self.rev.remove(0);
-        }
-
-        ret
-    }
-
-    fn try_rot_rt(&mut self) -> Option<&'a mut Arc<Node<K, V, N>>> {
-        let (elems, kids) = self.fwd.get_mut(0)?;
-
-        if elems.len() == 0 && kids.len() == 0 {
-            let _ = self.fwd.remove(0);
-            return self.try_rot_rt();
-        }
-
-        if kids.len() < elems.len() {
-            return None;
-        }
-
-        let ret = kids.next_back();
-
-        if elems.len() == 0 && kids.len() == 0 {
-            let _ = self.fwd.remove(0);
-        }
-
-        ret
-    }
-
-    fn descend_left(&mut self, mut curr: Option<&'a mut Arc<Node<K, V, N>>>)
-    where
-        K: Clone,
-        V: Clone,
-    {
-        while let Some(arc) = curr {
-            let n = Arc::make_mut(arc);
-            let elems = n.elems.iter_mut();
-            let mut kids = n.kids.iter_mut();
-            curr = kids.next();
-            self.fwd.push((elems, kids));
-        }
-    }
-
-    fn descend_right(&mut self, mut curr: Option<&'a mut Arc<Node<K, V, N>>>)
-    where
-        K: Clone,
-        V: Clone,
-    {
-        while let Some(arc) = curr {
-            let n = Arc::make_mut(arc);
-            let elems = n.elems.iter_mut();
-            let mut kids = n.kids.iter_mut();
-            curr = kids.next_back();
-            self.rev.push((elems, kids));
-        }
-    }
-
-    fn advance_fwd(&mut self) -> Option<()>
-    where
-        K: Clone,
-        V: Clone,
-    {
-        let mut curr;
-        if let Some((elems, kids)) = self.fwd.last_mut() {
-            curr = kids.next();
-
-            if elems.len() == 0 {
-                assert_eq!(kids.len(), 0);
-                self.fwd.pop();
-            }
-
-            if curr.is_none() && self.fwd.is_empty() {
-                curr = self.try_rot_lf();
-            }
-        } else {
-            curr = self.try_rot_lf();
-        }
-
-        self.descend_left(curr);
-
-        Some(())
-    }
-
-    fn advance_rev(&mut self) -> Option<()>
-    where
-        K: Clone,
-        V: Clone,
-    {
-        let mut curr;
-        if let Some((elems, kids)) = self.rev.last_mut() {
-            curr = kids.next_back();
-
-            if elems.len() == 0 {
-                assert_eq!(kids.len(), 0);
-                self.rev.pop();
-            }
-
-            if curr.is_none() && self.rev.is_empty() {
-                curr = self.try_rot_rt();
-            }
-        } else {
-            curr = self.try_rot_rt();
-        }
-
-        self.descend_right(curr);
-
-        Some(())
-    }
 }
 
 impl<'a, K, V, const N: usize> Iterator for IterMut<'a, K, V, N>
@@ -1123,18 +1030,30 @@ where
     type Item = (&'a K, &'a mut V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let ret = self
-            .fwd
-            .last_mut()
-            .and_then(|e| e.0.next())
-            .or_else(|| self.rev.get_mut(0).and_then(|e| e.0.next()))?;
+        let mut erg = self.work.front_mut()?;
 
-        self.advance_fwd();
+        if erg.needs_left_descent {
+            while let Some(kid) = erg.kids.next() {
+                if erg.is_empty() {
+                    self.work.pop_front();
+                } else {
+                    erg.needs_left_descent = false;
+                }
+                self.work.push_front(IterMutErg::new(kid));
+                erg = self.work.front_mut().unwrap();
+            }
+        }
 
+        let ret = erg.next();
+
+        assert!(ret.is_some());
         self.len -= 1;
 
-        let (ref k, ref mut v) = ret;
-        Some((k, v))
+        if erg.is_empty() {
+            self.work.pop_front();
+        }
+
+        ret.map(|(ref k, ref mut v)| (k, v))
     }
 }
 
@@ -1144,29 +1063,30 @@ where
     V: Clone,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
-        // do lazy initialization of rev iterator stack
-        if self.rev.is_empty() {
-            if let Some((elems, kids)) = self.fwd.get_mut(0) {
-                assert!(elems.len() >= kids.len());
-                if elems.len() == kids.len() {
-                    let curr = kids.next_back();
-                    self.descend_right(curr);
+        let mut erg = self.work.back_mut()?;
+
+        if erg.needs_right_descent {
+            while let Some(kid) = erg.kids.next_back() {
+                if erg.is_empty() {
+                    self.work.pop_back();
+                } else {
+                    erg.needs_right_descent = false;
                 }
+                self.work.push_back(IterMutErg::new(kid));
+                erg = self.work.back_mut().unwrap();
             }
         }
 
-        let ret = {
-            let t = self.rev.last_mut();
-            let t = t.and_then(|e| e.0.next_back());
-            t.or_else(|| self.fwd.get_mut(0).and_then(|e| e.0.next_back()))?
-        };
+        let ret = erg.next_back();
 
-        self.advance_rev();
-
+        assert!(ret.is_some());
         self.len -= 1;
 
-        let (ref k, ref mut v) = ret;
-        Some((k, v))
+        if erg.is_empty() {
+            self.work.pop_back();
+        }
+
+        ret.map(|(ref k, ref mut v)| (k, v))
     }
 }
 
