@@ -622,14 +622,18 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
     }
 
     pub fn iter(&self) -> Iter<'_, K, V, N> {
-        let mut curr = self.root.as_ref();
-        let mut w = Vec::new();
-        while let Some(rc) = curr {
-            w.push((rc.as_ref(), 0));
-            curr = rc.child(0);
+        if let Some(arc) = self.root.as_ref() {
+            let erg = IterErg::new(arc);
+            Iter {
+                work: VecDeque::from([erg]),
+                len: self.len,
+            }
+        } else {
+            Iter {
+                work: VecDeque::new(),
+                len: 0,
+            }
         }
-
-        Iter { w, len: self.len() }
     }
 
     pub fn iter_mut(&mut self) -> IterMut<'_, K, V, N>
@@ -932,49 +936,111 @@ where
     }
 }
 
+#[derive(Debug)]
+struct IterErg<'a, K, V, const N: usize> {
+    elems: std::slice::Iter<'a, (K, V)>,
+    kids: std::slice::Iter<'a, Arc<Node<K, V, N>>>,
+    needs_lf_des: bool,
+    needs_rt_des: bool,
+}
+
+impl<'a, K, V, const N: usize> IterErg<'a, K, V, N> {
+    fn is_empty(&self) -> bool {
+        self.elems.len() == 0 && self.kids.len() == 0
+    }
+
+    fn new(n: &'a Arc<Node<K, V, N>>) -> Self {
+        let needs_descent = !n.kids.is_empty();
+        IterErg {
+            elems: n.elems.iter(),
+            kids: n.kids.iter(),
+            needs_lf_des: needs_descent,
+            needs_rt_des: needs_descent,
+        }
+    }
+
+    fn next(&mut self) -> Option<&'a (K, V)> {
+        self.needs_lf_des = self.kids.len() != 0;
+        self.elems.next()
+    }
+
+    fn next_back(&mut self) -> Option<&'a (K, V)> {
+        self.needs_rt_des = self.kids.len() != 0;
+        self.elems.next_back()
+    }
+}
+
+#[derive(Debug)]
 pub struct Iter<'a, K, V, const N: usize> {
-    w: Vec<(&'a Node<K, V, N>, usize)>,
+    work: std::collections::VecDeque<IterErg<'a, K, V, N>>,
     len: usize,
 }
 
-impl<'a, K, V, const N: usize> std::fmt::Debug for Iter<'a, K, V, N>
-where
-    K: std::fmt::Debug,
-    V: std::fmt::Debug,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("btree::Iter")
-            .field("len", &self.len)
-            .field("next", &self.w.last().and_then(|(n, i)| n.elems.get(*i)))
-            .finish()
+impl<'a, K, V, const N: usize> ExactSizeIterator for Iter<'a, K, V, N> {
+    fn len(&self) -> usize {
+        self.len
     }
 }
+
+impl<'a, K, V, const N: usize> FusedIterator for Iter<'a, K, V, N> {}
 
 impl<'a, K, V, const N: usize> Iterator for Iter<'a, K, V, N> {
     type Item = (&'a K, &'a V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (n, i) = self.w.last_mut()?;
-        let ret = (n.key(*i), n.val(*i));
+        let mut erg = self.work.front_mut()?;
 
-        *i += 1;
-
-        let mut curr = if *i < n.len() {
-            n.child(*i)
-        } else {
-            let curr = n.kids.last();
-            self.w.pop();
-            curr
-        };
-
-        while let Some(rc) = curr {
-            self.w.push((rc.as_ref(), 0));
-            curr = rc.child(0);
+        if erg.needs_lf_des {
+            while let Some(kid) = erg.kids.next() {
+                if erg.is_empty() {
+                    self.work.pop_front();
+                } else {
+                    erg.needs_lf_des = false;
+                }
+                self.work.push_front(IterErg::new(kid));
+                erg = self.work.front_mut().unwrap();
+            }
         }
 
+        let ret = erg.next();
+
+        assert!(ret.is_some());
         self.len -= 1;
 
-        Some(ret)
+        if erg.is_empty() {
+            self.work.pop_front();
+        }
+
+        ret.map(|(ref k, ref v)| (k, v))
+    }
+}
+
+impl<'a, K, V, const N: usize> DoubleEndedIterator for Iter<'a, K, V, N> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        let mut erg = self.work.back_mut()?;
+
+        if erg.needs_rt_des {
+            while let Some(kid) = erg.kids.next_back() {
+                if erg.is_empty() {
+                    self.work.pop_back();
+                } else {
+                    erg.needs_rt_des = false;
+                }
+                self.work.push_back(IterErg::new(kid));
+                erg = self.work.back_mut().unwrap();
+            }
+        }
+
+        let ret = erg.next_back();
+
+        assert!(ret.is_some());
+        self.len -= 1;
+
+        if erg.is_empty() {
+            self.work.pop_back();
+        }
+
+        ret.map(|(ref k, ref v)| (k, v))
     }
 }
 
