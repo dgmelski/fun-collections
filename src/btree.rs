@@ -622,18 +622,23 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
     }
 
     pub fn iter(&self) -> Iter<'_, K, V, N> {
-        if let Some(arc) = self.root.as_ref() {
-            let erg = IterErg::new(arc);
-            Iter {
+        let make_erg = make_iter_erg;
+        let iter = if let Some(arc) = self.root.as_ref() {
+            let erg = make_erg(arc);
+            InnerIter {
                 work: VecDeque::from([erg]),
                 len: self.len,
+                make_erg,
             }
         } else {
-            Iter {
+            InnerIter {
                 work: VecDeque::new(),
                 len: 0,
+                make_erg,
             }
-        }
+        };
+
+        Iter { iter }
     }
 
     pub fn iter_mut(&mut self) -> IterMut<'_, K, V, N>
@@ -641,18 +646,23 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         K: Clone,
         V: Clone,
     {
-        if let Some(arc) = self.root.as_mut() {
-            let erg = IterMutErg::new(arc);
-            IterMut {
+        let make_erg = make_iter_mut_erg;
+        let iter = if let Some(arc) = self.root.as_mut() {
+            let erg = make_erg(arc);
+            InnerIter {
                 work: VecDeque::from([erg]),
                 len: self.len,
+                make_erg,
             }
         } else {
-            IterMut {
+            InnerIter {
                 work: VecDeque::new(),
                 len: 0,
+                make_erg,
             }
-        }
+        };
+
+        IterMut { iter }
     }
 
     pub fn keys(&self) -> impl Iterator<Item = &K> {
@@ -937,55 +947,70 @@ where
 }
 
 #[derive(Debug)]
-struct IterErg<'a, K, V, const N: usize> {
-    elems: std::slice::Iter<'a, (K, V)>,
-    kids: std::slice::Iter<'a, Arc<Node<K, V, N>>>,
+struct InnerIterErg<I, J> {
+    elems: I,
+    kids: J,
     needs_lf_des: bool,
     needs_rt_des: bool,
 }
 
-impl<'a, K, V, const N: usize> IterErg<'a, K, V, N> {
-    fn is_empty(&self) -> bool {
+impl<I, J> InnerIterErg<I, J> {
+    fn is_empty(&self) -> bool
+    where
+        I: ExactSizeIterator,
+        J: ExactSizeIterator,
+    {
         self.elems.len() == 0 && self.kids.len() == 0
     }
 
-    fn new(n: &'a Arc<Node<K, V, N>>) -> Self {
-        let needs_descent = !n.kids.is_empty();
-        IterErg {
-            elems: n.elems.iter(),
-            kids: n.kids.iter(),
-            needs_lf_des: needs_descent,
-            needs_rt_des: needs_descent,
-        }
-    }
-
-    fn next(&mut self) -> Option<&'a (K, V)> {
+    fn next(&mut self) -> Option<I::Item>
+    where
+        I: Iterator,
+        J: ExactSizeIterator,
+    {
         self.needs_lf_des = self.kids.len() != 0;
         self.elems.next()
     }
 
-    fn next_back(&mut self) -> Option<&'a (K, V)> {
+    fn next_back(&mut self) -> Option<I::Item>
+    where
+        I: DoubleEndedIterator,
+        J: ExactSizeIterator,
+    {
         self.needs_rt_des = self.kids.len() != 0;
         self.elems.next_back()
+    }
+
+    fn new(elems: I, kids: J) -> Self
+    where
+        J: ExactSizeIterator,
+    {
+        let needs_descent = kids.len() != 0;
+        InnerIterErg {
+            elems,
+            kids,
+            needs_lf_des: needs_descent,
+            needs_rt_des: needs_descent,
+        }
     }
 }
 
 #[derive(Debug)]
-pub struct Iter<'a, K, V, const N: usize> {
-    work: std::collections::VecDeque<IterErg<'a, K, V, N>>,
+struct InnerIter<I, J>
+where
+    J: Iterator,
+{
+    work: std::collections::VecDeque<InnerIterErg<I, J>>,
     len: usize,
+    make_erg: fn(J::Item) -> InnerIterErg<I, J>,
 }
 
-impl<'a, K, V, const N: usize> ExactSizeIterator for Iter<'a, K, V, N> {
-    fn len(&self) -> usize {
-        self.len
-    }
-}
-
-impl<'a, K, V, const N: usize> FusedIterator for Iter<'a, K, V, N> {}
-
-impl<'a, K, V, const N: usize> Iterator for Iter<'a, K, V, N> {
-    type Item = (&'a K, &'a V);
+impl<I, J> Iterator for InnerIter<I, J>
+where
+    I: ExactSizeIterator,
+    J: ExactSizeIterator,
+{
+    type Item = I::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut erg = self.work.front_mut()?;
@@ -997,7 +1022,7 @@ impl<'a, K, V, const N: usize> Iterator for Iter<'a, K, V, N> {
                 } else {
                     erg.needs_lf_des = false;
                 }
-                self.work.push_front(IterErg::new(kid));
+                self.work.push_front((self.make_erg)(kid));
                 erg = self.work.front_mut().unwrap();
             }
         }
@@ -1011,11 +1036,15 @@ impl<'a, K, V, const N: usize> Iterator for Iter<'a, K, V, N> {
             self.work.pop_front();
         }
 
-        ret.map(|(ref k, ref v)| (k, v))
+        ret
     }
 }
 
-impl<'a, K, V, const N: usize> DoubleEndedIterator for Iter<'a, K, V, N> {
+impl<I, J> DoubleEndedIterator for InnerIter<I, J>
+where
+    I: DoubleEndedIterator + ExactSizeIterator,
+    J: DoubleEndedIterator + ExactSizeIterator,
+{
     fn next_back(&mut self) -> Option<Self::Item> {
         let mut erg = self.work.back_mut()?;
 
@@ -1026,7 +1055,7 @@ impl<'a, K, V, const N: usize> DoubleEndedIterator for Iter<'a, K, V, N> {
                 } else {
                     erg.needs_rt_des = false;
                 }
-                self.work.push_back(IterErg::new(kid));
+                self.work.push_back((self.make_erg)(kid));
                 erg = self.work.back_mut().unwrap();
             }
         }
@@ -1040,53 +1069,82 @@ impl<'a, K, V, const N: usize> DoubleEndedIterator for Iter<'a, K, V, N> {
             self.work.pop_back();
         }
 
-        ret.map(|(ref k, ref v)| (k, v))
+        ret
     }
+}
+
+use std::slice::Iter as SliceIter;
+
+#[derive(Debug)]
+pub struct Iter<'a, K, V, const N: usize> {
+    iter: InnerIter<SliceIter<'a, (K, V)>, SliceIter<'a, Arc<Node<K, V, N>>>>,
 }
 
 #[derive(Debug)]
-struct IterMutErg<'a, K, V, const N: usize> {
-    elems: std::slice::IterMut<'a, (K, V)>,
-    kids: std::slice::IterMut<'a, Arc<Node<K, V, N>>>,
-    needs_lf_des: bool,
-    needs_rt_des: bool,
+struct IterErgBuilder;
+
+type IterErg<'a, K, V, const N: usize> =
+    InnerIterErg<SliceIter<'a, (K, V)>, SliceIter<'a, Arc<Node<K, V, N>>>>;
+
+fn make_iter_erg<'a, K, V, const N: usize>(
+    n: &'a Arc<Node<K, V, N>>,
+) -> IterErg<'a, K, V, N> {
+    InnerIterErg::new(n.elems.iter(), n.kids.iter())
 }
 
-impl<'a, K, V, const N: usize> IterMutErg<'a, K, V, N> {
-    fn is_empty(&self) -> bool {
-        self.elems.len() == 0 && self.kids.len() == 0
+impl<'a, K, V, const N: usize> ExactSizeIterator for Iter<'a, K, V, N> {
+    fn len(&self) -> usize {
+        self.iter.len
     }
+}
 
-    fn new(n: &'a mut Arc<Node<K, V, N>>) -> Self
-    where
-        K: Clone,
-        V: Clone,
-    {
-        let n = Arc::make_mut(n);
-        let needs_descent = !n.kids.is_empty();
-        IterMutErg {
-            elems: n.elems.iter_mut(),
-            kids: n.kids.iter_mut(),
-            needs_lf_des: needs_descent,
-            needs_rt_des: needs_descent,
-        }
-    }
+impl<'a, K, V, const N: usize> FusedIterator for Iter<'a, K, V, N> {}
 
-    fn next(&mut self) -> Option<&'a mut (K, V)> {
-        self.needs_lf_des = self.kids.len() != 0;
-        self.elems.next()
-    }
+impl<'a, K, V, const N: usize> Iterator for Iter<'a, K, V, N> {
+    type Item = (&'a K, &'a V);
 
-    fn next_back(&mut self) -> Option<&'a mut (K, V)> {
-        self.needs_rt_des = self.kids.len() != 0;
-        self.elems.next_back()
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|(ref k, ref v)| (k, v))
     }
+}
+
+impl<'a, K, V, const N: usize> DoubleEndedIterator for Iter<'a, K, V, N> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back().map(|(ref k, ref v)| (k, v))
+    }
+}
+
+use std::slice::IterMut as SliceIterMut;
+
+#[derive(Debug)]
+pub struct IterMut<'a, K, V, const N: usize>
+where
+    K: Clone,
+    V: Clone,
+{
+    iter: InnerIter<
+        SliceIterMut<'a, (K, V)>,
+        SliceIterMut<'a, Arc<Node<K, V, N>>>,
+    >,
 }
 
 #[derive(Debug)]
-pub struct IterMut<'a, K, V, const N: usize> {
-    work: std::collections::VecDeque<IterMutErg<'a, K, V, N>>,
-    len: usize,
+struct IterMutErgBuilder;
+
+type IterMutErg<'a, K, V, const N: usize> = InnerIterErg<
+    SliceIterMut<'a, (K, V)>,
+    SliceIterMut<'a, Arc<Node<K, V, N>>>,
+>;
+
+fn make_iter_mut_erg<'a, K, V, const N: usize>(
+    n: &'a mut Arc<Node<K, V, N>>,
+) -> IterMutErg<'a, K, V, N>
+where
+    K: Clone,
+    V: Clone,
+{
+    let n = Arc::make_mut(n);
+    InnerIterErg::new(n.elems.iter_mut(), n.kids.iter_mut())
 }
 
 impl<'a, K, V, const N: usize> ExactSizeIterator for IterMut<'a, K, V, N>
@@ -1095,7 +1153,7 @@ where
     V: Clone,
 {
     fn len(&self) -> usize {
-        self.len
+        self.iter.len
     }
 }
 
@@ -1114,30 +1172,7 @@ where
     type Item = (&'a K, &'a mut V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut erg = self.work.front_mut()?;
-
-        if erg.needs_lf_des {
-            while let Some(kid) = erg.kids.next() {
-                if erg.is_empty() {
-                    self.work.pop_front();
-                } else {
-                    erg.needs_lf_des = false;
-                }
-                self.work.push_front(IterMutErg::new(kid));
-                erg = self.work.front_mut().unwrap();
-            }
-        }
-
-        let ret = erg.next();
-
-        assert!(ret.is_some());
-        self.len -= 1;
-
-        if erg.is_empty() {
-            self.work.pop_front();
-        }
-
-        ret.map(|(ref k, ref mut v)| (k, v))
+        self.iter.next().map(|(ref k, ref mut v)| (k, v))
     }
 }
 
@@ -1147,30 +1182,7 @@ where
     V: Clone,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
-        let mut erg = self.work.back_mut()?;
-
-        if erg.needs_rt_des {
-            while let Some(kid) = erg.kids.next_back() {
-                if erg.is_empty() {
-                    self.work.pop_back();
-                } else {
-                    erg.needs_rt_des = false;
-                }
-                self.work.push_back(IterMutErg::new(kid));
-                erg = self.work.back_mut().unwrap();
-            }
-        }
-
-        let ret = erg.next_back();
-
-        assert!(ret.is_some());
-        self.len -= 1;
-
-        if erg.is_empty() {
-            self.work.pop_back();
-        }
-
-        ret.map(|(ref k, ref mut v)| (k, v))
+        self.iter.next_back().map(|(ref k, ref mut v)| (k, v))
     }
 }
 
@@ -1560,6 +1572,11 @@ mod test {
                 true, true, true, true,
             ],
         );
+    }
+
+    #[test]
+    fn iter_mut_alt_regr4() {
+        iter_mut_alt_test(vec![0, 1], vec![false]);
     }
 
     #[test]
