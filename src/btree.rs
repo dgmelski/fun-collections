@@ -946,6 +946,21 @@ where
     }
 }
 
+// *************
+//   Iterators
+// *************
+
+trait NodeIter {
+    type ElemItem;
+    type NodeItem;
+
+    fn is_empty(&self) -> bool;
+    fn next_elem(&mut self) -> Option<Self::ElemItem>;
+    fn next_back_elem(&mut self) -> Option<Self::ElemItem>;
+    fn next_kid(&mut self) -> Option<Self::NodeItem>;
+    fn next_back_kid(&mut self) -> Option<Self::NodeItem>;
+}
+
 #[derive(Debug)]
 struct InnerIterErg<I, J> {
     elems: I,
@@ -954,12 +969,15 @@ struct InnerIterErg<I, J> {
     needs_rt_des: bool,
 }
 
-impl<I, J> InnerIterErg<I, J> {
-    fn is_empty(&self) -> bool
-    where
-        I: ExactSizeIterator,
-        J: ExactSizeIterator,
-    {
+impl<I, J> NodeIter for InnerIterErg<I, J>
+where
+    I: DoubleEndedIterator + ExactSizeIterator,
+    J: DoubleEndedIterator + ExactSizeIterator,
+{
+    type ElemItem = I::Item;
+    type NodeItem = J::Item;
+
+    fn is_empty(&self) -> bool {
         self.elems.len() == 0 && self.kids.len() == 0
     }
 
@@ -1000,7 +1018,9 @@ impl<I, J> InnerIterErg<I, J> {
         self.needs_rt_des = false;
         self.kids.next_back()
     }
+}
 
+impl<I, J> InnerIterErg<I, J> {
     fn new(elems: I, kids: J) -> Self
     where
         J: ExactSizeIterator,
@@ -1027,8 +1047,8 @@ where
 
 impl<I, J> Iterator for InnerIter<I, J>
 where
-    I: ExactSizeIterator,
-    J: ExactSizeIterator,
+    I: DoubleEndedIterator + ExactSizeIterator,
+    J: DoubleEndedIterator + ExactSizeIterator,
 {
     type Item = I::Item;
 
