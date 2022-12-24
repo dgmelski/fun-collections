@@ -952,30 +952,37 @@ where
 
 trait NodeIter {
     type ElemItem;
-    type NodeItem;
+    type ChildItem;
 
     fn is_empty(&self) -> bool;
+
     fn next_elem(&mut self) -> Option<Self::ElemItem>;
     fn next_back_elem(&mut self) -> Option<Self::ElemItem>;
-    fn next_kid(&mut self) -> Option<Self::NodeItem>;
-    fn next_back_kid(&mut self) -> Option<Self::NodeItem>;
+
+    fn next_kid(&mut self) -> Option<Self::ChildItem>;
+    fn next_back_kid(&mut self) -> Option<Self::ChildItem>;
+
+    fn needs_lf_des(&self) -> bool;
+    fn needs_rt_des(&self) -> bool;
 }
 
+// BorrowedNodeIter is used to implement Iter and IterMut where it has a
+// borrowed ref and a borrowed mutable ref, respectively, to the iterated node.
 #[derive(Debug)]
-struct InnerIterErg<I, J> {
+struct BorrowedNodeIter<I, J> {
     elems: I,
     kids: J,
     needs_lf_des: bool,
     needs_rt_des: bool,
 }
 
-impl<I, J> NodeIter for InnerIterErg<I, J>
+impl<I, J> NodeIter for BorrowedNodeIter<I, J>
 where
     I: DoubleEndedIterator + ExactSizeIterator,
     J: DoubleEndedIterator + ExactSizeIterator,
 {
     type ElemItem = I::Item;
-    type NodeItem = J::Item;
+    type ChildItem = J::Item;
 
     fn is_empty(&self) -> bool {
         self.elems.len() == 0 && self.kids.len() == 0
@@ -1018,15 +1025,23 @@ where
         self.needs_rt_des = false;
         self.kids.next_back()
     }
+
+    fn needs_lf_des(&self) -> bool {
+        self.needs_lf_des
+    }
+
+    fn needs_rt_des(&self) -> bool {
+        self.needs_rt_des
+    }
 }
 
-impl<I, J> InnerIterErg<I, J> {
+impl<I, J> BorrowedNodeIter<I, J> {
     fn new(elems: I, kids: J) -> Self
     where
         J: ExactSizeIterator,
     {
         let needs_descent = kids.len() != 0;
-        InnerIterErg {
+        BorrowedNodeIter {
             elems,
             kids,
             needs_lf_des: needs_descent,
@@ -1035,27 +1050,21 @@ impl<I, J> InnerIterErg<I, J> {
     }
 }
 
+// InnerIter implements Iter and IterMut.
 #[derive(Debug)]
-struct InnerIter<I, J>
-where
-    J: Iterator,
-{
-    work: std::collections::VecDeque<InnerIterErg<I, J>>,
+struct InnerIter<I: NodeIter> {
+    work: std::collections::VecDeque<I>,
     len: usize,
-    make_erg: fn(J::Item) -> InnerIterErg<I, J>,
+    make_erg: fn(I::ChildItem) -> I,
 }
 
-impl<I, J> Iterator for InnerIter<I, J>
-where
-    I: DoubleEndedIterator + ExactSizeIterator,
-    J: DoubleEndedIterator + ExactSizeIterator,
-{
-    type Item = I::Item;
+impl<I: NodeIter> Iterator for InnerIter<I> {
+    type Item = I::ElemItem;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut erg = self.work.front_mut()?;
 
-        if erg.needs_lf_des {
+        if erg.needs_lf_des() {
             while let Some(kid) = erg.next_kid() {
                 if erg.is_empty() {
                     self.work.pop_front();
@@ -1078,15 +1087,11 @@ where
     }
 }
 
-impl<I, J> DoubleEndedIterator for InnerIter<I, J>
-where
-    I: DoubleEndedIterator + ExactSizeIterator,
-    J: DoubleEndedIterator + ExactSizeIterator,
-{
+impl<I: NodeIter> DoubleEndedIterator for InnerIter<I> {
     fn next_back(&mut self) -> Option<Self::Item> {
         let mut erg = self.work.back_mut()?;
 
-        if erg.needs_rt_des {
+        if erg.needs_rt_des() {
             while let Some(kid) = erg.next_back_kid() {
                 if erg.is_empty() {
                     self.work.pop_back();
@@ -1113,19 +1118,21 @@ use std::slice::Iter as SliceIter;
 
 #[derive(Debug)]
 pub struct Iter<'a, K, V, const N: usize> {
-    iter: InnerIter<SliceIter<'a, (K, V)>, SliceIter<'a, Arc<Node<K, V, N>>>>,
+    iter: InnerIter<
+        BorrowedNodeIter<
+            SliceIter<'a, (K, V)>,
+            SliceIter<'a, Arc<Node<K, V, N>>>,
+        >,
+    >,
 }
 
-#[derive(Debug)]
-struct IterErgBuilder;
-
 type IterErg<'a, K, V, const N: usize> =
-    InnerIterErg<SliceIter<'a, (K, V)>, SliceIter<'a, Arc<Node<K, V, N>>>>;
+    BorrowedNodeIter<SliceIter<'a, (K, V)>, SliceIter<'a, Arc<Node<K, V, N>>>>;
 
 fn make_iter_erg<'a, K, V, const N: usize>(
     n: &'a Arc<Node<K, V, N>>,
 ) -> IterErg<'a, K, V, N> {
-    InnerIterErg::new(n.elems.iter(), n.kids.iter())
+    BorrowedNodeIter::new(n.elems.iter(), n.kids.iter())
 }
 
 impl<'a, K, V, const N: usize> ExactSizeIterator for Iter<'a, K, V, N> {
@@ -1159,15 +1166,14 @@ where
     V: Clone,
 {
     iter: InnerIter<
-        SliceIterMut<'a, (K, V)>,
-        SliceIterMut<'a, Arc<Node<K, V, N>>>,
+        BorrowedNodeIter<
+            SliceIterMut<'a, (K, V)>,
+            SliceIterMut<'a, Arc<Node<K, V, N>>>,
+        >,
     >,
 }
 
-#[derive(Debug)]
-struct IterMutErgBuilder;
-
-type IterMutErg<'a, K, V, const N: usize> = InnerIterErg<
+type IterMutErg<'a, K, V, const N: usize> = BorrowedNodeIter<
     SliceIterMut<'a, (K, V)>,
     SliceIterMut<'a, Arc<Node<K, V, N>>>,
 >;
@@ -1180,7 +1186,7 @@ where
     V: Clone,
 {
     let n = Arc::make_mut(n);
-    InnerIterErg::new(n.elems.iter_mut(), n.kids.iter_mut())
+    BorrowedNodeIter::new(n.elems.iter_mut(), n.kids.iter_mut())
 }
 
 impl<'a, K, V, const N: usize> ExactSizeIterator for IterMut<'a, K, V, N>
@@ -1222,126 +1228,233 @@ where
     }
 }
 
-// "erg" as in "unit of work" that is put on the IntoIter's worklist
-enum IntoIterErg<K, V, const N: usize> {
-    Owned(
-        std::vec::IntoIter<(K, V)>,
-        std::vec::IntoIter<Arc<Node<K, V, N>>>,
-    ),
-    Borrowed(Arc<Node<K, V, N>>, usize),
+// *** IntoIter ***
+
+struct BorrowedNodeIntoIter<K, V, const N: usize> {
+    n: Arc<Node<K, V, N>>,
+    lb_elems: usize,
+    ub_elems: usize,
+    lb_kids: usize,
+    ub_kids: usize,
+    needs_lf_des: bool,
+    needs_rt_des: bool,
 }
 
-pub struct IntoIter<K, V, const N: usize> {
-    len: usize,
-    work: Vec<IntoIterErg<K, V, N>>,
+struct OwnedNodeIntoIter<K, V, const N: usize> {
+    elems: std::vec::IntoIter<(K, V)>,
+    kids: std::vec::IntoIter<Arc<Node<K, V, N>>>,
+    needs_lf_des: bool, // Needs Left Descent
+    needs_rt_des: bool, // Needs Right Descent
 }
 
-impl<K, V, const N: usize> IntoIter<K, V, N> {
-    fn descend(&mut self) {
-        use IntoIterErg::*;
-        while let Some(curr) = self.work.last_mut() {
-            match curr {
-                Owned(elems, kids) => {
-                    if let Some(arc) = kids.next() {
-                        let next_erg = match Arc::try_unwrap(arc) {
-                            Ok(n) => {
-                                Owned(n.elems.into_iter(), n.kids.into_iter())
-                            }
-                            Err(arc) => Borrowed(arc, 0),
-                        };
-
-                        if kids.len() == 0 {
-                            assert_eq!(elems.len(), 0);
-                            self.work.pop();
-                        }
-
-                        self.work.push(next_erg);
-                    } else {
-                        if elems.len() == 0 {
-                            self.work.pop();
-                        }
-                        return;
-                    }
-                }
-
-                Borrowed(arc, i) => {
-                    if *i < arc.kids.len() {
-                        let next_kid = arc.kids[*i].clone();
-
-                        if *i == arc.elems.len() {
-                            self.work.pop();
-                        }
-
-                        self.work.push(Borrowed(next_kid, 0));
-                    } else {
-                        if *i >= arc.elems.len() {
-                            self.work.pop();
-                        }
-                        return;
-                    }
-                }
-            };
-        }
-    }
-
-    fn new(m: BTreeMap<K, V, N>) -> Self {
-        if m.is_empty() {
-            return Self {
-                len: 0,
-                work: Vec::new(),
-            };
-        }
-
-        use IntoIterErg::*;
-        let state1 = match Arc::try_unwrap(m.root.unwrap()) {
-            Ok(n) => Owned(n.elems.into_iter(), n.kids.into_iter()),
-            Err(arc) => Borrowed(arc, 0),
-        };
-
-        let mut ii = Self {
-            len: m.len,
-            work: vec![state1],
-        };
-        ii.descend();
-
-        ii
-    }
+enum NodeIntoIter<K, V, const N: usize> {
+    Borrowed(BorrowedNodeIntoIter<K, V, N>),
+    Owned(OwnedNodeIntoIter<K, V, N>),
 }
 
-impl<K, V, const N: usize> std::fmt::Debug for IntoIter<K, V, N>
+impl<K, V, const N: usize> NodeIter for NodeIntoIter<K, V, N>
 where
-    K: std::fmt::Debug,
-    V: std::fmt::Debug,
+    K: Clone,
+    V: Clone,
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name: &str;
-        let desc: &dyn std::fmt::Debug;
-        let some_elems: Option<&std::vec::IntoIter<(K, V)>>;
-        let some_kv: Option<&(K, V)>;
-        match self.work.last() {
-            None => {
-                name = "next";
-                desc = &None::<(K, V)>;
+    type ElemItem = (K, V);
+    type ChildItem = Result<Node<K, V, N>, Arc<Node<K, V, N>>>;
+
+    fn is_empty(&self) -> bool {
+        match self {
+            NodeIntoIter::Borrowed(b) => {
+                b.lb_elems >= b.ub_elems && b.lb_kids >= b.ub_kids
             }
 
-            Some(IntoIterErg::Owned(elems, _)) => {
-                name = "node_elems";
-                some_elems = Some(elems);
-                desc = &some_elems;
-            }
-
-            Some(IntoIterErg::Borrowed(n, i)) => {
-                name = "next";
-                some_kv = n.elems.get(*i);
-                desc = &some_kv;
-            }
-        };
-
-        f.debug_struct("btree::IntoIter")
-            .field("len", &self.len)
-            .field(name, desc)
-            .finish()
+            NodeIntoIter::Owned(n) => n.elems.len() == 0 && n.kids.len() == 0,
+        }
     }
+
+    fn needs_lf_des(&self) -> bool {
+        match self {
+            NodeIntoIter::Borrowed(b) => b.needs_lf_des,
+            NodeIntoIter::Owned(n) => n.needs_lf_des,
+        }
+    }
+
+    fn needs_rt_des(&self) -> bool {
+        match self {
+            NodeIntoIter::Borrowed(b) => b.needs_rt_des,
+            NodeIntoIter::Owned(n) => n.needs_rt_des,
+        }
+    }
+
+    fn next_elem(&mut self) -> Option<Self::ElemItem> {
+        match self {
+            NodeIntoIter::Borrowed(b) => {
+                assert!(!b.needs_lf_des);
+                b.needs_lf_des = b.lb_kids < b.ub_kids;
+                if b.lb_elems < b.ub_elems {
+                    b.lb_elems += 1;
+                    Some(b.n.elems[b.lb_elems - 1].clone())
+                } else {
+                    None
+                }
+            }
+
+            NodeIntoIter::Owned(n) => {
+                assert!(!n.needs_lf_des);
+                n.needs_lf_des = n.kids.len() > 0;
+                n.elems.next()
+            }
+        }
+    }
+
+    fn next_back_elem(&mut self) -> Option<Self::ElemItem> {
+        match self {
+            NodeIntoIter::Borrowed(b) => {
+                assert!(!b.needs_rt_des);
+                b.needs_rt_des = b.lb_kids < b.ub_kids;
+                if b.lb_elems < b.ub_elems {
+                    b.ub_elems -= 1;
+                    Some(b.n.elems[b.ub_elems].clone())
+                } else {
+                    None
+                }
+            }
+
+            NodeIntoIter::Owned(n) => {
+                assert!(!n.needs_rt_des);
+                n.needs_rt_des = n.kids.len() > 0;
+                n.elems.next_back()
+            }
+        }
+    }
+
+    fn next_kid(&mut self) -> Option<Self::ChildItem> {
+        match self {
+            NodeIntoIter::Borrowed(b) => {
+                assert!(b.needs_lf_des || b.lb_kids == b.ub_kids);
+                b.needs_lf_des = false;
+                if b.lb_kids < b.ub_kids {
+                    b.lb_kids += 1;
+                    Some(Err(b.n.kids[b.lb_kids - 1].clone()))
+                } else {
+                    None
+                }
+            }
+
+            NodeIntoIter::Owned(n) => {
+                assert!(n.needs_lf_des || n.kids.len() == 0);
+                n.needs_lf_des = false;
+                n.kids.next().map(Arc::try_unwrap)
+            }
+        }
+    }
+
+    fn next_back_kid(&mut self) -> Option<Self::ChildItem> {
+        match self {
+            NodeIntoIter::Borrowed(b) => {
+                assert!(b.needs_rt_des || b.lb_kids == b.ub_kids);
+                b.needs_rt_des = false;
+                if b.lb_kids < b.ub_kids {
+                    b.ub_kids -= 1;
+                    Some(Err(b.n.kids[b.ub_kids].clone()))
+                } else {
+                    None
+                }
+            }
+
+            NodeIntoIter::Owned(n) => {
+                assert!(n.needs_rt_des || n.kids.len() == 0);
+                n.needs_rt_des = false;
+                n.kids.next_back().map(Arc::try_unwrap)
+            }
+        }
+    }
+}
+
+pub struct IntoIter<K, V, const N: usize>
+where
+    K: Clone,
+    V: Clone,
+{
+    iter: InnerIter<NodeIntoIter<K, V, N>>,
+}
+
+fn make_node_into_iter<K, V, const N: usize>(
+    n: Result<Node<K, V, N>, Arc<Node<K, V, N>>>,
+) -> NodeIntoIter<K, V, N>
+where
+    K: Clone,
+    V: Clone,
+{
+    match n {
+        Ok(n) => {
+            let is_branch = n.is_branch();
+            NodeIntoIter::Owned(OwnedNodeIntoIter {
+                elems: n.elems.into_iter(),
+                kids: n.kids.into_iter(),
+                needs_lf_des: is_branch,
+                needs_rt_des: is_branch,
+            })
+        }
+
+        Err(n) => {
+            let is_branch = n.is_branch();
+            let cnt_elems = n.elems.len();
+            let cnt_kids = n.kids.len();
+            NodeIntoIter::Borrowed(BorrowedNodeIntoIter {
+                n,
+                lb_elems: 0,
+                ub_elems: cnt_elems,
+                lb_kids: 0,
+                ub_kids: cnt_kids,
+                needs_lf_des: is_branch,
+                needs_rt_des: is_branch,
+            })
+        }
+    }
+}
+
+impl<K, V, const N: usize> IntoIter<K, V, N>
+where
+    K: Clone,
+    V: Clone,
+{
+    fn new(m: BTreeMap<K, V, N>) -> Self {
+        if let Some(n) = m.root {
+            IntoIter {
+                iter: InnerIter {
+                    work: VecDeque::from([make_node_into_iter(
+                        Arc::try_unwrap(n),
+                    )]),
+                    len: m.len,
+                    make_erg: make_node_into_iter,
+                },
+            }
+        } else {
+            IntoIter {
+                iter: InnerIter {
+                    work: VecDeque::new(),
+                    len: 0,
+                    make_erg: make_node_into_iter,
+                },
+            }
+        }
+    }
+}
+
+impl<K, V, const N: usize> ExactSizeIterator for IntoIter<K, V, N>
+where
+    K: Clone,
+    V: Clone,
+{
+    fn len(&self) -> usize {
+        self.iter.len
+    }
+}
+
+impl<K, V, const N: usize> FusedIterator for IntoIter<K, V, N>
+where
+    K: Clone,
+    V: Clone,
+{
 }
 
 impl<K, V, const N: usize> Iterator for IntoIter<K, V, N>
@@ -1352,23 +1465,17 @@ where
     type Item = (K, V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        use IntoIterErg::*;
+        self.iter.next()
+    }
+}
 
-        let ret = match self.work.last_mut()? {
-            Owned(elems, _) => elems.next().unwrap(),
-
-            Borrowed(arc, i) => {
-                let ret = arc.elems[*i].clone();
-                *i += 1;
-                ret
-            }
-        };
-
-        self.descend();
-
-        self.len -= 1;
-
-        Some(ret)
+impl<K, V, const N: usize> DoubleEndedIterator for IntoIter<K, V, N>
+where
+    K: Clone,
+    V: Clone,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back()
     }
 }
 
@@ -1510,6 +1617,18 @@ mod test {
         assert!(m1.into_iter().cmp(n1.into_iter()).is_eq());
     }
 
+    fn into_iter_rev(u: Vec<u8>) {
+        let m1: BTreeMap<u8, ()> = u.iter().map(|x| (*x, ())).collect();
+        let n1: std::collections::BTreeMap<u8, ()> =
+            u.iter().map(|x| (*x, ())).collect();
+        assert!(m1.into_iter().rev().cmp(n1.into_iter().rev()).is_eq());
+    }
+
+    #[test]
+    fn into_iter_rev_regr1() {
+        into_iter_rev(vec![0, 1, 2])
+    }
+
     fn iter_mut_test(v1: Vec<u8>, v2: Vec<u8>) {
         let mut m1 = BTreeMap::new();
         let mut n1 = std::collections::BTreeMap::new();
@@ -1565,6 +1684,36 @@ mod test {
         let n1: std::collections::BTreeMap<_, _> = v.into_iter().collect();
 
         // switch back to vec for better debugging output
+        let mut v: Vec<_> = n1.into_iter().collect();
+
+        let mut i = m1.iter_mut();
+        for is_fwd in dirs {
+            // println!("i: {:?}", i);
+            if is_fwd {
+                // println!("fwd {:?}", v);
+                assert_eq!(i.next().map(|e| *e.0), v.first().map(|e| e.0));
+                if !v.is_empty() {
+                    v.remove(0);
+                }
+            } else {
+                // println!("rev {:?}", v);
+                assert_eq!(i.next_back().map(|e| *e.0), v.pop().map(|e| e.0));
+            }
+        }
+    }
+
+    fn into_iter_alt_test(v: Vec<u8>, dirs: Vec<bool>) {
+        let v: Vec<(u8, u8)> = v.into_iter().map(|k| (k, 0)).collect();
+
+        // create map with some sharing to test into_iter moving/cloning
+        let mut v_lo = v.clone();
+        let v_hi = v_lo.split_off(v.len() / 2);
+        let m0: BTreeMap<_, _> = v.clone().into_iter().collect();
+        let mut m1 = m0.clone();
+        m1.extend(v_hi);
+
+        // switch back to vec for better debugging output
+        let n1: std::collections::BTreeMap<_, _> = v.into_iter().collect();
         let mut v: Vec<_> = n1.into_iter().collect();
 
         let mut i = m1.iter_mut();
@@ -1673,6 +1822,10 @@ mod test {
             into_iter_test(u, v);
         }
 
+        fn qc_into_iter_rev(u: Vec<u8>) -> () {
+            into_iter_rev(u);
+        }
+
         fn qc_iter_mut(u: Vec<u8>, v: Vec<u8>) -> () {
             iter_mut_test(u, v);
         }
@@ -1683,6 +1836,10 @@ mod test {
 
         fn qc_iter_mut_alt(u: Vec<u8>, dirs: Vec<bool>) -> () {
             iter_mut_alt_test(u, dirs);
+        }
+
+        fn qc_into_iter_alt(v: Vec<u8>, dirs: Vec<bool>) -> () {
+            into_iter_alt_test(v, dirs)
         }
     }
 }
