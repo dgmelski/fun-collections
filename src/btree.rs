@@ -3,6 +3,7 @@ use std::cmp::Ordering::*;
 use std::collections::VecDeque;
 use std::iter::{ExactSizeIterator, FusedIterator};
 use std::mem::replace;
+use std::ops::{Bound, RangeBounds};
 use std::sync::Arc;
 
 use crate::{Entry, Map, OccupiedEntry, VacantEntry};
@@ -743,8 +744,24 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         self.rm_and_rebal(|n| n.pop_last())
     }
 
-    // TODO: range
-    // TODO: range_mut
+    pub fn range<Q, R>(&self, range: R) -> Range<'_, K, V, N>
+    where
+        Q: Ord + ?Sized,
+        K: Borrow<Q>,
+        R: RangeBounds<Q>,
+    {
+        Range::new(self, range)
+    }
+
+    pub fn range_mut<Q, R>(&mut self, range: R) -> RangeMut<'_, K, V, N>
+    where
+        Q: Ord + ?Sized,
+        K: Borrow<Q> + Clone,
+        R: RangeBounds<Q>,
+        V: Clone,
+    {
+        RangeMut::new(self, range)
+    }
 
     /// Removes and returns the value associated with key, if it exists.
     ///
@@ -1124,19 +1141,13 @@ impl<I: NodeIter> DoubleEndedIterator for InnerIter<I> {
 
 use std::slice::Iter as SliceIter;
 
-#[derive(Debug)]
-pub struct Iter<'a, K, V, const N: usize> {
-    #[allow(clippy::type_complexity)]
-    iter: InnerIter<
-        BorrowedNodeIter<
-            SliceIter<'a, (K, V)>,
-            SliceIter<'a, Arc<Node<K, V, N>>>,
-        >,
-    >,
-}
-
 type InnerNodeIter<'a, K, V, const N: usize> =
     BorrowedNodeIter<SliceIter<'a, (K, V)>, SliceIter<'a, Arc<Node<K, V, N>>>>;
+
+#[derive(Debug)]
+pub struct Iter<'a, K, V, const N: usize> {
+    iter: InnerIter<InnerNodeIter<'a, K, V, N>>,
+}
 
 fn make_node_iter<K, V, const N: usize>(
     n: &Arc<Node<K, V, N>>,
@@ -1240,16 +1251,25 @@ where
 
 // *** IntoIter ***
 
+#[derive(Debug)]
 struct ArcNodeIntoIter<K, V, const N: usize> {
+    // It would be nice to use std:slice::Iter's for elems & kids, but it is
+    // challenging to establish a reasonable lifetime for the iterator.  As we
+    // destruct the owned portions of the tree, we drop our references to the
+    // shared tree portions.  If a parallel thread were to drop the last Arc,
+    // the shared node would disappear.  To prevent this, the iterator keeps its
+    // own Arc to the node.  To use slice Iters, we'd need to promise they don't
+    // outlive the Arc...
     n: Arc<Node<K, V, N>>,
     lb_elems: usize,
     ub_elems: usize,
     lb_kids: usize,
     ub_kids: usize,
-    needs_lf_des: bool,
-    needs_rt_des: bool,
+    needs_lf_des: bool, // Needs Left Descent
+    needs_rt_des: bool, // Needs Right Descent
 }
 
+#[derive(Debug)]
 struct OwnedNodeIntoIter<K, V, const N: usize> {
     elems: std::vec::IntoIter<(K, V)>,
     kids: std::vec::IntoIter<Arc<Node<K, V, N>>>,
@@ -1257,6 +1277,7 @@ struct OwnedNodeIntoIter<K, V, const N: usize> {
     needs_rt_des: bool, // Needs Right Descent
 }
 
+#[derive(Debug)]
 enum IntoNodeIter<K, V, const N: usize> {
     Arcked(ArcNodeIntoIter<K, V, N>),
     Owned(OwnedNodeIntoIter<K, V, N>),
@@ -1379,6 +1400,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub struct IntoIter<K, V, const N: usize>
 where
     K: Clone,
@@ -1489,6 +1511,380 @@ where
     }
 }
 
+// *** Range Iterator ***
+struct IsIn(bool);
+
+enum BdOrd {
+    Unbounded,
+    Less,
+    Equal(IsIn),
+    Greater,
+}
+
+fn cmp_bd<Q: Ord + ?Sized>(bd: Bound<&Q>, k: &Q) -> BdOrd {
+    match bd {
+        Bound::Unbounded => BdOrd::Unbounded,
+        Bound::Excluded(bd_k) => match bd_k.cmp(k) {
+            Less => BdOrd::Less,
+            Equal => BdOrd::Equal(IsIn(false)),
+            Greater => BdOrd::Greater,
+        },
+        Bound::Included(bd_k) => match bd_k.cmp(k) {
+            Less => BdOrd::Less,
+            Equal => BdOrd::Equal(IsIn(true)),
+            Greater => BdOrd::Greater,
+        },
+    }
+}
+
+#[derive(Debug, Default)]
+struct RangeEdges {
+    lb_elems: usize,
+    lb_kids: usize,
+    left_needs_pruning: bool,
+    ub_elems: usize,
+    ub_kids: usize,
+    right_needs_pruning: bool,
+}
+
+fn find_range_edges<K, V, const N: usize, Q>(
+    n: &Arc<Node<K, V, N>>,
+    lb: Bound<&Q>,
+    ub: Bound<&Q>,
+) -> RangeEdges
+where
+    Q: Ord + ?Sized,
+    K: Borrow<Q>,
+{
+    // assume range is past n's greatest key
+    let mut res = RangeEdges {
+        lb_elems: n.elems.len(),
+        lb_kids: n.elems.len(), // explore the last kid
+        left_needs_pruning: true,
+        ub_elems: n.elems.len(),
+        ub_kids: n.elems.len() + 1, // use elems' len b/c kids might be empty
+        right_needs_pruning: true,
+    };
+
+    // find the left edge
+    let mut elems = n.elems.iter().enumerate().peekable();
+    while let Some((i, (k, _))) = elems.peek() {
+        match cmp_bd(lb, k.borrow()) {
+            BdOrd::Unbounded => {
+                res.lb_elems = 0;
+                res.lb_kids = 0;
+                res.left_needs_pruning = false;
+                break;
+            }
+
+            BdOrd::Less => {
+                res.lb_elems = *i;
+                res.lb_kids = *i;
+                res.left_needs_pruning = true;
+                break;
+            }
+
+            BdOrd::Equal(IsIn(is_in)) => {
+                res.lb_elems = i + (!is_in as usize);
+                res.lb_kids = i + 1;
+                res.left_needs_pruning = false;
+                break;
+            }
+
+            BdOrd::Greater => {
+                elems.next();
+            }
+        }
+    }
+
+    // find the right edge
+    for (i, (k, _)) in elems {
+        match cmp_bd(ub, k.borrow()) {
+            BdOrd::Unbounded => {
+                res.ub_elems = n.elems.len();
+                res.ub_kids = n.elems.len() + 1;
+                res.right_needs_pruning = false;
+                break;
+            }
+
+            BdOrd::Less => {
+                res.ub_elems = i;
+                res.ub_kids = i + 1;
+                res.right_needs_pruning = true;
+                break;
+            }
+
+            BdOrd::Equal(IsIn(is_in)) => {
+                res.ub_elems = i + (is_in as usize);
+                res.ub_kids = i + 1;
+                res.right_needs_pruning = false;
+                break;
+            }
+
+            BdOrd::Greater => (),
+        }
+    }
+
+    res
+}
+
+fn make_worklist<'a, K, V, const N: usize, Q>(
+    n: Option<&'a Arc<Node<K, V, N>>>,
+    work: &mut VecDeque<InnerNodeIter<'a, K, V, N>>,
+    mut lb: Bound<&Q>,
+    ub: Bound<&Q>,
+) where
+    Q: Ord + ?Sized,
+    K: Borrow<Q>,
+{
+    let Some(n) = n else { return };
+    let edges = find_range_edges(n, lb, ub);
+    let elems = n.elems[edges.lb_elems..edges.ub_elems].iter();
+    let mut kids = n
+        .kids
+        .get(edges.lb_kids..edges.ub_kids)
+        .unwrap_or_default()
+        .iter();
+
+    if edges.left_needs_pruning {
+        // We only need to keep use lb & ub together when there was only a
+        // single viable child in n.  Otherwise, when we prune the left, it's
+        // more efficient to use an ub of Unbounded and vice-versa on the right.
+        let ub = if kids.len() == 1 && edges.right_needs_pruning {
+            // assert!(edges.right_needs_pruning);
+            assert_eq!(elems.len(), 0);
+            ub
+        } else {
+            Bound::Unbounded
+        };
+
+        // uses our sub-scoped version of ub
+        make_worklist(kids.next(), work, lb, ub);
+
+        lb = Bound::Unbounded;
+    }
+
+    let to_prune = if edges.right_needs_pruning {
+        kids.next_back()
+    } else {
+        None
+    };
+
+    if elems.len() > 0 || kids.len() > 0 {
+        work.push_back(InnerNodeIter {
+            elems,
+            kids,
+            needs_lf_des: !edges.left_needs_pruning
+                && edges.lb_elems == edges.lb_kids,
+            needs_rt_des: !edges.right_needs_pruning
+                && edges.ub_elems < edges.ub_kids,
+        });
+    }
+
+    make_worklist(to_prune, work, lb, ub);
+}
+
+fn make_mut_worklist<'a, K, V, const N: usize, Q>(
+    n: Option<&'a mut Arc<Node<K, V, N>>>,
+    work: &mut VecDeque<NodeIterMut<'a, K, V, N>>,
+    mut lb: Bound<&Q>,
+    ub: Bound<&Q>,
+) where
+    Q: Ord + ?Sized,
+    K: Borrow<Q> + Clone,
+    V: Clone,
+{
+    let Some(n) = n else { return };
+    let edges = find_range_edges(n, lb, ub); // 1
+    let n = Arc::make_mut(n); // 2
+    let elems = n.elems[edges.lb_elems..edges.ub_elems].iter_mut(); // 3
+    let mut kids = n // 4
+        .kids
+        .get_mut(edges.lb_kids..edges.ub_kids)
+        .unwrap_or_default()
+        .iter_mut();
+
+    if edges.left_needs_pruning {
+        // We only need to keep use lb & ub together when there was only a
+        // single viable child in n.  Otherwise, when we prune the left, it's
+        // more efficient to use an ub of Unbounded and vice-versa on the right.
+        let ub = if kids.len() == 1 && edges.right_needs_pruning {
+            // assert!(edges.right_needs_pruning);
+            assert_eq!(elems.len(), 0);
+            ub
+        } else {
+            Bound::Unbounded
+        };
+
+        // uses our sub-scoped version of ub
+        make_mut_worklist(kids.next(), work, lb, ub);
+
+        lb = Bound::Unbounded;
+    }
+
+    let to_prune = if edges.right_needs_pruning {
+        kids.next_back()
+    } else {
+        None
+    };
+
+    if elems.len() > 0 || kids.len() > 0 {
+        work.push_back(NodeIterMut {
+            elems,
+            kids,
+            needs_lf_des: !edges.left_needs_pruning
+                && edges.lb_elems == edges.lb_kids,
+            needs_rt_des: !edges.right_needs_pruning
+                && edges.ub_elems < edges.ub_kids,
+        });
+    }
+
+    make_mut_worklist(to_prune, work, lb, ub);
+}
+
+pub struct Range<'a, K, V, const N: usize> {
+    iter: InnerIter<InnerNodeIter<'a, K, V, N>>,
+}
+
+impl<'a, K, V, const N: usize> Range<'a, K, V, N> {
+    fn new<Q, R>(m: &'a BTreeMap<K, V, N>, range: R) -> Self
+    where
+        Q: Ord + ?Sized,
+        K: Borrow<Q>,
+        R: RangeBounds<Q>,
+    {
+        use Bound::*;
+        match (range.start_bound(), range.end_bound()) {
+            (Excluded(k1) | Included(k1), Excluded(k2) | Included(k2))
+                if k2 < k1 =>
+            {
+                panic!("bad range")
+            }
+
+            _ => (),
+        }
+
+        let mut work = VecDeque::new();
+        make_worklist(
+            m.root.as_ref(),
+            &mut work,
+            range.start_bound(),
+            range.end_bound(),
+        );
+
+        Self {
+            iter: InnerIter {
+                work,
+                len: m.len(), // a lie!
+                make_node_iter,
+            },
+        }
+    }
+}
+
+impl<'a, K, V, const N: usize> std::fmt::Debug for Range<'a, K, V, N>
+where
+    K: std::fmt::Debug,
+    V: std::fmt::Debug,
+{
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> Result<(), std::fmt::Error> {
+        f.debug_struct("lazy_clone_collections::btree::Range")
+            .field("work", &self.iter.work)
+            .finish()
+    }
+}
+
+impl<'a, K, V, const N: usize> FusedIterator for Range<'a, K, V, N> {}
+
+impl<'a, K, V, const N: usize> Iterator for Range<'a, K, V, N> {
+    type Item = (&'a K, &'a V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|(ref k, ref v)| (k, v))
+    }
+}
+
+impl<'a, K, V, const N: usize> DoubleEndedIterator for Range<'a, K, V, N> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back().map(|(ref k, ref v)| (k, v))
+    }
+}
+
+pub struct RangeMut<'a, K, V, const N: usize> {
+    iter: InnerIter<NodeIterMut<'a, K, V, N>>,
+}
+
+impl<'a, K, V, const N: usize> RangeMut<'a, K, V, N> {
+    fn new<Q, R>(m: &'a mut BTreeMap<K, V, N>, range: R) -> Self
+    where
+        Q: Ord + ?Sized,
+        K: Borrow<Q> + Clone,
+        R: RangeBounds<Q>,
+        V: Clone,
+    {
+        use Bound::*;
+        match (range.start_bound(), range.end_bound()) {
+            (Excluded(k1) | Included(k1), Excluded(k2) | Included(k2))
+                if k2 < k1 =>
+            {
+                panic!("bad range")
+            }
+
+            _ => (),
+        }
+
+        let mut work = VecDeque::new();
+        make_mut_worklist(
+            m.root.as_mut(),
+            &mut work,
+            range.start_bound(),
+            range.end_bound(),
+        );
+
+        Self {
+            iter: InnerIter {
+                work,
+                len: u32::MAX as usize,
+                make_node_iter: make_node_iter_mut,
+            },
+        }
+    }
+}
+
+impl<'a, K, V, const N: usize> std::fmt::Debug for RangeMut<'a, K, V, N>
+where
+    K: std::fmt::Debug,
+    V: std::fmt::Debug,
+{
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> Result<(), std::fmt::Error> {
+        f.debug_struct("lazy_clone_collections::btree::Range")
+            .field("work", &self.iter.work)
+            .finish()
+    }
+}
+
+impl<'a, K, V, const N: usize> FusedIterator for RangeMut<'a, K, V, N> {}
+
+impl<'a, K, V, const N: usize> Iterator for RangeMut<'a, K, V, N> {
+    type Item = (&'a K, &'a mut V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|(ref k, ref mut v)| (k, v))
+    }
+}
+
+impl<'a, K, V, const N: usize> DoubleEndedIterator for RangeMut<'a, K, V, N> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back().map(|(ref k, ref mut v)| (k, v))
+    }
+}
+
 #[cfg(test)]
 fn chk_node_ptr<'a, K: Ord, V, const N: usize>(
     n: Option<&'a Arc<Node<K, V, N>>>,
@@ -1544,7 +1940,12 @@ mod test {
     // use the smallest possible MIN_OCCUPATION to stress rebalances, splits,
     // rotations, etc.
     type BTreeMap<K, V> = super::BTreeMap<K, V, 1>;
+    type StdBTreeMap<K, V> = std::collections::BTreeMap<K, V>;
     type TestElems = Vec<(u8, u16)>;
+
+    fn make_maps(v: TestElems) -> (BTreeMap<u8, u16>, StdBTreeMap<u8, u16>) {
+        (BTreeMap::from_iter(v.clone()), StdBTreeMap::from_iter(v))
+    }
 
     #[test]
     fn remove_test1() {
@@ -1718,9 +2119,10 @@ mod test {
         // create map with some sharing to test into_iter moving/cloning
         let mut v_lo = v.clone();
         let v_hi = v_lo.split_off(v.len() / 2);
-        let _m: BTreeMap<_, _> = v.clone().into_iter().collect();
-        let mut m1 = _m.clone();
+        let m: BTreeMap<_, _> = v.clone().into_iter().collect();
+        let mut m1 = m.clone();
         m1.extend(v_hi);
+        assert!(m.len() <= m1.len());
 
         // switch back to vec for better debugging output
         let n1: std::collections::BTreeMap<_, _> = v.into_iter().collect();
@@ -1819,6 +2221,122 @@ mod test {
         test_remove(elems);
     }
 
+    // I cannot see how to copy nor clone RangeBounds.  As a work around, pass
+    // the same range twice.
+    fn test_range<R>(v: TestElems, r1: R, r2: R)
+    where
+        R: std::fmt::Debug + std::ops::RangeBounds<u8>,
+    {
+        assert_eq!(r1.start_bound(), r2.start_bound());
+        assert_eq!(r2.end_bound(), r2.end_bound());
+        let (m, n) = make_maps(v);
+        let mr = m.range(r1);
+        assert!(mr.cmp(n.range(r2)).is_eq());
+    }
+
+    fn test_small_range<R>(r1: R, r2: R)
+    where
+        R: std::fmt::Debug + std::ops::RangeBounds<u8>,
+    {
+        test_range(vec![(1, 0), (3, 0), (5, 0)], r1, r2);
+    }
+
+    fn test_range_combos(v: TestElems, lb: u8, ub: u8) {
+        let (lb, ub) = if ub < lb { (ub, lb) } else { (lb, ub) };
+
+        test_range(v.clone(), lb..ub, lb..ub);
+        test_range(v.clone(), lb..=ub, lb..=ub);
+        test_range(v.clone(), lb.., lb..);
+        test_range(v.clone(), ..ub, ..ub);
+        test_range(v.clone(), ..=ub, ..=ub);
+
+        use std::ops::Bound::*;
+        test_range(
+            v.clone(),
+            (Excluded(lb), Included(ub)),
+            (Excluded(lb), Included(ub)),
+        );
+
+        if lb < ub {
+            test_range(
+                v,
+                (Excluded(lb), Excluded(ub)),
+                (Excluded(lb), Excluded(ub)),
+            );
+        }
+    }
+
+    #[test]
+    fn test_range_all() {
+        test_small_range(.., ..);
+    }
+
+    #[test]
+    fn test_range_left_inclusive() {
+        for i in 0..=6 {
+            test_small_range(i.., i..);
+        }
+    }
+
+    #[test]
+    fn test_range_left_exclusive() {
+        use std::ops::Bound::*;
+        for i in 0..=6 {
+            test_small_range(
+                (Excluded(i), Unbounded),
+                (Excluded(i), Unbounded),
+            );
+        }
+    }
+
+    #[test]
+    fn test_range_right_inclusive() {
+        for i in 0..=6 {
+            test_small_range(..=i, ..=i); // HERE
+        }
+    }
+
+    #[test]
+    fn test_range_right_exclusize() {
+        for i in 0..=6 {
+            test_small_range(..i, ..i);
+        }
+    }
+
+    use std::ops::Bound::*;
+
+    #[test]
+    #[should_panic]
+    fn test_range_panic() {
+        let m: BTreeMap<_, _> = [(0, 0), (3, 3)].into_iter().collect();
+        m.range((Excluded(0), Excluded(0)));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_range_panic2() {
+        let m: BTreeMap<_, _> = [(0, 0), (3, 3)].into_iter().collect();
+        #[allow(clippy::reversed_empty_ranges)]
+        m.range(1..0);
+    }
+
+    #[test]
+    fn test_range_regr1() {
+        test_range(vec![(255, 0)], 255..255, 255..255);
+        test_range(vec![(255, 0)], 255..=255, 255..=255);
+        test_range(vec![(255, 0)], 255.., 255..);
+    }
+
+    #[test]
+    fn test_range_regr2() {
+        test_range_combos(vec![(0, 0), (1, 0), (2, 0)], 2, 0);
+    }
+
+    #[test]
+    fn test_range_regr3() {
+        test_range_combos(vec![(1, 0)], 0, 2);
+    }
+
     quickcheck! {
         fn qc_insert(elems: TestElems) -> () {
             test_insert(elems);
@@ -1850,6 +2368,10 @@ mod test {
 
         fn qc_into_iter_alt(v: Vec<u8>, dirs: Vec<bool>) -> () {
             into_iter_alt_test(v, dirs)
+        }
+
+        fn qc_range(v: TestElems, lb: u8, ub: u8) -> () {
+            test_range_combos(v, lb, ub);
         }
     }
 }
