@@ -293,11 +293,25 @@ pub struct Iter<'a, T, const N: usize> {
     iter: crate::btree::Iter<'a, T, (), N>,
 }
 
+impl<'a, T, const N: usize> ExactSizeIterator for Iter<'a, T, N> {
+    fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
+
+impl<'a, T, const N: usize> FusedIterator for Iter<'a, T, N> {}
+
 impl<'a, T, const N: usize> Iterator for Iter<'a, T, N> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next().map(|e| e.0)
+    }
+}
+
+impl<'a, T, const N: usize> DoubleEndedIterator for Iter<'a, T, N> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back().map(|e| e.0)
     }
 }
 
@@ -313,11 +327,25 @@ where
     iter: crate::btree::IntoIter<T, (), N>,
 }
 
+impl<T: Clone, const N: usize> ExactSizeIterator for IntoIter<T, N> {
+    fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
+
+impl<T: Clone, const N: usize> FusedIterator for IntoIter<T, N> {}
+
 impl<T: Clone, const N: usize> Iterator for IntoIter<T, N> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next().map(|e| e.0)
+    }
+}
+
+impl<T: Clone, const N: usize> DoubleEndedIterator for IntoIter<T, N> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back().map(|e| e.0)
     }
 }
 
