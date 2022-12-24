@@ -963,22 +963,42 @@ impl<I, J> InnerIterErg<I, J> {
         self.elems.len() == 0 && self.kids.len() == 0
     }
 
-    fn next(&mut self) -> Option<I::Item>
+    fn next_elem(&mut self) -> Option<I::Item>
     where
         I: Iterator,
         J: ExactSizeIterator,
     {
+        assert!(!self.needs_lf_des);
         self.needs_lf_des = self.kids.len() != 0;
         self.elems.next()
     }
 
-    fn next_back(&mut self) -> Option<I::Item>
+    fn next_back_elem(&mut self) -> Option<I::Item>
     where
         I: DoubleEndedIterator,
         J: ExactSizeIterator,
     {
+        assert!(!self.needs_rt_des);
         self.needs_rt_des = self.kids.len() != 0;
         self.elems.next_back()
+    }
+
+    fn next_kid(&mut self) -> Option<J::Item>
+    where
+        J: ExactSizeIterator,
+    {
+        assert!(self.kids.len() == 0 || self.needs_lf_des);
+        self.needs_lf_des = false;
+        self.kids.next()
+    }
+
+    fn next_back_kid(&mut self) -> Option<J::Item>
+    where
+        J: DoubleEndedIterator + ExactSizeIterator,
+    {
+        assert!(self.kids.len() == 0 || self.needs_rt_des);
+        self.needs_rt_des = false;
+        self.kids.next_back()
     }
 
     fn new(elems: I, kids: J) -> Self
@@ -1016,18 +1036,16 @@ where
         let mut erg = self.work.front_mut()?;
 
         if erg.needs_lf_des {
-            while let Some(kid) = erg.kids.next() {
+            while let Some(kid) = erg.next_kid() {
                 if erg.is_empty() {
                     self.work.pop_front();
-                } else {
-                    erg.needs_lf_des = false;
                 }
                 self.work.push_front((self.make_erg)(kid));
                 erg = self.work.front_mut().unwrap();
             }
         }
 
-        let ret = erg.next();
+        let ret = erg.next_elem();
 
         assert!(ret.is_some());
         self.len -= 1;
@@ -1049,18 +1067,16 @@ where
         let mut erg = self.work.back_mut()?;
 
         if erg.needs_rt_des {
-            while let Some(kid) = erg.kids.next_back() {
+            while let Some(kid) = erg.next_back_kid() {
                 if erg.is_empty() {
                     self.work.pop_back();
-                } else {
-                    erg.needs_rt_des = false;
                 }
                 self.work.push_back((self.make_erg)(kid));
                 erg = self.work.back_mut().unwrap();
             }
         }
 
-        let ret = erg.next_back();
+        let ret = erg.next_back_elem();
 
         assert!(ret.is_some());
         self.len -= 1;
