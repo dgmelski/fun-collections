@@ -622,19 +622,19 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
     }
 
     pub fn iter(&self) -> Iter<'_, K, V, N> {
-        let make_erg = make_iter_erg;
+        let make_erg = make_node_iter;
         let iter = if let Some(arc) = self.root.as_ref() {
             let erg = make_erg(arc);
             InnerIter {
                 work: VecDeque::from([erg]),
                 len: self.len,
-                make_erg,
+                make_node_iter: make_erg,
             }
         } else {
             InnerIter {
                 work: VecDeque::new(),
                 len: 0,
-                make_erg,
+                make_node_iter: make_erg,
             }
         };
 
@@ -646,19 +646,19 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         K: Clone,
         V: Clone,
     {
-        let make_erg = make_iter_mut_erg;
+        let make_erg = make_node_iter_mut;
         let iter = if let Some(arc) = self.root.as_mut() {
             let erg = make_erg(arc);
             InnerIter {
                 work: VecDeque::from([erg]),
                 len: self.len,
-                make_erg,
+                make_node_iter: make_erg,
             }
         } else {
             InnerIter {
                 work: VecDeque::new(),
                 len: 0,
-                make_erg,
+                make_node_iter: make_erg,
             }
         };
 
@@ -950,6 +950,8 @@ where
 //   Iterators
 // *************
 
+// Our iteration strategy uses a VecDeque of node iterators.  The NodeIter trait
+// describes what we need to iterate an individual node.
 trait NodeIter {
     type ElemItem;
     type ChildItem;
@@ -966,8 +968,10 @@ trait NodeIter {
     fn needs_rt_des(&self) -> bool;
 }
 
-// BorrowedNodeIter is used to implement Iter and IterMut where it has a
-// borrowed ref and a borrowed mutable ref, respectively, to the iterated node.
+// BorrowedNodeIter is used to implement Iter and IterMut where we'll have
+// borrowed refs and borrowed mutable refs, respectively, for the iterated node.
+// 'I' and 'J' will be Iterators of the appropriate types over the elems and
+// kids of a node.
 #[derive(Debug)]
 struct BorrowedNodeIter<I, J> {
     elems: I,
@@ -1050,18 +1054,22 @@ impl<I, J> BorrowedNodeIter<I, J> {
     }
 }
 
-// InnerIter implements Iter and IterMut.
+// InnerIter is the shared implementation for /all/ of the iterators.  They are
+// all wrappers around InnerIter, which they specialize in two ways: first, by
+// providing different implementations of NodeIter and second by providing a
+// function to create NodeIter's.
 #[derive(Debug)]
 struct InnerIter<I: NodeIter> {
     work: std::collections::VecDeque<I>,
     len: usize,
-    make_erg: fn(I::ChildItem) -> I,
+    make_node_iter: fn(I::ChildItem) -> I,
 }
 
 impl<I: NodeIter> Iterator for InnerIter<I> {
     type Item = I::ElemItem;
 
     fn next(&mut self) -> Option<Self::Item> {
+        // 'erg' as in a unit of work, that being the node to iterate
         let mut erg = self.work.front_mut()?;
 
         if erg.needs_lf_des() {
@@ -1069,7 +1077,7 @@ impl<I: NodeIter> Iterator for InnerIter<I> {
                 if erg.is_empty() {
                     self.work.pop_front();
                 }
-                self.work.push_front((self.make_erg)(kid));
+                self.work.push_front((self.make_node_iter)(kid));
                 erg = self.work.front_mut().unwrap();
             }
         }
@@ -1096,7 +1104,7 @@ impl<I: NodeIter> DoubleEndedIterator for InnerIter<I> {
                 if erg.is_empty() {
                     self.work.pop_back();
                 }
-                self.work.push_back((self.make_erg)(kid));
+                self.work.push_back((self.make_node_iter)(kid));
                 erg = self.work.back_mut().unwrap();
             }
         }
@@ -1118,6 +1126,7 @@ use std::slice::Iter as SliceIter;
 
 #[derive(Debug)]
 pub struct Iter<'a, K, V, const N: usize> {
+    #[allow(clippy::type_complexity)]
     iter: InnerIter<
         BorrowedNodeIter<
             SliceIter<'a, (K, V)>,
@@ -1126,13 +1135,13 @@ pub struct Iter<'a, K, V, const N: usize> {
     >,
 }
 
-type IterErg<'a, K, V, const N: usize> =
+type InnerNodeIter<'a, K, V, const N: usize> =
     BorrowedNodeIter<SliceIter<'a, (K, V)>, SliceIter<'a, Arc<Node<K, V, N>>>>;
 
-fn make_iter_erg<'a, K, V, const N: usize>(
-    n: &'a Arc<Node<K, V, N>>,
-) -> IterErg<'a, K, V, N> {
-    BorrowedNodeIter::new(n.elems.iter(), n.kids.iter())
+fn make_node_iter<K, V, const N: usize>(
+    n: &Arc<Node<K, V, N>>,
+) -> InnerNodeIter<'_, K, V, N> {
+    InnerNodeIter::new(n.elems.iter(), n.kids.iter())
 }
 
 impl<'a, K, V, const N: usize> ExactSizeIterator for Iter<'a, K, V, N> {
@@ -1165,6 +1174,7 @@ where
     K: Clone,
     V: Clone,
 {
+    #[allow(clippy::type_complexity)]
     iter: InnerIter<
         BorrowedNodeIter<
             SliceIterMut<'a, (K, V)>,
@@ -1173,20 +1183,20 @@ where
     >,
 }
 
-type IterMutErg<'a, K, V, const N: usize> = BorrowedNodeIter<
+type NodeIterMut<'a, K, V, const N: usize> = BorrowedNodeIter<
     SliceIterMut<'a, (K, V)>,
     SliceIterMut<'a, Arc<Node<K, V, N>>>,
 >;
 
-fn make_iter_mut_erg<'a, K, V, const N: usize>(
-    n: &'a mut Arc<Node<K, V, N>>,
-) -> IterMutErg<'a, K, V, N>
+fn make_node_iter_mut<K, V, const N: usize>(
+    n: &mut Arc<Node<K, V, N>>,
+) -> NodeIterMut<'_, K, V, N>
 where
     K: Clone,
     V: Clone,
 {
     let n = Arc::make_mut(n);
-    BorrowedNodeIter::new(n.elems.iter_mut(), n.kids.iter_mut())
+    NodeIterMut::new(n.elems.iter_mut(), n.kids.iter_mut())
 }
 
 impl<'a, K, V, const N: usize> ExactSizeIterator for IterMut<'a, K, V, N>
@@ -1230,7 +1240,7 @@ where
 
 // *** IntoIter ***
 
-struct BorrowedNodeIntoIter<K, V, const N: usize> {
+struct ArcNodeIntoIter<K, V, const N: usize> {
     n: Arc<Node<K, V, N>>,
     lb_elems: usize,
     ub_elems: usize,
@@ -1247,12 +1257,12 @@ struct OwnedNodeIntoIter<K, V, const N: usize> {
     needs_rt_des: bool, // Needs Right Descent
 }
 
-enum NodeIntoIter<K, V, const N: usize> {
-    Borrowed(BorrowedNodeIntoIter<K, V, N>),
+enum IntoNodeIter<K, V, const N: usize> {
+    Arcked(ArcNodeIntoIter<K, V, N>),
     Owned(OwnedNodeIntoIter<K, V, N>),
 }
 
-impl<K, V, const N: usize> NodeIter for NodeIntoIter<K, V, N>
+impl<K, V, const N: usize> NodeIter for IntoNodeIter<K, V, N>
 where
     K: Clone,
     V: Clone,
@@ -1262,31 +1272,31 @@ where
 
     fn is_empty(&self) -> bool {
         match self {
-            NodeIntoIter::Borrowed(b) => {
+            IntoNodeIter::Arcked(b) => {
                 b.lb_elems >= b.ub_elems && b.lb_kids >= b.ub_kids
             }
 
-            NodeIntoIter::Owned(n) => n.elems.len() == 0 && n.kids.len() == 0,
+            IntoNodeIter::Owned(n) => n.elems.len() == 0 && n.kids.len() == 0,
         }
     }
 
     fn needs_lf_des(&self) -> bool {
         match self {
-            NodeIntoIter::Borrowed(b) => b.needs_lf_des,
-            NodeIntoIter::Owned(n) => n.needs_lf_des,
+            IntoNodeIter::Arcked(b) => b.needs_lf_des,
+            IntoNodeIter::Owned(n) => n.needs_lf_des,
         }
     }
 
     fn needs_rt_des(&self) -> bool {
         match self {
-            NodeIntoIter::Borrowed(b) => b.needs_rt_des,
-            NodeIntoIter::Owned(n) => n.needs_rt_des,
+            IntoNodeIter::Arcked(b) => b.needs_rt_des,
+            IntoNodeIter::Owned(n) => n.needs_rt_des,
         }
     }
 
     fn next_elem(&mut self) -> Option<Self::ElemItem> {
         match self {
-            NodeIntoIter::Borrowed(b) => {
+            IntoNodeIter::Arcked(b) => {
                 assert!(!b.needs_lf_des);
                 b.needs_lf_des = b.lb_kids < b.ub_kids;
                 if b.lb_elems < b.ub_elems {
@@ -1297,7 +1307,7 @@ where
                 }
             }
 
-            NodeIntoIter::Owned(n) => {
+            IntoNodeIter::Owned(n) => {
                 assert!(!n.needs_lf_des);
                 n.needs_lf_des = n.kids.len() > 0;
                 n.elems.next()
@@ -1307,7 +1317,7 @@ where
 
     fn next_back_elem(&mut self) -> Option<Self::ElemItem> {
         match self {
-            NodeIntoIter::Borrowed(b) => {
+            IntoNodeIter::Arcked(b) => {
                 assert!(!b.needs_rt_des);
                 b.needs_rt_des = b.lb_kids < b.ub_kids;
                 if b.lb_elems < b.ub_elems {
@@ -1318,7 +1328,7 @@ where
                 }
             }
 
-            NodeIntoIter::Owned(n) => {
+            IntoNodeIter::Owned(n) => {
                 assert!(!n.needs_rt_des);
                 n.needs_rt_des = n.kids.len() > 0;
                 n.elems.next_back()
@@ -1328,7 +1338,7 @@ where
 
     fn next_kid(&mut self) -> Option<Self::ChildItem> {
         match self {
-            NodeIntoIter::Borrowed(b) => {
+            IntoNodeIter::Arcked(b) => {
                 assert!(b.needs_lf_des || b.lb_kids == b.ub_kids);
                 b.needs_lf_des = false;
                 if b.lb_kids < b.ub_kids {
@@ -1339,7 +1349,7 @@ where
                 }
             }
 
-            NodeIntoIter::Owned(n) => {
+            IntoNodeIter::Owned(n) => {
                 assert!(n.needs_lf_des || n.kids.len() == 0);
                 n.needs_lf_des = false;
                 n.kids.next().map(Arc::try_unwrap)
@@ -1349,7 +1359,7 @@ where
 
     fn next_back_kid(&mut self) -> Option<Self::ChildItem> {
         match self {
-            NodeIntoIter::Borrowed(b) => {
+            IntoNodeIter::Arcked(b) => {
                 assert!(b.needs_rt_des || b.lb_kids == b.ub_kids);
                 b.needs_rt_des = false;
                 if b.lb_kids < b.ub_kids {
@@ -1360,7 +1370,7 @@ where
                 }
             }
 
-            NodeIntoIter::Owned(n) => {
+            IntoNodeIter::Owned(n) => {
                 assert!(n.needs_rt_des || n.kids.len() == 0);
                 n.needs_rt_des = false;
                 n.kids.next_back().map(Arc::try_unwrap)
@@ -1374,12 +1384,12 @@ where
     K: Clone,
     V: Clone,
 {
-    iter: InnerIter<NodeIntoIter<K, V, N>>,
+    iter: InnerIter<IntoNodeIter<K, V, N>>,
 }
 
-fn make_node_into_iter<K, V, const N: usize>(
+fn make_into_node_iter<K, V, const N: usize>(
     n: Result<Node<K, V, N>, Arc<Node<K, V, N>>>,
-) -> NodeIntoIter<K, V, N>
+) -> IntoNodeIter<K, V, N>
 where
     K: Clone,
     V: Clone,
@@ -1387,7 +1397,7 @@ where
     match n {
         Ok(n) => {
             let is_branch = n.is_branch();
-            NodeIntoIter::Owned(OwnedNodeIntoIter {
+            IntoNodeIter::Owned(OwnedNodeIntoIter {
                 elems: n.elems.into_iter(),
                 kids: n.kids.into_iter(),
                 needs_lf_des: is_branch,
@@ -1399,7 +1409,7 @@ where
             let is_branch = n.is_branch();
             let cnt_elems = n.elems.len();
             let cnt_kids = n.kids.len();
-            NodeIntoIter::Borrowed(BorrowedNodeIntoIter {
+            IntoNodeIter::Arcked(ArcNodeIntoIter {
                 n,
                 lb_elems: 0,
                 ub_elems: cnt_elems,
@@ -1421,11 +1431,11 @@ where
         if let Some(n) = m.root {
             IntoIter {
                 iter: InnerIter {
-                    work: VecDeque::from([make_node_into_iter(
+                    work: VecDeque::from([make_into_node_iter(
                         Arc::try_unwrap(n),
                     )]),
                     len: m.len,
-                    make_erg: make_node_into_iter,
+                    make_node_iter: make_into_node_iter,
                 },
             }
         } else {
@@ -1433,7 +1443,7 @@ where
                 iter: InnerIter {
                     work: VecDeque::new(),
                     len: 0,
-                    make_erg: make_node_into_iter,
+                    make_node_iter: make_into_node_iter,
                 },
             }
         }
@@ -1708,8 +1718,8 @@ mod test {
         // create map with some sharing to test into_iter moving/cloning
         let mut v_lo = v.clone();
         let v_hi = v_lo.split_off(v.len() / 2);
-        let m0: BTreeMap<_, _> = v.clone().into_iter().collect();
-        let mut m1 = m0.clone();
+        let _m: BTreeMap<_, _> = v.clone().into_iter().collect();
+        let mut m1 = _m.clone();
         m1.extend(v_hi);
 
         // switch back to vec for better debugging output
