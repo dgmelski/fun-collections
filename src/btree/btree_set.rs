@@ -234,16 +234,13 @@ impl<T, const N: usize> BTreeSet<T, N> {
         self.map.remove(value).is_some()
     }
 
-    // /// Replace and return the matching value in the map.
-    // pub fn replace(&mut self, value: T) -> Option<T>
-    // where
-    //     T: Clone + Ord,
-    // {
-    //     // TODO: adapt insert so we don't need multiple calls.
-    //     let ret = self.take(&value);
-    //     self.insert(value);
-    //     ret
-    // }
+    /// TODO: Replace and return the matching value in the map.
+    pub fn replace(&mut self, _value: T) -> Option<T>
+    where
+        T: Clone + Ord,
+    {
+        todo!()
+    }
 
     /// Retain values for which f returns true and discard others
     pub fn retain<F>(&mut self, f: F)

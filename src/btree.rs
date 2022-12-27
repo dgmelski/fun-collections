@@ -722,6 +722,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         self.len -= 1;
 
         if is_under_pop.0 && n.elems.is_empty() {
+            assert!(n.kids.len() <= 1);
             self.root = n.kids.pop();
         }
 
