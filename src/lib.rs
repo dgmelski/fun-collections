@@ -214,11 +214,11 @@ impl<'a, K, V: Clone> OccupiedEntry<'a, K, V> {
     }
 
     pub fn remove(self) -> V {
-        self.val.clone()
+        todo!();
     }
 
     pub fn remove_entry(self) -> (K, V) {
-        (self.key, self.val.clone())
+        todo!();
     }
 }
 
