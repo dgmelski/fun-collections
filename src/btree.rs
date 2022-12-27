@@ -875,12 +875,13 @@ where
 
 impl<K: Eq, V: Eq, const N: usize> Eq for BTreeMap<K, V, N> {}
 
-impl<K, V, const N: usize> From<[(K, V); N]> for BTreeMap<K, V, N>
+impl<K, V, const N: usize, const M: usize> From<[(K, V); M]>
+    for BTreeMap<K, V, N>
 where
     K: Clone + Ord,
     V: Clone,
 {
-    fn from(vs: [(K, V); N]) -> Self {
+    fn from(vs: [(K, V); M]) -> Self {
         BTreeMap::from_iter(vs.into_iter())
     }
 }

@@ -410,8 +410,10 @@ impl<T: Clone + Ord, const N: usize> Extend<T> for BTreeSet<T, N> {
     }
 }
 
-impl<T: Clone + Ord, const N: usize> From<[T; N]> for BTreeSet<T, N> {
-    fn from(value: [T; N]) -> Self {
+impl<T: Clone + Ord, const N: usize, const M: usize> From<[T; M]>
+    for BTreeSet<T, N>
+{
+    fn from(value: [T; M]) -> Self {
         Self::from_iter(value.into_iter())
     }
 }
