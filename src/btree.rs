@@ -1775,7 +1775,7 @@ impl<'a, K, V, const N: usize> Range<'a, K, V, N> {
         Self {
             iter: InnerIter {
                 work,
-                len: m.len(), // a lie!
+                len: m.len(), // only an estimate...
                 make_node_iter,
             },
         }
@@ -1804,6 +1804,16 @@ impl<'a, K, V, const N: usize> Iterator for Range<'a, K, V, N> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next().map(|(ref k, ref v)| (k, v))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let lb = self
+            .iter
+            .work
+            .iter()
+            .map(|erg| erg.elems.len() + N * erg.kids.len())
+            .sum();
+        (lb, Some(self.iter.len))
     }
 }
 
@@ -1836,6 +1846,7 @@ impl<'a, K, V, const N: usize> RangeMut<'a, K, V, N> {
             _ => (),
         }
 
+        let len = m.len();
         let mut work = VecDeque::new();
         make_mut_worklist(
             m.root.as_mut(),
@@ -1847,7 +1858,7 @@ impl<'a, K, V, const N: usize> RangeMut<'a, K, V, N> {
         Self {
             iter: InnerIter {
                 work,
-                len: u32::MAX as usize,
+                len, // Only an estimate ...
                 make_node_iter: make_node_iter_mut,
             },
         }
@@ -1876,6 +1887,16 @@ impl<'a, K, V, const N: usize> Iterator for RangeMut<'a, K, V, N> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next().map(|(ref k, ref mut v)| (k, v))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let lb = self
+            .iter
+            .work
+            .iter()
+            .map(|erg| erg.elems.len() + N * erg.kids.len())
+            .sum();
+        (lb, Some(self.iter.len))
     }
 }
 
