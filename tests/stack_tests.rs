@@ -3,7 +3,7 @@ use lazy_clone_collections::Stack;
 use quickcheck::quickcheck;
 
 #[test]
-fn hello() {
+fn test_stack_collect() {
     let s: Stack<_> = (0..3).collect();
     assert_eq!(s.len(), 3);
 }
