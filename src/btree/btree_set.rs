@@ -7,6 +7,17 @@ pub struct BTreeSet<T, const N: usize> {
 
 impl<T, const N: usize> BTreeSet<T, N> {
     /// Moves all elements from other into self and leaves other empty.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::BTreeSet;
+    ///
+    /// let mut m1 = BTreeSet::from([0]);
+    /// let mut m2 = BTreeSet::from([1]);
+    /// m1.append(&mut m2);
+    /// assert!(m1.contains(&1));
+    /// assert_eq!(m2.len(), 0);
+    /// ```
     pub fn append(&mut self, other: &mut Self)
     where
         T: Ord + Clone,
