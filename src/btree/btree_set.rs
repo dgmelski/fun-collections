@@ -263,30 +263,30 @@ impl<T, const N: usize> BTreeSet<T, N> {
         SymmetricDifference::new(self.iter(), other.iter())
     }
 
-    // /// Removes and returns the set member that matches value.
-    // ///
-    // /// # Examples
-    // /// ```
-    // /// use lazy_clone_collections::AvlSet;
-    // ///
-    // /// let mut s = AvlSet::new();
-    // /// s.insert("abc".to_string());
-    // /// s.insert("def".to_string());
-    // /// assert_eq!(s.take("abc"), Some(String::from("abc")));
-    // /// assert_eq!(s.len(), 1);
-    // /// ```
-    // pub fn take<Q>(&mut self, value: &Q) -> Option<T>
-    // where
-    //     T: Borrow<Q> + Clone + Ord,
-    //     Q: Ord + ?Sized,
-    // {
-    //     if let Some((k, _)) = super::rm(&mut self.map.root, value).0 {
-    //         self.map.len -= 1;
-    //         Some(k)
-    //     } else {
-    //         None
-    //     }
-    // }
+    /// Removes and returns the set member that matches value.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::BTreeSet;
+    ///
+    /// let mut s = BTreeSet::new();
+    /// s.insert("abc".to_string());
+    /// s.insert("def".to_string());
+    /// assert_eq!(s.take("abc"), Some(String::from("abc")));
+    /// assert_eq!(s.len(), 1);
+    /// ```
+    pub fn take<Q>(&mut self, value: &Q) -> Option<T>
+    where
+        T: Borrow<Q> + Clone + Ord,
+        Q: Ord + ?Sized,
+    {
+        // avoid unnecessary cloning
+        if !self.contains(value) {
+            return None;
+        }
+
+        self.map.rm_and_rebal(|n| n.remove(value)).map(|e| e.0)
+    }
 
     /// Returns an iterator over the elements of self and other, ordered by key.
     ///
