@@ -53,21 +53,47 @@ fn check_into_iter(v: Vec<(String, u16)>) {
     assert_eq!(cnt, 0);
 }
 
+#[test]
+#[should_panic]
+fn test_range_ex_ex_panic() {
+    let m = BTreeMap::from([(0u8, 0u8), (1, 1), (2, 2)]);
+    m.range((Bound::Excluded(1), Bound::Excluded(1)));
+}
+
+#[test]
+#[should_panic]
+fn test_inverted_range_panic() {
+    let m = BTreeMap::from([(0u8, 0u8), (1, 1), (2, 2)]);
+    m.range((Bound::Included(2), Bound::Excluded(1)));
+}
+
 fn range_bounds_1k() -> impl Strategy<Value = (Bound<u16>, Bound<u16>)> {
-    (1u16..1023).prop_flat_map(|n| {
-        (
-            prop_oneof![
-                Just(Bound::Unbounded),
-                (0u16..=n).prop_map(Bound::Excluded),
-                (0u16..=n).prop_map(Bound::Included),
-            ],
-            prop_oneof![
-                Just(Bound::Unbounded),
-                ((n + 1)..1024).prop_map(Bound::Excluded),
-                (n..1024).prop_map(Bound::Included),
-            ],
-        )
-    })
+    use Bound::*;
+
+    (1u16..1023)
+        .prop_flat_map(|n| {
+            (
+                prop_oneof![
+                    Just(Bound::Unbounded),
+                    (0u16..=n).prop_map(Bound::Excluded),
+                    (0u16..=n).prop_map(Bound::Included),
+                ],
+                prop_oneof![
+                    Just(Bound::Unbounded),
+                    (n..1024).prop_map(Bound::Excluded),
+                    (n..1024).prop_map(Bound::Included),
+                ],
+            )
+        })
+        .prop_map(|(lb, ub)| match (lb, ub) {
+            (Excluded(x), Excluded(y)) if x == y => {
+                // convert the panic case to a non-panic case (friendlier than
+                // filtering for proptest?)
+                (Included(x), Excluded(y))
+            }
+
+            xy => xy,
+        })
 }
 
 fn check_range(u: Vec<(u16, u16)>, r: (Bound<u16>, Bound<u16>)) {
