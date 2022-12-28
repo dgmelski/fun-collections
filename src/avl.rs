@@ -1476,6 +1476,34 @@ impl<K, V> AvlMap<K, V> {
         Some(kv)
     }
 
+    /// Returns an iterator over the elements with a key in the given range.
+    pub fn range<T, R>(&self, range: R) -> impl Iterator<Item = (&K, &V)>
+    where
+        T: Ord + ?Sized,
+        K: Borrow<T>,
+        R: std::ops::RangeBounds<T>,
+    {
+        // TODO: inefficient
+        self.iter()
+            .filter(move |(k, _)| range.contains((*k).borrow()))
+    }
+
+    /// Returns a mutable iterator over the elements with a key in the given range.
+    pub fn range_mut<T, R>(
+        &mut self,
+        range: R,
+    ) -> impl Iterator<Item = (&K, &mut V)>
+    where
+        T: Ord + ?Sized,
+        K: Borrow<T> + Clone,
+        R: std::ops::RangeBounds<T>,
+        V: Clone,
+    {
+        // TODO: inefficient
+        self.iter_mut()
+            .filter(move |(k, _)| range.contains((*k).borrow()))
+    }
+
     /// Removes the entry for the given key and returns the unmapped value.
     ///
     /// # Examples
