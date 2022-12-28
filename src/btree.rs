@@ -88,7 +88,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
         self.kids.last()?.get_key_value(key)
     }
 
-    fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
+    fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut (K, V)>
     where
         K: Borrow<Q> + Clone,
         V: Clone,
@@ -102,7 +102,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
                     return n.get_mut(key);
                 }
 
-                Equal => return Some(self.val_mut(i)),
+                Equal => return Some(&mut self.elems[i]),
                 Greater => (),
             }
         }
@@ -534,7 +534,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
     {
         let rc = self.root.as_mut()?;
         let n = Arc::make_mut(rc);
-        n.get_mut(key)
+        n.get_mut(key).map(|e| &mut e.1)
     }
 
     /// Associates 'val' with 'key' and returns the value previously associated

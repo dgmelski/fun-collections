@@ -234,12 +234,47 @@ impl<T, const N: usize> BTreeSet<T, N> {
         self.map.remove(value).is_some()
     }
 
-    /// TODO: Replace and return the matching value in the map.
-    pub fn replace(&mut self, _value: T) -> Option<T>
+    /// Replace and return the matching value in the map.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::BTreeSet;
+    ///
+    /// #[derive(Clone, Copy, Debug)]
+    /// struct X(usize); // all X's are equal
+    /// impl std::cmp::PartialEq for X {
+    ///     fn eq(&self, _: &Self) -> bool { true }
+    /// }
+    /// impl std::cmp::Eq for X { }
+    /// impl std::cmp::PartialOrd for X {
+    ///     fn partial_cmp(&self, _: &Self) -> Option<std::cmp::Ordering> {
+    ///         Some(std::cmp::Ordering::Equal)
+    ///     }
+    /// }
+    /// impl std::cmp::Ord for X {
+    ///     fn cmp(&self, _: &Self) -> std::cmp::Ordering {
+    ///         std::cmp::Ordering::Equal
+    ///     }
+    /// }
+    ///
+    /// let mut s = BTreeSet::from([(0, X(0))]);
+    /// assert_eq!(s.replace((0, X(331))), Some((0, X(0))));
+    /// assert_eq!(s.replace((10, X(5))), None);
+    /// assert_eq!(s.len(), 1);
+    /// assert_eq!(s.iter().next(), Some(&(0, X(331))));
+    /// ```
+    pub fn replace(&mut self, value: T) -> Option<T>
     where
         T: Clone + Ord,
     {
-        todo!()
+        if self.contains(&value) {
+            let rc = self.map.root.as_mut()?;
+            let n = Arc::make_mut(rc);
+            let kv = n.get_mut(&value).unwrap();
+            Some(replace(&mut kv.0, value))
+        } else {
+            None
+        }
     }
 
     /// Retain values for which f returns true and discard others
