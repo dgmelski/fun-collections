@@ -168,7 +168,7 @@ impl<K: Ord, V> Node<K, V> {
     fn chk(&self) {}
 }
 
-impl<K: Clone + Debug, V: Clone + Debug> Debug for Node<K, V> {
+impl<K: Debug, V: Debug> Debug for Node<K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "(ht: {} {{{:?}: {:?}}} ",
@@ -1715,23 +1715,16 @@ impl<'a, K, V> ExactSizeIterator for Iter<'a, K, V> {
 
 impl<'a, K, V> FusedIterator for Iter<'a, K, V> {}
 
+#[derive(Debug)]
 enum IterMutAction<'a, K, V> {
     Descend(&'a mut Arc<Node<K, V>>),
     Return((&'a K, &'a mut V)),
 }
 
+#[derive(Debug)]
 pub struct IterMut<'a, K, V> {
     work: Vec<IterMutAction<'a, K, V>>,
     len: usize,
-}
-
-impl<'a, K: Debug, V: Debug> Debug for IterMut<'a, K, V> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        // TODO: remove IterMut so we can remote the next element
-        f.debug_struct("avl_map::IterMut")
-            .field("len", &self.len)
-            .finish()
-    }
 }
 
 impl<'a, K, V> Iterator for IterMut<'a, K, V>
@@ -1790,12 +1783,14 @@ where
 
 impl<'a, K: Clone, V: Clone> FusedIterator for IterMut<'a, K, V> {}
 
+#[derive(Debug)]
 enum IntoIterAction<K, V> {
     DescendRef(Arc<Node<K, V>>),
     DescendOwn(Node<K, V>),
     Return(K, V),
 }
 
+#[derive(Debug)]
 pub struct IntoIter<K, V> {
     w: Vec<IntoIterAction<K, V>>,
     len: usize,
@@ -1846,15 +1841,6 @@ impl<K, V> IntoIter<K, V> {
                 Return(k, v) => return Some((k, v)),
             }
         }
-    }
-}
-
-impl<K: Debug, V: Debug> Debug for IntoIter<K, V> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        // TODO: remove IterMut so we can remote the next element
-        f.debug_struct("avl_map::IntoIter")
-            .field("len", &self.len)
-            .finish()
     }
 }
 

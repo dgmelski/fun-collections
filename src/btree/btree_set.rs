@@ -50,6 +50,14 @@ impl<T, const N: usize> BTreeSet<T, N> {
     // TODO: drain_filter? (Part of unstable API)
 
     /// Returns the least value in the set.
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::BTreeSet;
+    ///
+    /// let s = BTreeSet::from([100, 0, 35, 104]);
+    /// assert_eq!(s.first(), Some(&0));
+    /// ```
     pub fn first(&self) -> Option<&T> {
         self.map.first_key_value().map(|(k, _)| k)
     }
@@ -81,6 +89,16 @@ impl<T, const N: usize> BTreeSet<T, N> {
     }
 
     /// Returns true if self and other have no common values and false otherwise
+    ///
+    /// # Examples
+    /// ```
+    /// use lazy_clone_collections::BTreeSet;
+    ///
+    /// let s1 = BTreeSet::from([0, 1, 2]);
+    /// let s2 = BTreeSet::from([2, 1, 4]);
+    /// assert!(!s1.is_disjoint(&s2));
+    /// assert!(s1.is_disjoint(&BTreeSet::new()))
+    /// ```
     pub fn is_disjoint(&self, other: &Self) -> bool
     where
         T: Ord,
