@@ -6,7 +6,7 @@ use std::iter::FusedIterator;
 use std::mem::replace;
 use std::sync::Arc;
 
-use super::{Entry, Map, OccupiedEntry, VacantEntry};
+use super::{Entry, Map};
 
 pub mod avl_set;
 
@@ -1008,49 +1008,17 @@ impl<K, V> AvlMap<K, V> {
         K: Clone + Ord,
         V: Clone,
     {
-        // The following fails with a complaint about more than one mutable
-        // borrow of self.  I don't understand why it's a problem for
-        // non-lexical lifetimes.
-        // if let Some(val) = self.get_mut(&key) {
-        //     Entry::Occupied(OccupiedEntry { key, val })
-        // } else {
-        //     Entry::Vacant(VacantEntry { key, map: self })
-        // }
-
-        // TODO: all the same, do we need the double lookup?
-        if self.contains_key(&key) {
-            let val = self.get_mut(&key).unwrap();
-            Entry::Occupied(OccupiedEntry { key, val })
-        } else {
-            Entry::Vacant(VacantEntry { key, map: self })
-        }
+        Entry { map: self, key }
     }
 
     /// Return an Entry for the least key in the map.
-    pub fn first_entry(&mut self, key: K) -> Entry<'_, Self>
+    pub fn first_entry(&mut self) -> Option<Entry<'_, Self>>
     where
         K: Clone + Ord,
         V: Clone,
     {
-        // avoid similar "double borrow" problem described in first_key_entry
-        if self.is_empty() {
-            return Entry::Vacant(VacantEntry { key, map: self });
-        }
-
-        let mut curr = self.root.as_mut().unwrap();
-        let mut n;
-        loop {
-            n = Arc::make_mut(curr);
-            let Some(next) = n.left.as_mut() else {
-                break;
-            };
-            curr = next;
-        }
-
-        Entry::Occupied(OccupiedEntry {
-            key,
-            val: &mut n.val,
-        })
+        let key = self.first_key_value()?.0.clone();
+        Some(Entry { map: self, key })
     }
 
     /// Returns the key-value pair for the least key in the map
@@ -1294,27 +1262,13 @@ impl<K, V> AvlMap<K, V> {
     }
 
     /// Return an Entry for the greatest key in the map.
-    pub fn last_entry(&mut self, key: K) -> Entry<'_, Self>
+    pub fn last_entry(&mut self) -> Option<Entry<'_, Self>>
     where
         K: Clone + Ord,
         V: Clone,
     {
-        // avoid similar "double borrow" problem described in first_key_entry
-        if self.is_empty() {
-            return Entry::Vacant(VacantEntry { key, map: self });
-        }
-
-        let mut curr = self.root.as_mut().unwrap();
-        let mut n = Arc::make_mut(curr);
-        while let Some(next) = n.right.as_mut() {
-            curr = next;
-            n = Arc::make_mut(curr);
-        }
-
-        Entry::Occupied(OccupiedEntry {
-            key,
-            val: &mut n.val,
-        })
+        let key = self.last_key_value()?.0.clone();
+        Some(Entry { map: self, key })
     }
 
     /// Returns the key-value pair for the greatest key in the map
@@ -1997,6 +1951,14 @@ impl<K: Clone + Ord, V: Clone> FromIterator<(K, V)> for AvlMap<K, V> {
 impl<K, V> Map for AvlMap<K, V> {
     type Key = K;
     type Value = V;
+
+    fn contains_key_<Q>(&mut self, key: &Q) -> bool
+    where
+        Self::Key: std::borrow::Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        self.contains_key(key)
+    }
 
     fn get_mut_<Q>(&mut self, k: &Q) -> Option<&mut V>
     where

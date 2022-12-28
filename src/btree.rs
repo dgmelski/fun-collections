@@ -6,7 +6,7 @@ use std::mem::replace;
 use std::ops::{Bound, RangeBounds};
 use std::sync::Arc;
 
-use crate::{Entry, Map, OccupiedEntry, VacantEntry};
+use crate::{Entry, Map};
 
 pub mod btree_set;
 
@@ -464,36 +464,17 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         K: Clone + Ord,
         V: Clone,
     {
-        // TODO: all the same, do we need the double lookup?
-        if self.contains_key(&key) {
-            let val = self.get_mut(&key).unwrap();
-            Entry::Occupied(OccupiedEntry { key, val })
-        } else {
-            Entry::Vacant(VacantEntry { key, map: self })
-        }
+        Entry { map: self, key }
     }
 
     /// Return an Entry for the least key in the map.
-    pub fn first_entry(&mut self, key: K) -> Entry<'_, Self>
+    pub fn first_entry(&mut self) -> Option<Entry<'_, Self>>
     where
         K: Clone + Ord,
         V: Clone,
     {
-        // avoid "double borrow" problem
-        if self.is_empty() {
-            return Entry::Vacant(VacantEntry { key, map: self });
-        }
-
-        let curr = self.root.as_mut().unwrap();
-        let mut n = Arc::make_mut(curr);
-        while !n.kids.is_empty() {
-            n = Arc::make_mut(&mut n.kids[0]);
-        }
-
-        Entry::Occupied(OccupiedEntry {
-            key,
-            val: &mut n.elems[0].1,
-        })
+        let key = self.first_key_value()?.0.clone();
+        Some(Entry { map: self, key })
     }
 
     pub fn first_key_value(&self) -> Option<(&K, &V)> {
@@ -671,26 +652,13 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
     }
 
     /// Return an Entry for the least key in the map.
-    pub fn last_entry(&mut self, key: K) -> Entry<'_, Self>
+    pub fn last_entry(&mut self) -> Option<Entry<'_, Self>>
     where
         K: Clone + Ord,
         V: Clone,
     {
-        // avoid "double borrow" problem
-        if self.is_empty() {
-            return Entry::Vacant(VacantEntry { key, map: self });
-        }
-
-        let curr = self.root.as_mut().unwrap();
-        let mut n = Arc::make_mut(curr);
-        while let Some(arc) = n.kids.last_mut() {
-            n = Arc::make_mut(arc);
-        }
-
-        Entry::Occupied(OccupiedEntry {
-            key,
-            val: &mut n.elems.last_mut().unwrap().1,
-        })
+        let key = self.last_key_value()?.0.clone();
+        Some(Entry { map: self, key })
     }
 
     pub fn last_key_value(&self) -> Option<(&K, &V)> {
@@ -915,6 +883,14 @@ where
 impl<K, V, const N: usize> Map for BTreeMap<K, V, N> {
     type Key = K;
     type Value = V;
+
+    fn contains_key_<Q>(&mut self, key: &Q) -> bool
+    where
+        Self::Key: std::borrow::Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        self.contains_key(key)
+    }
 
     fn get_mut_<Q>(&mut self, k: &Q) -> Option<&mut V>
     where

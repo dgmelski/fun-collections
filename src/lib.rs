@@ -186,45 +186,14 @@ macro_rules! make_set_op_iter {
 
 use make_set_op_iter;
 
-#[derive(Debug)]
-pub struct OccupiedEntry<'a, K, V> {
-    key: K,
-    val: &'a mut V,
-}
-
-impl<'a, K, V: Clone> OccupiedEntry<'a, K, V> {
-    pub fn get(&self) -> &V {
-        self.val
-    }
-
-    pub fn get_mut(&mut self) -> &mut V {
-        self.val
-    }
-
-    pub fn insert(&mut self, new_val: V) -> V {
-        std::mem::replace(self.val, new_val)
-    }
-
-    pub fn into_mut(self) -> &'a mut V {
-        self.val
-    }
-
-    pub fn key(&self) -> &K {
-        &self.key
-    }
-
-    pub fn remove(self) -> V {
-        todo!();
-    }
-
-    pub fn remove_entry(self) -> (K, V) {
-        todo!();
-    }
-}
-
 pub trait Map {
     type Key;
     type Value;
+
+    fn contains_key_<Q>(&mut self, key: &Q) -> bool
+    where
+        Self::Key: std::borrow::Borrow<Q>,
+        Q: Ord + ?Sized;
 
     fn get_mut_<Q>(&mut self, key: &Q) -> Option<&mut Self::Value>
     where
@@ -243,54 +212,39 @@ pub trait Map {
 }
 
 #[derive(Debug)]
-pub struct VacantEntry<'a, M: Map> {
-    key: M::Key,
+pub struct Entry<'a, M: Map> {
     map: &'a mut M,
-}
-
-impl<'a, M: Map> VacantEntry<'a, M> {
-    pub fn insert(self, val: M::Value) -> &'a mut M::Value
-    where
-        M::Key: Clone + Ord,
-        M::Value: Clone,
-    {
-        // TODO: the clone() here is lamentable
-        self.map.insert_(self.key.clone(), val);
-        self.map.get_mut_(&self.key).unwrap()
-    }
-
-    pub fn into_key(self) -> M::Key {
-        self.key
-    }
-
-    pub fn key(&self) -> &M::Key {
-        &self.key
-    }
-}
-
-#[derive(Debug)]
-pub enum Entry<'a, M: Map> {
-    Occupied(OccupiedEntry<'a, M::Key, M::Value>),
-    Vacant(VacantEntry<'a, M>),
+    key: M::Key,
 }
 
 impl<'a, M: Map> Entry<'a, M> {
-    pub fn and_modify<F>(mut self, f: F) -> Self
+    pub fn and_modify<F>(self, f: F) -> Self
     where
         F: FnOnce(&mut M::Value),
+        M::Key: Clone + Ord,
+        M::Value: Clone,
     {
-        if let Entry::Occupied(occ) = &mut self {
-            f(occ.val);
+        if let Some(v) = self.map.get_mut_(&self.key) {
+            f(v)
         }
 
         self
     }
 
     pub fn key(&self) -> &M::Key {
-        match self {
-            Entry::Occupied(x) => &x.key,
-            Entry::Vacant(x) => &x.key,
+        &self.key
+    }
+
+    fn or_aux<F>(self, f: F) -> &'a mut M::Value
+    where
+        F: FnOnce() -> M::Value,
+        M::Key: Clone + Ord,
+        M::Value: Clone,
+    {
+        if !self.map.contains_key_(&self.key) {
+            self.map.insert_(self.key.clone(), f());
         }
+        self.map.get_mut_(&self.key).unwrap()
     }
 
     pub fn or_default(self) -> &'a mut M::Value
@@ -298,10 +252,7 @@ impl<'a, M: Map> Entry<'a, M> {
         M::Key: Clone + Ord,
         M::Value: Clone + Default,
     {
-        match self {
-            Entry::Occupied(x) => x.into_mut(),
-            Entry::Vacant(x) => x.insert(M::Value::default()),
-        }
+        self.or_aux(M::Value::default)
     }
 
     pub fn or_insert(self, default: M::Value) -> &'a mut M::Value
@@ -309,10 +260,7 @@ impl<'a, M: Map> Entry<'a, M> {
         M::Key: Clone + Ord,
         M::Value: Clone,
     {
-        match self {
-            Entry::Occupied(x) => x.into_mut(),
-            Entry::Vacant(x) => x.insert(default),
-        }
+        self.or_aux(|| default)
     }
 
     pub fn or_insert_with<F: FnOnce() -> M::Value>(
@@ -323,10 +271,7 @@ impl<'a, M: Map> Entry<'a, M> {
         M::Key: Clone + Ord,
         M::Value: Clone,
     {
-        match self {
-            Entry::Occupied(x) => x.into_mut(),
-            Entry::Vacant(x) => x.insert(default()),
-        }
+        self.or_aux(default)
     }
 
     pub fn or_insert_with_key<F: FnOnce(&M::Key) -> M::Value>(
@@ -337,12 +282,10 @@ impl<'a, M: Map> Entry<'a, M> {
         M::Key: Clone + Ord,
         M::Value: Clone,
     {
-        match self {
-            Entry::Occupied(x) => x.into_mut(),
-            Entry::Vacant(x) => {
-                let v = default(&x.key);
-                x.insert(v)
-            }
+        if !self.map.contains_key_(&self.key) {
+            let v = default(&self.key);
+            self.map.insert_(self.key.clone(), v);
         }
+        self.map.get_mut_(&self.key).unwrap()
     }
 }
