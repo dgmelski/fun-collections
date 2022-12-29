@@ -1477,7 +1477,7 @@ impl<K, V> AvlMap<K, V> {
     }
 
     /// Returns an iterator over the elements with a key in the given range.
-    pub fn range<Q, R>(&self, range: R) -> impl Iterator<Item = (&K, &V)>
+    pub fn range<Q, R>(&self, range: R) -> Range<'_, K, V>
     where
         K: Borrow<Q>,
         Q: Ord + ?Sized,
