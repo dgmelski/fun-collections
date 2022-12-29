@@ -1257,7 +1257,10 @@ impl<K, V> AvlMap<K, V> {
     /// let cnt_even_keys = m.keys().filter(|&k| k % &2 == 0).count();
     /// assert_eq!(cnt_even_keys, 2);
     /// ```
-    pub fn keys(&self) -> impl Iterator<Item = &K> {
+    pub fn keys(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = &K> + ExactSizeIterator + FusedIterator
+    {
         self.iter().map(|p| p.0)
     }
 
@@ -1695,7 +1698,10 @@ impl<K, V> AvlMap<K, V> {
     /// let sum_values: u32 = m.values().sum();
     /// assert_eq!(sum_values, 3);
     /// ```
-    pub fn values(&self) -> impl Iterator<Item = &V> {
+    pub fn values(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = &V> + ExactSizeIterator + FusedIterator
+    {
         self.iter().map(|p| p.1)
     }
 
@@ -1715,7 +1721,9 @@ impl<K, V> AvlMap<K, V> {
     /// };
     /// assert_eq!(m.get(&2), Some(&34));
     /// ```
-    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut V>
+    pub fn values_mut(
+        &mut self,
+    ) -> impl Iterator<Item = &mut V> + ExactSizeIterator + FusedIterator
     where
         K: Clone,
         V: Clone,

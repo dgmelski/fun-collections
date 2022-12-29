@@ -585,7 +585,9 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         }
     }
 
-    pub fn into_keys(self) -> impl Iterator<Item = K>
+    pub fn into_keys(
+        self,
+    ) -> impl DoubleEndedIterator<Item = K> + ExactSizeIterator + FusedIterator
     where
         K: Clone,
         V: Clone, // needed to clone shared nodes
@@ -594,7 +596,9 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         self.into_iter().map(|e| e.0)
     }
 
-    pub fn into_values(self) -> impl Iterator<Item = V>
+    pub fn into_values(
+        self,
+    ) -> impl DoubleEndedIterator<Item = V> + ExactSizeIterator + FusedIterator
     where
         K: Clone, // needed to clone shared nodes
         V: Clone,
@@ -651,7 +655,10 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         IterMut { iter }
     }
 
-    pub fn keys(&self) -> impl Iterator<Item = &K> {
+    pub fn keys(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = &K> + ExactSizeIterator + FusedIterator
+    {
         self.iter().map(|e| e.0)
     }
 
@@ -804,11 +811,16 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
 
     // TOOD: try_insert()
 
-    pub fn values(&self) -> impl Iterator<Item = &V> {
+    pub fn values(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = &V> + ExactSizeIterator + FusedIterator
+    {
         self.iter().map(|e| e.1)
     }
 
-    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut V>
+    pub fn values_mut(
+        &mut self,
+    ) -> impl DoubleEndedIterator<Item = &mut V> + ExactSizeIterator + FusedIterator
     where
         K: Clone,
         V: Clone,
