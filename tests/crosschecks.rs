@@ -430,6 +430,14 @@ fn check_range(v: U16Pairs, r: (Bound<u16>, Bound<u16>)) {
     assert_eq_iters(maps.narrow_map.range(r), maps.std_map.range(r));
 }
 
+fn check_range_back(v: U16Pairs, r: (Bound<u16>, Bound<u16>)) {
+    let maps = Maps::new(v);
+
+    assert_eq_iters_back(maps.avl_map.range(r), maps.std_map.range(r));
+    assert_eq_iters_back(maps.btree_map.range(r), maps.std_map.range(r));
+    assert_eq_iters_back(maps.narrow_map.range(r), maps.std_map.range(r));
+}
+
 fn check_range_mut(u: U16Pairs, v: U16Pairs, r: (Bound<u16>, Bound<u16>)) {
     let (m1, mut m2) = Maps::new_overlapping(u, v);
 
@@ -456,6 +464,11 @@ proptest! {
     #[test]
     fn test_range(v in small_int_pairs(), r in range_bounds_1k()) {
         check_range(v, r);
+    }
+
+    #[test]
+    fn test_range_back(v in small_int_pairs(), r in range_bounds_1k()) {
+        check_range_back(v, r);
     }
 
     #[test]

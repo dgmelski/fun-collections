@@ -29,6 +29,20 @@ pub(super) fn assert_eq_iters<I: Iterator, J: Iterator<Item = I::Item>>(
     }
 }
 
+pub(super) fn assert_eq_iters_back<I, J>(mut i: I, mut j: J)
+where
+    I: DoubleEndedIterator,
+    J: DoubleEndedIterator<Item = I::Item>,
+    I::Item: std::fmt::Debug + Eq, // same inferred for J::Item
+{
+    loop {
+        match (i.next_back(), j.next_back()) {
+            (None, None) => return,
+            (a, b) => assert_eq!(a, b),
+        }
+    }
+}
+
 pub(super) struct CloneCounter {
     cntr: Rc<RefCell<usize>>,
 }
@@ -58,7 +72,7 @@ impl std::fmt::Debug for CloneCounter {
 
 impl PartialEq for CloneCounter {
     fn eq(&self, _: &Self) -> bool {
-        return true;
+        true
     }
 }
 
