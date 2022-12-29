@@ -1,6 +1,7 @@
 use proptest::prelude::*;
 use std::ops::Bound;
 
+#[allow(dead_code)]
 pub(super) fn assert_eq_iters<I: Iterator, J: Iterator<Item = I::Item>>(
     mut i: I,
     mut j: J,
@@ -21,6 +22,7 @@ pub(super) fn small_int_pairs() -> impl Strategy<Value = SmallIntPairs> {
     prop::collection::vec((0u16..1024u16, 0u16..1024u16), 0..512)
 }
 
+#[allow(dead_code)]
 pub(super) fn string_u16_pairs() -> impl Strategy<Value = Vec<(String, u16)>> {
     prop::collection::vec(("[a-z]{0,2}", 0u16..1024u16), 0..512)
 }
