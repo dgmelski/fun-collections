@@ -1148,7 +1148,9 @@ impl<K, V> AvlMap<K, V> {
     /// let keys: Vec<_> = m.into_keys().collect();
     /// assert_eq!(keys, [1, 2]);
     /// ```
-    pub fn into_keys(self) -> impl Iterator<Item = K>
+    pub fn into_keys(
+        self,
+    ) -> impl DoubleEndedIterator<Item = K> + ExactSizeIterator + FusedIterator
     where
         K: Clone,
         V: Clone,
@@ -1168,7 +1170,9 @@ impl<K, V> AvlMap<K, V> {
     /// let vals: Vec<_> = m.into_values().collect();
     /// assert_eq!(vals, ['z', 'a']);
     /// ```
-    pub fn into_values(self) -> impl Iterator<Item = V>
+    pub fn into_values(
+        self,
+    ) -> impl DoubleEndedIterator<Item = V> + ExactSizeIterator + FusedIterator
     where
         K: Clone,
         V: Clone,
@@ -1735,7 +1739,7 @@ impl<K, V> AvlMap<K, V> {
     /// ```
     pub fn values_mut(
         &mut self,
-    ) -> impl Iterator<Item = &mut V> + ExactSizeIterator + FusedIterator
+    ) -> impl DoubleEndedIterator<Item = &mut V> + ExactSizeIterator + FusedIterator
     where
         K: Clone,
         V: Clone,
@@ -2044,6 +2048,12 @@ impl<K: Clone, V: Clone> Iterator for IntoIter<K, V> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next()
+    }
+}
+
+impl<K: Clone, V: Clone> DoubleEndedIterator for IntoIter<K, V> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back()
     }
 }
 
