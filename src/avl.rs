@@ -4,6 +4,7 @@ use std::cmp::Ordering::*;
 use std::collections::VecDeque;
 use std::fmt::{Debug, Formatter};
 use std::iter::FusedIterator;
+use std::marker::PhantomData;
 use std::mem::replace;
 use std::ops::{Bound, RangeBounds};
 use std::sync::Arc;
@@ -1205,8 +1206,10 @@ impl<K, V> AvlMap<K, V> {
         }
 
         Iter {
-            work,
-            len: self.len,
+            iter: InnerIter {
+                work,
+                len: self.len,
+            },
         }
     }
 
@@ -1492,7 +1495,7 @@ impl<K, V> AvlMap<K, V> {
         // TODO: sanity checks on range
 
         // start with a worklist that covers the entire map (possibly empty)
-        let mut work = VecDeque::new();
+        let mut work = VecDeque::<IterAction<NormIterNode<'_, K, V>>>::new();
         if let Some(root) = self.root.as_ref() {
             work.push_back(Descend(root));
         }
@@ -1555,8 +1558,10 @@ impl<K, V> AvlMap<K, V> {
 
         Range {
             iter: Iter {
-                work,
-                len: self.len(),
+                iter: InnerIter {
+                    work,
+                    len: self.len(),
+                },
             },
         }
     }
@@ -1783,19 +1788,27 @@ impl<K, V> AvlMap<K, V> {
 }
 
 #[derive(Debug)]
-enum IterAction<'a, K, V> {
-    Descend(&'a Arc<Node<K, V>>),
-    Return((&'a K, &'a V)),
+enum IterAction<I: IterNode> {
+    Descend(I::Node),
+    Return(I::Item),
 }
 
-#[derive(Debug)]
-pub struct Iter<'a, K, V> {
-    work: VecDeque<IterAction<'a, K, V>>,
+trait IterNode {
+    type Item;
+    type Node;
+
+    fn destruct(
+        n: Self::Node,
+    ) -> (Option<Self::Node>, Self::Item, Option<Self::Node>);
+}
+
+struct InnerIter<Node: IterNode> {
+    work: VecDeque<IterAction<Node>>,
     len: usize,
 }
 
-impl<'a, K, V> Iterator for Iter<'a, K, V> {
-    type Item = (&'a K, &'a V);
+impl<Node: IterNode> Iterator for InnerIter<Node> {
+    type Item = Node::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
         use IterAction::*;
@@ -1808,13 +1821,15 @@ impl<'a, K, V> Iterator for Iter<'a, K, V> {
             }
 
             Descend(n) => {
-                if let Some(rt) = n.right.as_ref() {
+                let (lf, item, rt) = Node::destruct(n);
+
+                if let Some(rt) = rt {
                     self.work.push_front(Descend(rt));
                 }
 
-                self.work.push_front(Return((&n.key, &n.val)));
+                self.work.push_front(Return(item));
 
-                if let Some(lf) = n.left.as_ref() {
+                if let Some(lf) = lf {
                     self.work.push_front(Descend(lf));
                 }
 
@@ -1824,7 +1839,7 @@ impl<'a, K, V> Iterator for Iter<'a, K, V> {
     }
 }
 
-impl<'a, K, V> DoubleEndedIterator for Iter<'a, K, V> {
+impl<Node: IterNode> DoubleEndedIterator for InnerIter<Node> {
     fn next_back(&mut self) -> Option<Self::Item> {
         use IterAction::*;
 
@@ -1836,13 +1851,15 @@ impl<'a, K, V> DoubleEndedIterator for Iter<'a, K, V> {
             }
 
             Descend(n) => {
-                if let Some(lf) = n.left.as_ref() {
+                let (lf, item, rt) = Node::destruct(n);
+
+                if let Some(lf) = lf {
                     self.work.push_back(Descend(lf));
                 }
 
-                self.work.push_back(Return((&n.key, &n.val)));
+                self.work.push_back(Return(item));
 
-                if let Some(rt) = n.right.as_ref() {
+                if let Some(rt) = rt {
                     self.work.push_back(Descend(rt));
                 }
 
@@ -1852,9 +1869,50 @@ impl<'a, K, V> DoubleEndedIterator for Iter<'a, K, V> {
     }
 }
 
-impl<'a, K, V> ExactSizeIterator for Iter<'a, K, V> {
+impl<Node: IterNode> ExactSizeIterator for InnerIter<Node> {
     fn len(&self) -> usize {
         self.len
+    }
+}
+
+impl<Node: IterNode> FusedIterator for InnerIter<Node> {}
+
+pub struct NormIterNode<'a, K, V> {
+    marker: PhantomData<&'a Arc<Node<K, V>>>,
+}
+
+impl<'a, K, V> IterNode for NormIterNode<'a, K, V> {
+    type Item = (&'a K, &'a V);
+    type Node = &'a Arc<Node<K, V>>;
+
+    fn destruct(
+        n: Self::Node,
+    ) -> (Option<Self::Node>, Self::Item, Option<Self::Node>) {
+        (n.left.as_ref(), (&n.key, &n.val), n.right.as_ref())
+    }
+}
+
+pub struct Iter<'a, K, V> {
+    iter: InnerIter<NormIterNode<'a, K, V>>,
+}
+
+impl<'a, K, V> Iterator for Iter<'a, K, V> {
+    type Item = (&'a K, &'a V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
+}
+
+impl<'a, K, V> DoubleEndedIterator for Iter<'a, K, V> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back()
+    }
+}
+
+impl<'a, K, V> ExactSizeIterator for Iter<'a, K, V> {
+    fn len(&self) -> usize {
+        self.iter.len()
     }
 }
 
