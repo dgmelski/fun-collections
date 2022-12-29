@@ -407,7 +407,7 @@ crate::make_set_op_iter!(Intersection, Iter<'a, T>, 0b010);
 crate::make_set_op_iter!(Union, Iter<'a, T>, 0b111);
 crate::make_set_op_iter!(SymmetricDifference, Iter<'a, T>, 0b101);
 
-pub struct IntoIter<T> {
+pub struct IntoIter<T: Clone> {
     iter: crate::avl::IntoIter<T, ()>,
 }
 

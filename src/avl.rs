@@ -1995,82 +1995,61 @@ impl<'a, K, V> DoubleEndedIterator for Range<'a, K, V> {
 
 impl<'a, K, V> FusedIterator for Range<'a, K, V> {}
 
-#[derive(Debug)]
-enum IntoIterAction<K, V> {
-    DescendRef(Arc<Node<K, V>>),
-    DescendOwn(Node<K, V>),
-    Return(K, V),
+enum IntoIterNode<K, V> {
+    Arcked(Arc<Node<K, V>>),
+    Owned(Node<K, V>),
 }
 
-#[derive(Debug)]
-pub struct IntoIter<K, V> {
-    w: Vec<IntoIterAction<K, V>>,
-    len: usize,
-}
-
-impl<K, V> IntoIter<K, V> {
-    fn next_elem(&mut self) -> Option<(K, V)>
-    where
-        K: Clone,
-        V: Clone,
-    {
-        use IntoIterAction::*;
-        let mut act = self.w.pop()?;
-        loop {
-            match act {
-                DescendRef(rc) => {
-                    if let Some(rt) = rc.right.clone() {
-                        self.w.push(DescendRef(rt));
-                    }
-
-                    if let Some(lf) = rc.left.clone() {
-                        self.w.push(Return(rc.key.clone(), rc.val.clone()));
-                        act = DescendRef(lf);
-                    } else {
-                        return Some((rc.key.clone(), rc.val.clone()));
-                    }
-                }
-
-                DescendOwn(n) => {
-                    if let Some(rt) = n.right {
-                        match Arc::try_unwrap(rt) {
-                            Ok(n) => self.w.push(DescendOwn(n)),
-                            Err(rt) => self.w.push(DescendRef(rt)),
-                        }
-                    }
-
-                    if let Some(lf) = n.left {
-                        self.w.push(Return(n.key, n.val));
-                        match Arc::try_unwrap(lf) {
-                            Ok(n) => act = DescendOwn(n),
-                            Err(lf) => act = DescendRef(lf),
-                        }
-                    } else {
-                        return Some((n.key, n.val));
-                    }
-                }
-
-                Return(k, v) => return Some((k, v)),
-            }
+impl<K, V> IntoIterNode<K, V> {
+    fn opt_to_iter_node(n: OptNode<K, V>) -> Option<IntoIterNode<K, V>> {
+        use IntoIterNode::*;
+        match Arc::try_unwrap(n?) {
+            Ok(n) => Some(Owned(n)),
+            Err(arc) => Some(Arcked(arc)),
         }
     }
+}
+
+impl<K: Clone, V: Clone> IterNode for IntoIterNode<K, V> {
+    type Item = (K, V);
+    type Node = Self;
+
+    fn destruct(
+        n: Self::Node,
+    ) -> (Option<Self::Node>, Self::Item, Option<Self::Node>) {
+        use IntoIterNode::*;
+
+        match n {
+            Arcked(arc) => (
+                arc.left.clone().map(|rc| Arcked(rc)),
+                (arc.key.clone(), arc.val.clone()),
+                arc.right.clone().map(|rc| Arcked(rc)),
+            ),
+
+            IntoIterNode::Owned(n) => (
+                Self::opt_to_iter_node(n.left),
+                (n.key, n.val),
+                Self::opt_to_iter_node(n.right),
+            ),
+        }
+    }
+}
+
+pub struct IntoIter<K: Clone, V: Clone> {
+    iter: InnerIter<IntoIterNode<K, V>>,
 }
 
 impl<K: Clone, V: Clone> Iterator for IntoIter<K, V> {
     type Item = (K, V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let r = self.next_elem();
-        if r.is_some() {
-            self.len -= 1;
-        }
-        r
+        self.iter.next()
     }
 }
 
 impl<K: Clone, V: Clone> ExactSizeIterator for IntoIter<K, V> {
     fn len(&self) -> usize {
-        self.len
+        self.iter.len()
     }
 }
 
@@ -2081,16 +2060,23 @@ impl<K: Clone, V: Clone> IntoIterator for AvlMap<K, V> {
     type IntoIter = IntoIter<K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
-        use IntoIterAction::*;
-        let mut w = Vec::new();
-        if let Some(root) = self.root {
-            match Arc::try_unwrap(root) {
-                Ok(n) => w.push(DescendOwn(n)),
-                Err(rc) => w.push(DescendRef(rc)),
+        use IntoIterNode::*;
+        use IterAction::*;
+
+        let mut work = VecDeque::<IterAction<IntoIterNode<K, V>>>::new();
+        if let Some(rc) = self.root {
+            match Arc::try_unwrap(rc) {
+                Ok(n) => work.push_back(Descend(Owned(n))),
+                Err(arc) => work.push_back(Descend(Arcked(arc))),
             }
         }
 
-        IntoIter { w, len: self.len }
+        IntoIter {
+            iter: InnerIter {
+                work,
+                len: self.len,
+            },
+        }
     }
 }
 
