@@ -1577,7 +1577,7 @@ impl<K, V> AvlMap<K, V> {
     pub fn range_mut<T, R>(
         &mut self,
         range: R,
-    ) -> impl Iterator<Item = (&K, &mut V)>
+    ) -> impl DoubleEndedIterator<Item = (&K, &mut V)> + FusedIterator
     where
         T: Ord + ?Sized,
         K: Borrow<T> + Clone,
