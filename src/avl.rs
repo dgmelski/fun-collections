@@ -1,6 +1,7 @@
 #![warn(missing_docs)]
 use std::borrow::Borrow;
 use std::cmp::Ordering::*;
+use std::collections::VecDeque;
 use std::fmt::{Debug, Formatter};
 use std::iter::FusedIterator;
 use std::mem::replace;
@@ -1197,11 +1198,9 @@ impl<K, V> AvlMap<K, V> {
     /// }
     /// ```
     pub fn iter(&self) -> Iter<K, V> {
-        let mut work = Vec::new();
-        let mut curr = self.root.as_ref();
-        while let Some(n) = curr {
-            work.push(n);
-            curr = n.left.as_ref();
+        let mut work = VecDeque::new();
+        if let Some(root) = self.root.as_ref() {
+            work.push_front(IterAction::Descend(root));
         }
 
         Iter {
@@ -1704,34 +1703,73 @@ impl<K, V> AvlMap<K, V> {
     }
 }
 
-pub struct Iter<'a, K, V> {
-    work: Vec<&'a Arc<Node<K, V>>>,
-    len: usize,
+#[derive(Debug)]
+enum IterAction<'a, K, V> {
+    Descend(&'a Arc<Node<K, V>>),
+    Return((&'a K, &'a V)),
 }
 
-impl<'a, K: Debug, V: Debug> Debug for Iter<'a, K, V> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let nxt = self.work.last().map(|rc| (&rc.key, &rc.val));
-        f.debug_struct("avl_map::Iter")
-            .field("len", &self.len)
-            .field("next", &nxt)
-            .finish()
-    }
+#[derive(Debug)]
+pub struct Iter<'a, K, V> {
+    work: VecDeque<IterAction<'a, K, V>>,
+    len: usize,
 }
 
 impl<'a, K, V> Iterator for Iter<'a, K, V> {
     type Item = (&'a K, &'a V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let n = self.work.pop()?;
-        self.len -= 1;
-        let entry = (&n.key, &n.val);
-        let mut curr = n.right.as_ref();
-        while let Some(m) = curr {
-            self.work.push(m);
-            curr = m.left.as_ref();
+        use IterAction::*;
+
+        let a = self.work.pop_front()?;
+        match a {
+            Return(x) => {
+                self.len -= 1;
+                Some(x)
+            }
+
+            Descend(n) => {
+                if let Some(rt) = n.right.as_ref() {
+                    self.work.push_front(Descend(rt));
+                }
+
+                self.work.push_front(Return((&n.key, &n.val)));
+
+                if let Some(lf) = n.left.as_ref() {
+                    self.work.push_front(Descend(lf));
+                }
+
+                self.next()
+            }
         }
-        Some(entry)
+    }
+}
+
+impl<'a, K, V> DoubleEndedIterator for Iter<'a, K, V> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        use IterAction::*;
+
+        let a = self.work.pop_back()?;
+        match a {
+            Return(x) => {
+                self.len -= 1;
+                Some(x)
+            }
+
+            Descend(n) => {
+                if let Some(lf) = n.left.as_ref() {
+                    self.work.push_back(Descend(lf));
+                }
+
+                self.work.push_back(Return((&n.key, &n.val)));
+
+                if let Some(rt) = n.right.as_ref() {
+                    self.work.push_back(Descend(rt));
+                }
+
+                self.next_back()
+            }
+        }
     }
 }
 
