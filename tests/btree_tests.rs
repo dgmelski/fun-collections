@@ -3,17 +3,12 @@ use std::cmp::Ord;
 use std::collections::BTreeMap as StdMap;
 use std::ops::Bound;
 
+mod common;
+use common::*;
+
 // We use low branching to encourage deeper trees and more corner cases, even
 // though our default setting may use higher branching.
 type BTreeMap<K, V> = lazy_clone_collections::btree::BTreeMap<K, V, 2>;
-
-fn small_int_pairs() -> impl Strategy<Value = Vec<(u16, u16)>> {
-    prop::collection::vec((0u16..1024u16, 0u16..1024u16), 0..512)
-}
-
-fn string_u16_pairs() -> impl Strategy<Value = Vec<(String, u16)>> {
-    prop::collection::vec(("[a-z]{0,2}", 0u16..1024u16), 0..512)
-}
 
 fn make_matching_maps<K, V>(v: Vec<(K, V)>) -> (BTreeMap<K, V>, StdMap<K, V>)
 where
@@ -65,35 +60,6 @@ fn test_range_ex_ex_panic() {
 fn test_inverted_range_panic() {
     let m = BTreeMap::from([(0u8, 0u8), (1, 1), (2, 2)]);
     m.range((Bound::Included(2), Bound::Excluded(1)));
-}
-
-fn range_bounds_1k() -> impl Strategy<Value = (Bound<u16>, Bound<u16>)> {
-    use Bound::*;
-
-    (1u16..1023)
-        .prop_flat_map(|n| {
-            (
-                prop_oneof![
-                    Just(Bound::Unbounded),
-                    (0u16..=n).prop_map(Bound::Excluded),
-                    (0u16..=n).prop_map(Bound::Included),
-                ],
-                prop_oneof![
-                    Just(Bound::Unbounded),
-                    (n..1024).prop_map(Bound::Excluded),
-                    (n..1024).prop_map(Bound::Included),
-                ],
-            )
-        })
-        .prop_map(|(lb, ub)| match (lb, ub) {
-            (Excluded(x), Excluded(y)) if x == y => {
-                // convert the panic case to a non-panic case (friendlier than
-                // filtering for proptest?)
-                (Included(x), Excluded(y))
-            }
-
-            xy => xy,
-        })
 }
 
 fn check_range(u: Vec<(u16, u16)>, r: (Bound<u16>, Bound<u16>)) {
