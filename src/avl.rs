@@ -1568,11 +1568,9 @@ impl<K, V> AvlMap<K, V> {
         }
 
         Range {
-            iter: Iter {
-                iter: InnerIter {
-                    work,
-                    len: self.len(),
-                },
+            iter: InnerIter {
+                work,
+                len: self.len(),
             },
         }
     }
@@ -1976,7 +1974,7 @@ impl<'a, K: Clone, V: Clone> ExactSizeIterator for IterMut<'a, K, V> {
 impl<'a, K: Clone, V: Clone> FusedIterator for IterMut<'a, K, V> {}
 
 pub struct Range<'a, K, V> {
-    iter: Iter<'a, K, V>,
+    iter: InnerIter<NormIterNode<'a, K, V>>,
 }
 
 impl<'a, K, V> Iterator for Range<'a, K, V> {
