@@ -95,12 +95,7 @@ fn check_contains_key(u: U16Pairs) {
 fn check_and_modify(v: U16Pairs, i: u16) {
     let mut maps = Maps::new(v);
 
-    let k = maps
-        .std_map
-        .entry(i)
-        .and_modify(|v| *v = 10101)
-        .key()
-        .clone();
+    let k = *maps.std_map.entry(i).and_modify(|v| *v = 10101).key();
 
     assert_eq_all!(
         &k,
