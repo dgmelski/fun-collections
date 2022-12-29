@@ -1237,15 +1237,22 @@ impl<K, V> AvlMap<K, V> {
     /// assert_eq!(m.get(&1), Some(&2));
     /// assert_eq!(m.get(&2), Some(&4));
     /// ```
-    pub fn iter_mut(&mut self) -> IterMut<K, V> {
-        let work = match self.root.as_mut() {
-            Some(rc) => vec![IterMutAction::Descend(rc)],
-            None => Vec::new(),
-        };
+    pub fn iter_mut(&mut self) -> IterMut<'_, K, V>
+    where
+        K: Clone,
+        V: Clone,
+    {
+        let mut work = VecDeque::<IterAction<IterMutNode<'_, K, V>>>::new();
+        if let Some(rc) = self.root.as_mut() {
+            let n = Arc::make_mut(rc);
+            work.push_back(IterAction::Descend(n));
+        }
 
         IterMut {
-            work,
-            len: self.len,
+            iter: InnerIter {
+                work,
+                len: self.len,
+            },
         }
     }
 
@@ -1919,68 +1926,46 @@ impl<'a, K, V> ExactSizeIterator for Iter<'a, K, V> {
 impl<'a, K, V> FusedIterator for Iter<'a, K, V> {}
 
 #[derive(Debug)]
-enum IterMutAction<'a, K, V> {
-    Descend(&'a mut Arc<Node<K, V>>),
-    Return((&'a K, &'a mut V)),
+pub struct IterMutNode<'a, K, V> {
+    marker: PhantomData<&'a mut Arc<Node<K, V>>>,
 }
 
-#[derive(Debug)]
-pub struct IterMut<'a, K, V> {
-    work: Vec<IterMutAction<'a, K, V>>,
-    len: usize,
-}
-
-impl<'a, K, V> Iterator for IterMut<'a, K, V>
-where
-    K: Clone,
-    V: Clone,
-{
+impl<'a, K: Clone, V: Clone> IterNode for IterMutNode<'a, K, V> {
     type Item = (&'a K, &'a mut V);
+    type Node = &'a mut Node<K, V>;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        use IterMutAction::*;
-
-        match self.work.pop() {
-            Some(Descend(rc)) => {
-                let mut n = Arc::make_mut(rc);
-
-                loop {
-                    if let Some(rt) = n.right.as_mut() {
-                        self.work.push(Descend(rt));
-                    }
-
-                    if let Some(lf) = n.left.as_mut() {
-                        self.work.push(Return((&n.key, &mut n.val)));
-                        n = Arc::make_mut(lf);
-                    } else {
-                        break;
-                    }
-                }
-
-                self.len -= 1;
-                Some((&n.key, &mut n.val))
-            }
-
-            Some(IterMutAction::Return(ret)) => {
-                self.len -= 1;
-                Some(ret)
-            }
-
-            None => {
-                assert_eq!(self.len, 0);
-                None
-            }
-        }
+    fn destruct(
+        n: Self::Node,
+    ) -> (Option<Self::Node>, Self::Item, Option<Self::Node>) {
+        (
+            n.left.as_mut().map(Arc::make_mut),
+            (&n.key, &mut n.val),
+            n.right.as_mut().map(Arc::make_mut),
+        )
     }
 }
 
-impl<'a, K, V> ExactSizeIterator for IterMut<'a, K, V>
-where
-    K: Clone,
-    V: Clone,
-{
+pub struct IterMut<'a, K: Clone, V: Clone> {
+    iter: InnerIter<IterMutNode<'a, K, V>>,
+}
+
+impl<'a, K: Clone, V: Clone> Iterator for IterMut<'a, K, V> {
+    type Item = (&'a K, &'a mut V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
+}
+
+impl<'a, K: Clone, V: Clone> DoubleEndedIterator for IterMut<'a, K, V> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back()
+    }
+}
+
+impl<'a, K: Clone, V: Clone> ExactSizeIterator for IterMut<'a, K, V> {
     fn len(&self) -> usize {
-        self.len
+        self.iter.len()
     }
 }
 
