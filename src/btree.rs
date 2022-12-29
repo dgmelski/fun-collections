@@ -39,10 +39,14 @@ enum InsertResult<K, V, const N: usize> {
 
 struct IsUnderPop(bool);
 
+const fn max_occupancy(min_occupancy: usize) -> usize {
+    2 * min_occupancy + 1
+}
+
 impl<K, V, const N: usize> Node<K, V, N> {
     // minimum and maximum element counts for non-root nodes
     const MIN_OCCUPANCY: usize = N;
-    const MAX_OCCUPANCY: usize = 2 * N;
+    const MAX_OCCUPANCY: usize = max_occupancy(N);
 
     fn child(&self, i: usize) -> Option<&Arc<Self>> {
         self.kids.get(i)
@@ -1892,7 +1896,10 @@ fn chk_node_ptr<'a, K: Ord, V, const N: usize>(
     match n {
         Some(n) => {
             assert!(n.elems.len() >= N, "minimum occupancy violated");
-            assert!(n.elems.len() <= 2 * N, "maximum occupancy violated");
+            assert!(
+                n.elems.len() <= max_occupancy(N),
+                "maximum occupancy violated"
+            );
             n.chk(prev)
         }
 
