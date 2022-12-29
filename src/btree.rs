@@ -1625,7 +1625,7 @@ fn make_worklist<'a, K, V, const N: usize, Q>(
         .iter();
 
     if edges.left_needs_pruning {
-        // We only need to keep use lb & ub together when there was only a
+        // We only need to use lb & ub together when there was only a
         // single viable child in n.  Otherwise, when we prune the left, it's
         // more efficient to use an ub of Unbounded and vice-versa on the right.
         let ub = if kids.len() == 1 && edges.right_needs_pruning {

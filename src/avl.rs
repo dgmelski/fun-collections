@@ -5,6 +5,7 @@ use std::collections::VecDeque;
 use std::fmt::{Debug, Formatter};
 use std::iter::FusedIterator;
 use std::mem::replace;
+use std::ops::{Bound, RangeBounds};
 use std::sync::Arc;
 
 use super::{Entry, Map};
@@ -1476,15 +1477,85 @@ impl<K, V> AvlMap<K, V> {
     }
 
     /// Returns an iterator over the elements with a key in the given range.
-    pub fn range<T, R>(&self, range: R) -> impl Iterator<Item = (&K, &V)>
+    pub fn range<Q, R>(&self, range: R) -> impl Iterator<Item = (&K, &V)>
     where
-        T: Ord + ?Sized,
-        K: Borrow<T>,
-        R: std::ops::RangeBounds<T>,
+        K: Borrow<Q>,
+        Q: Ord + ?Sized,
+        R: RangeBounds<Q>,
     {
-        // TODO: inefficient
-        self.iter()
-            .filter(move |(k, _)| range.contains((*k).borrow()))
+        use Bound::*;
+        use IterAction::*;
+
+        // TODO: sanity checks on range
+
+        // start with a worklist that covers the entire map (possibly empty)
+        let mut work = VecDeque::new();
+        if let Some(root) = self.root.as_ref() {
+            work.push_back(Descend(root));
+        }
+
+        let lb = range.start_bound();
+        let ub = range.end_bound();
+
+        // Prune the "left side" of our iteration space.  At some point, we may
+        // push a "Descend" for a node that includes entries beyond the end of
+        // the given range.  This should only happen once while finding the left
+        // edge and the node will be at the back of the queue.
+        while let Some(Descend(_)) = work.front() {
+            let Some(Descend(n)) = work.pop_front() else {
+                panic!("we just checked!");
+            };
+
+            if let Some(rt) = n.right.as_ref() {
+                match ub {
+                    Excluded(k) | Included(k) if k <= n.key.borrow() => (),
+                    _ => work.push_front(Descend(rt)),
+                }
+            }
+
+            if range.contains(n.key.borrow()) {
+                work.push_front(Return((&n.key, &n.val)));
+            }
+
+            if let Some(lf) = n.left.as_ref() {
+                match lb {
+                    Excluded(k) | Included(k) if k >= n.key.borrow() => (),
+                    _ => work.push_front(Descend(lf)),
+                }
+            }
+        }
+
+        // prune the right side of the iteration space.
+        while let Some(Descend(_)) = work.back() {
+            let Some(Descend(n)) = work.pop_back() else {
+                panic!("we just checked!");
+            };
+
+            if let Some(lf) = n.left.as_ref() {
+                match lb {
+                    Excluded(k) | Included(k) if k >= n.key.borrow() => (),
+                    _ => work.push_back(Descend(lf)),
+                }
+            }
+
+            if range.contains(n.key.borrow()) {
+                work.push_back(Return((&n.key, &n.val)));
+            }
+
+            if let Some(rt) = n.right.as_ref() {
+                match ub {
+                    Excluded(k) | Included(k) if k <= n.key.borrow() => (),
+                    _ => work.push_back(Descend(rt)),
+                }
+            }
+        }
+
+        Range {
+            iter: Iter {
+                work,
+                len: self.len(),
+            },
+        }
     }
 
     /// Returns a mutable iterator over the elements with a key in the given range.
@@ -1495,7 +1566,7 @@ impl<K, V> AvlMap<K, V> {
     where
         T: Ord + ?Sized,
         K: Borrow<T> + Clone,
-        R: std::ops::RangeBounds<T>,
+        R: RangeBounds<T>,
         V: Clone,
     {
         // TODO: inefficient
@@ -1848,6 +1919,30 @@ where
 }
 
 impl<'a, K: Clone, V: Clone> FusedIterator for IterMut<'a, K, V> {}
+
+pub struct Range<'a, K, V> {
+    iter: Iter<'a, K, V>,
+}
+
+impl<'a, K, V> Iterator for Range<'a, K, V> {
+    type Item = (&'a K, &'a V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, Some(self.iter.len()))
+    }
+}
+
+impl<'a, K, V> DoubleEndedIterator for Range<'a, K, V> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back()
+    }
+}
+
+impl<'a, K, V> FusedIterator for Range<'a, K, V> {}
 
 #[derive(Debug)]
 enum IntoIterAction<K, V> {
