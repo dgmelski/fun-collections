@@ -1586,9 +1586,77 @@ impl<K, V> AvlMap<K, V> {
         R: RangeBounds<T>,
         V: Clone,
     {
-        // TODO: inefficient
-        self.iter_mut()
-            .filter(move |(k, _)| range.contains((*k).borrow()))
+        use Bound::*;
+        use IterAction::*;
+
+        // TODO: sanity checks on range
+
+        let len = self.len();
+
+        // start with a worklist that covers the entire map (possibly empty)
+        let mut work = VecDeque::<IterAction<IterMutNode<'_, K, V>>>::new();
+        if let Some(root) = self.root.as_mut() {
+            let n = Arc::make_mut(root);
+            work.push_back(Descend(n));
+        }
+
+        let lb = range.start_bound();
+        let ub = range.end_bound();
+
+        // Prune the "left side" of our iteration space.  At some point, we may
+        // push a "Descend" for a node that includes entries beyond the end of
+        // the given range.  This should only happen once while finding the left
+        // edge and the node will be at the back of the queue.
+        while let Some(Descend(_)) = work.front() {
+            let Some(Descend(n)) = work.pop_front() else {
+                panic!("we just checked!");
+            };
+
+            if let Some(rt) = n.right.as_mut() {
+                match ub {
+                    Excluded(k) | Included(k) if k <= n.key.borrow() => (),
+                    _ => work.push_front(Descend(Arc::make_mut(rt))),
+                }
+            }
+
+            if range.contains(n.key.borrow()) {
+                work.push_front(Return((&n.key, &mut n.val)));
+            }
+
+            if let Some(lf) = n.left.as_mut() {
+                match lb {
+                    Excluded(k) | Included(k) if k >= n.key.borrow() => (),
+                    _ => work.push_front(Descend(Arc::make_mut(lf))),
+                }
+            }
+        }
+
+        // prune the right side of the iteration space.
+        while let Some(Descend(_)) = work.back() {
+            let Some(Descend(n)) = work.pop_back() else {
+                panic!("we just checked!");
+            };
+
+            if let Some(lf) = n.left.as_mut() {
+                match lb {
+                    Excluded(k) | Included(k) if k >= n.key.borrow() => (),
+                    _ => work.push_back(Descend(Arc::make_mut(lf))),
+                }
+            }
+
+            if range.contains(n.key.borrow()) {
+                work.push_back(Return((&n.key, &mut n.val)));
+            }
+
+            if let Some(rt) = n.right.as_mut() {
+                match ub {
+                    Excluded(k) | Included(k) if k <= n.key.borrow() => (),
+                    _ => work.push_back(Descend(Arc::make_mut(rt))),
+                }
+            }
+        }
+
+        InnerIter::<IterMutNode<'_, K, V>> { work, len }
     }
 
     /// Removes the entry for the given key and returns the unmapped value.
