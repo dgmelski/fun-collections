@@ -58,6 +58,27 @@ fn check_range(v: SmallIntPairs, r: (Bound<u16>, Bound<u16>)) {
     assert_eq_iters(maps.narrow_map.range(r), maps.std_map.range(r));
 }
 
+fn check_range_mut(
+    u: SmallIntPairs,
+    v: SmallIntPairs,
+    r: (Bound<u16>, Bound<u16>),
+) {
+    let (m1, mut m2) = Maps::new_overlapping(u, v);
+
+    m2.avl_map.range_mut(r).for_each(|(_, v)| *v = 10101);
+    m2.btree_map.range_mut(r).for_each(|(_, v)| *v = 10101);
+    m2.narrow_map.range_mut(r).for_each(|(_, v)| *v = 10101);
+    m2.std_map.range_mut(r).for_each(|(_, v)| *v = 10101);
+
+    assert_eq_iters(m1.avl_map.iter(), m1.std_map.iter());
+    assert_eq_iters(m1.btree_map.iter(), m1.std_map.iter());
+    assert_eq_iters(m1.narrow_map.iter(), m1.std_map.iter());
+
+    assert_eq_iters(m2.avl_map.iter(), m2.std_map.iter());
+    assert_eq_iters(m2.btree_map.iter(), m2.std_map.iter());
+    assert_eq_iters(m2.narrow_map.iter(), m2.std_map.iter());
+}
+
 #[test]
 fn range_regr1() {
     check_range(vec![(248, 0), (249, 0), (0, 0)], (Unbounded, Excluded(248)));
@@ -67,5 +88,10 @@ proptest! {
     #[test]
     fn test_range(v in small_int_pairs(), r in range_bounds_1k()) {
         check_range(v, r);
+    }
+
+    #[test]
+    fn test_range_mut(u in small_int_pairs(), v in small_int_pairs(), r in range_bounds_1k()) {
+        check_range_mut(u, v, r);
     }
 }
