@@ -796,7 +796,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
         // TODO: this can probably be more efficient
         let (a, b) = std::mem::take(self)
             .into_iter()
-            .partition(|(k, _)| key < k.borrow());
+            .partition(|(k, _)| key > k.borrow());
 
         *self = a;
         b
