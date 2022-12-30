@@ -1155,7 +1155,18 @@ impl<K, V> AvlMap<K, V> {
         K: Clone,
         V: Clone,
     {
-        self.into_iter().map(|e| e.0)
+        use IterAction::*;
+
+        let mut work =
+            VecDeque::<IterAction<IntoIterNode<K, V, IntoKey>>>::new();
+        if let Some(n) = opt_to_iter_node(self.root) {
+            work.push_back(Descend(n));
+        }
+
+        InnerIter {
+            work,
+            len: self.len,
+        }
     }
 
     /// Converts the map into an iterator over its values, ordered by their
@@ -1177,7 +1188,18 @@ impl<K, V> AvlMap<K, V> {
         K: Clone,
         V: Clone,
     {
-        self.into_iter().map(|e| e.1)
+        use IterAction::*;
+
+        let mut work =
+            VecDeque::<IterAction<IntoIterNode<K, V, IntoValue>>>::new();
+        if let Some(n) = opt_to_iter_node(self.root) {
+            work.push_back(Descend(n));
+        }
+
+        InnerIter {
+            work,
+            len: self.len,
+        }
     }
 
     /// Returns true if self contains no entries, false otherwise.
@@ -2065,12 +2087,63 @@ impl<'a, K, V> DoubleEndedIterator for Range<'a, K, V> {
 
 impl<'a, K, V> FusedIterator for Range<'a, K, V> {}
 
-enum IntoIterNode<K, V> {
-    Arcked(Arc<Node<K, V>>),
-    Owned(Node<K, V>),
+trait IntoItem<K, V> {
+    type Item;
+
+    fn from_arc(k: &K, v: &V) -> Self::Item;
+    fn from_own(k: K, v: V) -> Self::Item;
 }
 
-fn opt_to_iter_node<K, V>(n: OptNode<K, V>) -> Option<IntoIterNode<K, V>> {
+struct IntoKey;
+struct IntoValue;
+struct IntoKeyValue;
+
+impl<K: Clone, V> IntoItem<K, V> for IntoKey {
+    type Item = K;
+
+    fn from_arc(k: &K, _: &V) -> Self::Item {
+        k.clone()
+    }
+
+    fn from_own(k: K, _: V) -> Self::Item {
+        k
+    }
+}
+
+impl<K, V: Clone> IntoItem<K, V> for IntoValue {
+    type Item = V;
+
+    fn from_arc(_: &K, v: &V) -> Self::Item {
+        v.clone()
+    }
+
+    fn from_own(_: K, v: V) -> Self::Item {
+        v
+    }
+}
+
+impl<K: Clone, V: Clone> IntoItem<K, V> for IntoKeyValue {
+    type Item = (K, V);
+
+    fn from_arc(k: &K, v: &V) -> Self::Item {
+        (k.clone(), v.clone())
+    }
+
+    fn from_own(k: K, v: V) -> Self::Item {
+        (k, v)
+    }
+}
+
+enum IntoIterNode<K, V, II> {
+    Arcked(Arc<Node<K, V>>),
+    Owned(Node<K, V>),
+    #[allow(dead_code)]
+    Marker(PhantomData<II>),
+}
+
+fn opt_to_iter_node<K, V, II>(
+    n: OptNode<K, V>,
+) -> Option<IntoIterNode<K, V, II>> {
     use IntoIterNode::*;
     match Arc::try_unwrap(n?) {
         Ok(n) => Some(Owned(n)),
@@ -2078,8 +2151,10 @@ fn opt_to_iter_node<K, V>(n: OptNode<K, V>) -> Option<IntoIterNode<K, V>> {
     }
 }
 
-impl<K: Clone, V: Clone> IterNode for IntoIterNode<K, V> {
-    type Item = (K, V);
+impl<K: Clone, V: Clone, II: IntoItem<K, V>> IterNode
+    for IntoIterNode<K, V, II>
+{
+    type Item = II::Item;
     type Node = Self;
 
     fn destruct(
@@ -2090,21 +2165,25 @@ impl<K: Clone, V: Clone> IterNode for IntoIterNode<K, V> {
         match n {
             Arcked(arc) => (
                 arc.left.clone().map(|rc| Arcked(rc)),
-                (arc.key.clone(), arc.val.clone()),
+                II::from_arc(&arc.key, &arc.val),
                 arc.right.clone().map(|rc| Arcked(rc)),
             ),
 
             IntoIterNode::Owned(n) => (
                 opt_to_iter_node(n.left),
-                (n.key, n.val),
+                II::from_own(n.key, n.val),
                 opt_to_iter_node(n.right),
             ),
+
+            IntoIterNode::Marker(_) => {
+                panic!("IntoIterNode::Marker should not exist");
+            }
         }
     }
 }
 
 pub struct IntoIter<K: Clone, V: Clone> {
-    iter: InnerIter<IntoIterNode<K, V>>,
+    iter: InnerIter<IntoIterNode<K, V, IntoKeyValue>>,
 }
 
 impl<K: Clone, V: Clone> Iterator for IntoIter<K, V> {
@@ -2136,7 +2215,8 @@ impl<K: Clone, V: Clone> IntoIterator for AvlMap<K, V> {
     fn into_iter(self) -> Self::IntoIter {
         use IterAction::*;
 
-        let mut work = VecDeque::<IterAction<IntoIterNode<K, V>>>::new();
+        let mut work =
+            VecDeque::<IterAction<IntoIterNode<K, V, IntoKeyValue>>>::new();
         if let Some(n) = opt_to_iter_node(self.root) {
             work.push_back(Descend(n));
         }
