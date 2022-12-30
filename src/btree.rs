@@ -1950,6 +1950,11 @@ impl<K: Ord, V, const N: usize> BTreeMap<K, V, N> {
     }
 }
 
+#[cfg(feature = "serde")]
+mod btree_serde {
+    // TODO
+}
+
 #[cfg(test)]
 mod test {
     extern crate quickcheck;

@@ -544,3 +544,8 @@ impl<K: Clone + Ord, const N: usize> std::ops::Sub for &BTreeSet<K, N> {
         BTreeSet::new_diff(self.clone(), rhs.clone())
     }
 }
+
+#[cfg(feature = "serde")]
+mod btree_serde {
+    // TODO
+}
