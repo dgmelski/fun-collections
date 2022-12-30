@@ -2070,13 +2070,11 @@ enum IntoIterNode<K, V> {
     Owned(Node<K, V>),
 }
 
-impl<K, V> IntoIterNode<K, V> {
-    fn opt_to_iter_node(n: OptNode<K, V>) -> Option<IntoIterNode<K, V>> {
-        use IntoIterNode::*;
-        match Arc::try_unwrap(n?) {
-            Ok(n) => Some(Owned(n)),
-            Err(arc) => Some(Arcked(arc)),
-        }
+fn opt_to_iter_node<K, V>(n: OptNode<K, V>) -> Option<IntoIterNode<K, V>> {
+    use IntoIterNode::*;
+    match Arc::try_unwrap(n?) {
+        Ok(n) => Some(Owned(n)),
+        Err(arc) => Some(Arcked(arc)),
     }
 }
 
@@ -2097,9 +2095,9 @@ impl<K: Clone, V: Clone> IterNode for IntoIterNode<K, V> {
             ),
 
             IntoIterNode::Owned(n) => (
-                Self::opt_to_iter_node(n.left),
+                opt_to_iter_node(n.left),
                 (n.key, n.val),
-                Self::opt_to_iter_node(n.right),
+                opt_to_iter_node(n.right),
             ),
         }
     }
@@ -2136,15 +2134,11 @@ impl<K: Clone, V: Clone> IntoIterator for AvlMap<K, V> {
     type IntoIter = IntoIter<K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
-        use IntoIterNode::*;
         use IterAction::*;
 
         let mut work = VecDeque::<IterAction<IntoIterNode<K, V>>>::new();
-        if let Some(rc) = self.root {
-            match Arc::try_unwrap(rc) {
-                Ok(n) => work.push_back(Descend(Owned(n))),
-                Err(arc) => work.push_back(Descend(Arcked(arc))),
-            }
+        if let Some(n) = opt_to_iter_node(self.root) {
+            work.push_back(Descend(n));
         }
 
         IntoIter {
