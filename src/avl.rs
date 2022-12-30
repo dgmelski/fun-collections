@@ -2435,7 +2435,7 @@ mod test {
         let mut fmap = AvlMap::new();
         for &(k, v) in vs.iter() {
             fmap.insert(k, v);
-            println!("{:?}", fmap);
+            println!("{fmap:?}");
             fmap.chk();
         }
     }

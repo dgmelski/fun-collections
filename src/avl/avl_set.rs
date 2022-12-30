@@ -692,7 +692,7 @@ mod test {
     #[test]
     fn dbg_fmt_test() {
         let m = AvlSet::from(['a', 'b']);
-        assert_eq!(format!("{:?}", m), r#"AvlSet({'a', 'b'})"#);
+        assert_eq!(format!("{m:?}"), r#"AvlSet({'a', 'b'})"#);
     }
 
     // run with: `cargo test --features serde,serde_test`

@@ -773,11 +773,11 @@ mod tests {
             log: log.clone(),
         };
 
-        let mut s1: Stack<_> = (0..3).into_iter().map(new_dr).collect();
+        let mut s1: Stack<_> = (0..3).map(new_dr).collect();
         let mut s2 = s1.clone();
 
-        s1.extend((3..6).into_iter().map(new_dr));
-        s2.extend((6..9).into_iter().map(new_dr));
+        s1.extend((3..6).map(new_dr));
+        s2.extend((6..9).map(new_dr));
 
         drop(s2); // should only drop the unshared nodes
         assert!((*log).borrow().iter().copied().cmp((6..9).rev()).is_eq());
