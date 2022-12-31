@@ -89,6 +89,19 @@ pub(super) fn small_int_pairs() -> impl Strategy<Value = U16Pairs> {
     u16_pairs(1024, 512)
 }
 
+pub(super) type U16Seq = Vec<u16>;
+
+pub(super) fn u16_seq(
+    ub: u16,
+    max_len: usize,
+) -> impl Strategy<Value = U16Seq> {
+    prop::collection::vec(0..ub, 0..max_len)
+}
+
+pub(super) fn small_int_seq() -> impl Strategy<Value = U16Seq> {
+    u16_seq(1024, 512)
+}
+
 #[allow(dead_code)]
 pub(super) fn string_u16_pairs() -> impl Strategy<Value = Vec<(String, u16)>> {
     prop::collection::vec(("[a-z]{0,2}", 0u16..1024u16), 0..512)
