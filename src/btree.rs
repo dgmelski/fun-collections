@@ -199,20 +199,23 @@ impl<K, V, const N: usize> Node<K, V, N> {
     }
 
     fn stitch(
-        lf: (Option<Arc<Node<K, V, N>>>, K, V),
-        rt: (Option<Arc<Node<K, V, N>>>, K, V),
-    ) -> (Option<Arc<Node<K, V, N>>>, K, V) {
+        lf: InnerHalf<K, V, N>,
+        rt: InnerHalf<K, V, N>,
+    ) -> InnerHalf<K, V, N> {
         match (lf.0, rt.0) {
             (None, None) => (
-                Some(Arc::new(Self {
-                    elems: vec![(lf.1, lf.2)],
-                    kids: vec![],
-                })),
+                Some((
+                    Arc::new(Self {
+                        elems: vec![(lf.1, lf.2)],
+                        kids: vec![],
+                    }),
+                    1,
+                )),
                 rt.1,
                 rt.2,
             ),
 
-            (Some(mut rc), None) => {
+            (Some((mut rc, mut ht)), None) => {
                 assert!(rc.is_leaf());
 
                 let n = Arc::get_mut(&mut rc).unwrap();
@@ -223,6 +226,8 @@ impl<K, V, const N: usize> Node<K, V, N> {
                         panic!("split should never fail");
                     };
 
+                    ht += 1;
+
                     Arc::new(Self {
                         elems: vec![(k, v)],
                         kids: vec![lf.unwrap(), rc],
@@ -231,10 +236,10 @@ impl<K, V, const N: usize> Node<K, V, N> {
                     rc
                 };
 
-                (Some(rc), rt.1, rt.2)
+                (Some((rc, ht)), rt.1, rt.2)
             }
 
-            (None, Some(mut rc)) => {
+            (None, Some((mut rc, mut ht))) => {
                 assert!(rc.is_leaf());
 
                 let n = Arc::get_mut(&mut rc).unwrap();
@@ -245,6 +250,8 @@ impl<K, V, const N: usize> Node<K, V, N> {
                         panic!("split should never fail");
                     };
 
+                    ht += 1;
+
                     Arc::new(Self {
                         elems: vec![(k, v)],
                         kids: vec![lf.unwrap(), rc],
@@ -253,27 +260,41 @@ impl<K, V, const N: usize> Node<K, V, N> {
                     rc
                 };
 
-                (Some(rc), rt.1, rt.2)
+                (Some((rc, ht)), rt.1, rt.2)
             }
 
-            (Some(mut lf_rc), Some(mut rt_rc)) => {
-                if lf_rc.len() + 1 + rt_rc.len() < Self::MAX_OCCUPANCY {
+            (Some((mut lf_rc, lf_ht)), Some((mut rt_rc, rt_ht))) => {
+                assert!(rt_ht > 0);
+                assert!(lf_ht >= rt_ht, "left should split before right");
+
+                if lf_ht > rt_ht {
+                    assert_eq!(lf_ht, rt_ht + 1, "left & right out-of-sync");
+
+                    let lf_n = Arc::get_mut(&mut lf_rc).unwrap();
+                    lf_n.elems.push((lf.1, lf.2));
+                    lf_n.kids.push(rt_rc);
+
+                    (Some((lf_rc, lf_ht)), rt.1, rt.2)
+                } else if lf_rc.len() + 1 + rt_rc.len() < Self::MAX_OCCUPANCY {
                     let lf_n = Arc::get_mut(&mut lf_rc).unwrap();
                     let rt_n = Arc::get_mut(&mut rt_rc).unwrap();
                     lf_n.elems.push((lf.1, lf.2));
                     lf_n.elems.append(&mut rt_n.elems);
                     lf_n.kids.append(&mut rt_n.kids);
 
-                    (Some(lf_rc), rt.1, rt.2)
+                    (Some((lf_rc, lf_ht)), rt.1, rt.2)
                 } else {
                     assert!(lf_rc.len() >= Self::MIN_OCCUPANCY);
                     assert!(rt_rc.len() >= Self::MIN_OCCUPANCY);
 
                     (
-                        Some(Arc::new(Self {
-                            elems: vec![(lf.1, lf.2)],
-                            kids: vec![lf_rc, rt_rc],
-                        })),
+                        Some((
+                            Arc::new(Self {
+                                elems: vec![(lf.1, lf.2)],
+                                kids: vec![lf_rc, rt_rc],
+                            }),
+                            lf_ht + 1,
+                        )),
                         rt.1,
                         rt.2,
                     )
@@ -1007,8 +1028,11 @@ where
     }
 }
 
+type InnerHalf<K, V, const N: usize> =
+    (Option<(Arc<Node<K, V, N>>, usize)>, K, V);
+
 pub struct Half<K, V, const N: usize> {
-    h: (Option<Arc<Node<K, V, N>>>, K, V),
+    h: InnerHalf<K, V, N>,
 }
 
 impl<K, V, const N: usize> Map for BTreeMap<K, V, N> {
@@ -1053,6 +1077,7 @@ impl<K, V, const N: usize> Map for BTreeMap<K, V, N> {
         V: Clone,
     {
         let (n, k, v) = h.h;
+        let n = n.map(|x| x.0); // discard height
 
         // create a map without the final kv, which is one smaller than final
         len = len.saturating_sub(1);
