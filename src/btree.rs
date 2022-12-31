@@ -896,6 +896,28 @@ where
     }
 }
 
+impl<'a, K, V, const N: usize> IntoIterator for &'a BTreeMap<K, V, N> {
+    type Item = (&'a K, &'a V);
+    type IntoIter = Iter<'a, K, V, N>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'a, K, V, const N: usize> IntoIterator for &'a mut BTreeMap<K, V, N>
+where
+    K: Clone,
+    V: Clone,
+{
+    type Item = (&'a K, &'a mut V);
+    type IntoIter = IterMut<'a, K, V, N>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
+    }
+}
+
 impl<K, V, const N: usize> Map for BTreeMap<K, V, N> {
     type Key = K;
     type Value = V;
