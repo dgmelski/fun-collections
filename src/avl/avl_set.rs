@@ -390,6 +390,17 @@ impl<T> AvlSet<T> {
     }
 }
 
+impl<T> crate::Set for AvlSet<T> {
+    type Value = T;
+
+    fn insert_(&mut self, value: T) -> bool
+    where
+        T: Clone + Ord,
+    {
+        self.insert(value)
+    }
+}
+
 pub struct Iter<'a, T> {
     iter: crate::avl::Iter<'a, T, ()>,
 }
@@ -543,51 +554,6 @@ impl<K: Clone + Ord> std::ops::Sub for &AvlSet<K> {
 }
 
 #[cfg(feature = "serde")]
-mod avl_serde {
-    use super::AvlSet;
-    use serde::de::{Deserialize, SeqAccess, Visitor};
-    use std::fmt;
-    use std::marker::PhantomData;
-
-    pub(super) struct AvlSetVisitor<T> {
-        marker: PhantomData<fn() -> AvlSet<T>>,
-    }
-
-    impl<T> AvlSetVisitor<T> {
-        pub fn new() -> Self {
-            AvlSetVisitor {
-                marker: PhantomData,
-            }
-        }
-    }
-
-    impl<'de, T> Visitor<'de> for AvlSetVisitor<T>
-    where
-        T: Clone + Deserialize<'de> + Ord,
-    {
-        type Value = AvlSet<T>;
-
-        // Format a message stating what data this Visitor expects to receive.
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("lazy_clone_collections::AvlSet")
-        }
-
-        fn visit_seq<M>(self, mut access: M) -> Result<Self::Value, M::Error>
-        where
-            M: SeqAccess<'de>,
-        {
-            let mut set = AvlSet::<T>::new();
-
-            while let Some(elem) = access.next_element()? {
-                set.insert(elem);
-            }
-
-            Ok(set)
-        }
-    }
-}
-
-#[cfg(feature = "serde")]
 impl<T> serde::ser::Serialize for AvlSet<T>
 where
     T: serde::ser::Serialize,
@@ -615,7 +581,12 @@ where
     where
         D: serde::de::Deserializer<'de>,
     {
-        deserializer.deserialize_seq(self::avl_serde::AvlSetVisitor::new())
+        let set_visitor = crate::serde::SetVisitor {
+            set: Box::new(AvlSet::new()),
+            desc: "lazy_clone_collections::AvlSet".to_string(),
+        };
+
+        deserializer.deserialize_seq(set_visitor)
     }
 }
 

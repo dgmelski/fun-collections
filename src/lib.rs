@@ -289,3 +289,81 @@ impl<'a, M: Map> Entry<'a, M> {
         self.map.get_mut_(&self.key).unwrap()
     }
 }
+
+pub(crate) trait Set {
+    type Value;
+
+    fn insert_(&mut self, value: Self::Value) -> bool
+    where
+        Self::Value: Clone + Ord;
+}
+
+#[cfg(feature = "serde")]
+mod serde {
+    use super::{Map, Set};
+    use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
+    use std::fmt;
+
+    pub(crate) struct MapVisitor<M: Map> {
+        pub map: Box<M>,
+        pub desc: String,
+    }
+
+    impl<'de, MAP: Map> Visitor<'de> for MapVisitor<MAP>
+    where
+        MAP::Key: Clone + Deserialize<'de> + Ord,
+        MAP::Value: Clone + Deserialize<'de>,
+    {
+        type Value = MAP;
+
+        // Format a message stating what data this Visitor expects to receive.
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str(&self.desc)
+        }
+
+        fn visit_map<M>(
+            mut self,
+            mut access: M,
+        ) -> Result<Self::Value, M::Error>
+        where
+            M: MapAccess<'de>,
+        {
+            while let Some((key, value)) = access.next_entry()? {
+                self.map.insert_(key, value);
+            }
+
+            Ok(*self.map)
+        }
+    }
+
+    pub(crate) struct SetVisitor<S: Set> {
+        pub set: Box<S>,
+        pub desc: String,
+    }
+
+    impl<'de, S: Set> Visitor<'de> for SetVisitor<S>
+    where
+        S::Value: Clone + Deserialize<'de> + Ord,
+    {
+        type Value = S;
+
+        // Format a message stating what data this Visitor expects to receive.
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str(&self.desc)
+        }
+
+        fn visit_seq<M>(
+            mut self,
+            mut access: M,
+        ) -> Result<Self::Value, M::Error>
+        where
+            M: SeqAccess<'de>,
+        {
+            while let Some(elem) = access.next_element()? {
+                self.set.insert_(elem);
+            }
+
+            Ok(*self.set)
+        }
+    }
+}

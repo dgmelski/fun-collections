@@ -1973,8 +1973,53 @@ impl<K: Ord, V, const N: usize> BTreeMap<K, V, N> {
 }
 
 #[cfg(feature = "serde")]
-mod btree_serde {
-    // TODO
+impl<K, V, const N: usize> serde::ser::Serialize for BTreeMap<K, V, N>
+where
+    K: serde::ser::Serialize,
+    V: serde::ser::Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        use serde::ser::SerializeMap;
+        let mut map = serializer.serialize_map(Some(self.len()))?;
+        for (k, v) in self {
+            map.serialize_entry(k, v)?;
+        }
+        map.end()
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, K, V, const N: usize> serde::de::Deserialize<'de>
+    for BTreeMap<K, V, N>
+where
+    K: Clone + serde::de::Deserialize<'de> + Ord,
+    V: Clone + serde::de::Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        let map_visitor = super::serde::MapVisitor {
+            map: Box::new(BTreeMap::new()),
+            desc: "lazy_clone_collections::AvlMap".to_string(),
+        };
+        deserializer.deserialize_map(map_visitor)
+    }
+}
+
+impl<K: Clone, V: Clone, const N: usize> From<BTreeMap<K, V, N>>
+    for Vec<(K, V)>
+{
+    fn from(value: BTreeMap<K, V, N>) -> Self {
+        let mut res = Self::new();
+        for (k, v) in value {
+            res.push((k, v));
+        }
+        res
+    }
 }
 
 #[cfg(test)]

@@ -2313,52 +2313,6 @@ impl<K, V> Map for AvlMap<K, V> {
 }
 
 #[cfg(feature = "serde")]
-mod avl_serde {
-    use super::AvlMap;
-    use serde::de::{Deserialize, MapAccess, Visitor};
-    use std::fmt;
-    use std::marker::PhantomData;
-
-    pub(super) struct AvlMapVisitor<K, V> {
-        marker: PhantomData<fn() -> AvlMap<K, V>>,
-    }
-
-    impl<K, V> AvlMapVisitor<K, V> {
-        pub fn new() -> Self {
-            AvlMapVisitor {
-                marker: PhantomData,
-            }
-        }
-    }
-
-    impl<'de, K, V> Visitor<'de> for AvlMapVisitor<K, V>
-    where
-        K: Clone + Deserialize<'de> + Ord,
-        V: Clone + Deserialize<'de>,
-    {
-        type Value = AvlMap<K, V>;
-
-        // Format a message stating what data this Visitor expects to receive.
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("lazy_clone_collections::AvlMap")
-        }
-
-        fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
-        where
-            M: MapAccess<'de>,
-        {
-            let mut map = AvlMap::<K, V>::new();
-
-            while let Some((key, value)) = access.next_entry()? {
-                map.insert(key, value);
-            }
-
-            Ok(map)
-        }
-    }
-}
-
-#[cfg(feature = "serde")]
 impl<K, V> serde::ser::Serialize for AvlMap<K, V>
 where
     K: serde::ser::Serialize,
@@ -2387,7 +2341,11 @@ where
     where
         D: serde::de::Deserializer<'de>,
     {
-        deserializer.deserialize_map(avl_serde::AvlMapVisitor::new())
+        let map_visitor = super::serde::MapVisitor {
+            map: Box::new(AvlMap::new()),
+            desc: "lazy_clone_collections::AvlMap".to_string(),
+        };
+        deserializer.deserialize_map(map_visitor)
     }
 }
 

@@ -360,6 +360,17 @@ impl<T, const N: usize> BTreeSet<T, N> {
     }
 }
 
+impl<T, const N: usize> crate::Set for BTreeSet<T, N> {
+    type Value = T;
+
+    fn insert_(&mut self, value: T) -> bool
+    where
+        T: Clone + Ord,
+    {
+        self.insert(value)
+    }
+}
+
 pub struct Iter<'a, T, const N: usize> {
     iter: crate::btree::Iter<'a, T, (), N>,
 }
@@ -546,6 +557,38 @@ impl<K: Clone + Ord, const N: usize> std::ops::Sub for &BTreeSet<K, N> {
 }
 
 #[cfg(feature = "serde")]
-mod btree_serde {
-    // TODO
+impl<T, const N: usize> serde::ser::Serialize for BTreeSet<T, N>
+where
+    T: serde::ser::Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        use serde::ser::SerializeSeq;
+
+        let mut seq = serializer.serialize_seq(Some(self.len()))?;
+        for k in self {
+            seq.serialize_element(k)?;
+        }
+        seq.end()
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, T, const N: usize> serde::de::Deserialize<'de> for BTreeSet<T, N>
+where
+    T: Clone + serde::de::Deserialize<'de> + Ord,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        let set_visitor = crate::serde::SetVisitor {
+            set: Box::new(BTreeSet::new()),
+            desc: "lazy_clone_collections::AvlSet".to_string(),
+        };
+
+        deserializer.deserialize_seq(set_visitor)
+    }
 }
