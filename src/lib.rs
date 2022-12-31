@@ -189,6 +189,7 @@ use make_set_op_iter;
 pub trait Map {
     type Key;
     type Value;
+    type Half;
 
     fn contains_key_<Q>(&mut self, key: &Q) -> bool
     where
@@ -206,6 +207,18 @@ pub trait Map {
         key: Self::Key,
         val: Self::Value,
     ) -> Option<Self::Value>
+    where
+        Self::Key: Clone + Ord,
+        Self::Value: Clone;
+
+    fn make_half(key: Self::Key, value: Self::Value) -> Self::Half;
+
+    fn make_whole(h: Self::Half, len: usize) -> Self
+    where
+        Self::Key: Clone + Ord,
+        Self::Value: Clone;
+
+    fn stitch(lf: Self::Half, rt: Self::Half) -> Self::Half
     where
         Self::Key: Clone + Ord,
         Self::Value: Clone;
@@ -328,6 +341,40 @@ mod serde {
         where
             M: MapAccess<'de>,
         {
+            fn build_map_by_halves<'de, MAP: Map, M>(
+                access: &mut M,
+                len: usize,
+            ) -> Result<MAP::Half, M::Error>
+            where
+                M: MapAccess<'de>,
+                MAP::Key: Clone + Deserialize<'de> + Ord,
+                MAP::Value: Clone + Deserialize<'de>,
+            {
+                assert!(len > 0);
+
+                if len == 1 {
+                    let Some((key, value)) = access.next_entry()? else {
+                        panic!("too few elements");
+                    };
+
+                    Ok(MAP::make_half(key, value))
+                } else {
+                    let lf_len = (len + 1) / 2; // left gets bigger half, since it has mid point
+                    let rt_len = len - lf_len;
+                    Ok(MAP::stitch(
+                        build_map_by_halves::<MAP, M>(access, lf_len)?,
+                        build_map_by_halves::<MAP, M>(access, rt_len)?,
+                    ))
+                }
+            }
+
+            if let Some(sz) = access.size_hint() {
+                if sz > 0 {
+                    let h = build_map_by_halves::<MAP, M>(&mut access, sz)?;
+                    return Ok(MAP::make_whole(h, sz));
+                }
+            }
+
             while let Some((key, value)) = access.next_entry()? {
                 self.map.insert_(key, value);
             }

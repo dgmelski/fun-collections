@@ -198,6 +198,90 @@ impl<K, V, const N: usize> Node<K, V, N> {
         self.kids.is_empty()
     }
 
+    fn stitch(
+        lf: (Option<Arc<Node<K, V, N>>>, K, V),
+        rt: (Option<Arc<Node<K, V, N>>>, K, V),
+    ) -> (Option<Arc<Node<K, V, N>>>, K, V) {
+        match (lf.0, rt.0) {
+            (None, None) => (
+                Some(Arc::new(Self {
+                    elems: vec![(lf.1, lf.2)],
+                    kids: vec![],
+                })),
+                rt.1,
+                rt.2,
+            ),
+
+            (Some(mut rc), None) => {
+                assert!(rc.is_leaf());
+
+                let n = Arc::get_mut(&mut rc).unwrap();
+                n.elems.push((lf.1, lf.2));
+
+                let rc = if n.len() > Self::MAX_OCCUPANCY {
+                    let InsertResult::Split(lf, k, v) = n.split() else {
+                        panic!("split should never fail");
+                    };
+
+                    Arc::new(Self {
+                        elems: vec![(k, v)],
+                        kids: vec![lf.unwrap(), rc],
+                    })
+                } else {
+                    rc
+                };
+
+                (Some(rc), rt.1, rt.2)
+            }
+
+            (None, Some(mut rc)) => {
+                assert!(rc.is_leaf());
+
+                let n = Arc::get_mut(&mut rc).unwrap();
+                n.elems.insert(0, (lf.1, lf.2));
+
+                let rc = if n.len() > Self::MAX_OCCUPANCY {
+                    let InsertResult::Split(lf, k, v) = n.split() else {
+                        panic!("split should never fail");
+                    };
+
+                    Arc::new(Self {
+                        elems: vec![(k, v)],
+                        kids: vec![lf.unwrap(), rc],
+                    })
+                } else {
+                    rc
+                };
+
+                (Some(rc), rt.1, rt.2)
+            }
+
+            (Some(mut lf_rc), Some(mut rt_rc)) => {
+                if lf_rc.len() + 1 + rt_rc.len() < Self::MAX_OCCUPANCY {
+                    let lf_n = Arc::get_mut(&mut lf_rc).unwrap();
+                    let rt_n = Arc::get_mut(&mut rt_rc).unwrap();
+                    lf_n.elems.push((lf.1, lf.2));
+                    lf_n.elems.append(&mut rt_n.elems);
+                    lf_n.kids.append(&mut rt_n.kids);
+
+                    (Some(lf_rc), rt.1, rt.2)
+                } else {
+                    assert!(lf_rc.len() >= Self::MIN_OCCUPANCY);
+                    assert!(rt_rc.len() >= Self::MIN_OCCUPANCY);
+
+                    (
+                        Some(Arc::new(Self {
+                            elems: vec![(lf.1, lf.2)],
+                            kids: vec![lf_rc, rt_rc],
+                        })),
+                        rt.1,
+                        rt.2,
+                    )
+                }
+            }
+        }
+    }
+
     fn rot_lf(&mut self, idx: usize)
     where
         K: Clone,
@@ -923,9 +1007,14 @@ where
     }
 }
 
+pub struct Half<K, V, const N: usize> {
+    h: (Option<Arc<Node<K, V, N>>>, K, V),
+}
+
 impl<K, V, const N: usize> Map for BTreeMap<K, V, N> {
     type Key = K;
     type Value = V;
+    type Half = Half<K, V, N>;
 
     fn contains_key_<Q>(&mut self, key: &Q) -> bool
     where
@@ -950,6 +1039,41 @@ impl<K, V, const N: usize> Map for BTreeMap<K, V, N> {
         V: Clone,
     {
         self.insert(key, val)
+    }
+
+    fn make_half(key: Self::Key, value: Self::Value) -> Self::Half {
+        Self::Half {
+            h: (None, key, value),
+        }
+    }
+
+    fn make_whole(h: Self::Half, mut len: usize) -> Self
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
+        let (n, k, v) = h.h;
+
+        // create a map without the final kv, which is one smaller than final
+        len = len.saturating_sub(1);
+        let mut m = Self { len, root: n };
+
+        #[cfg(test)]
+        m.chk();
+
+        m.insert(k, v);
+        m
+    }
+
+    fn stitch(lf: Self::Half, rt: Self::Half) -> Self::Half
+    where
+        Self::Key: Clone + Ord,
+        Self::Value: Clone,
+    {
+        assert!(lf.h.1 < rt.h.1);
+        Self::Half {
+            h: Node::stitch(lf.h, rt.h),
+        }
     }
 }
 

@@ -2282,9 +2282,14 @@ impl<K: Clone + Ord, V: Clone> FromIterator<(K, V)> for AvlMap<K, V> {
     }
 }
 
+pub struct Half<K, V> {
+    h: (OptNode<K, V>, K, V),
+}
+
 impl<K, V> Map for AvlMap<K, V> {
     type Key = K;
     type Value = V;
+    type Half = Half<K, V>;
 
     fn contains_key_<Q>(&mut self, key: &Q) -> bool
     where
@@ -2309,6 +2314,42 @@ impl<K, V> Map for AvlMap<K, V> {
         V: Clone,
     {
         self.insert(key, val)
+    }
+
+    fn make_half(key: Self::Key, value: Self::Value) -> Self::Half {
+        Self::Half {
+            h: (None, key, value),
+        }
+    }
+
+    fn make_whole(h: Self::Half, mut len: usize) -> Self
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
+        let (n, k, v) = h.h;
+
+        // create a map without the final kv, which is one smaller than final
+        len = len.saturating_sub(1);
+        let mut m = chk_map!(Self { len, root: n });
+
+        m.insert(k, v);
+        m
+    }
+
+    fn stitch(lf: Self::Half, rt: Self::Half) -> Self::Half
+    where
+        K: Clone + Ord,
+        V: Clone,
+    {
+        let (lf, mid_k, mid_v) = lf.h;
+        let (rt, hi_k, hi_v) = rt.h;
+
+        assert!(mid_k < hi_k);
+
+        Self::Half {
+            h: (join(lf, mid_k, mid_v, rt), hi_k, hi_v),
+        }
     }
 }
 
