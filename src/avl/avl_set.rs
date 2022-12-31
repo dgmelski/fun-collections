@@ -1,6 +1,7 @@
 use super::{AvlMap, Node};
 use std::borrow::Borrow;
 use std::cmp::Ordering::*;
+use std::iter::{ExactSizeIterator, FusedIterator};
 use std::ops::RangeBounds;
 use std::sync::Arc;
 
@@ -417,6 +418,14 @@ pub struct Iter<'a, T> {
     iter: crate::avl::Iter<'a, T, ()>,
 }
 
+impl<'a, T> ExactSizeIterator for Iter<'a, T> {
+    fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
+
+impl<'a, T> FusedIterator for Iter<'a, T> {}
+
 impl<'a, T> Iterator for Iter<'a, T> {
     type Item = &'a T;
 
@@ -433,6 +442,14 @@ crate::make_set_op_iter!(SymmetricDifference, Iter<'a, T>, 0b101);
 pub struct IntoIter<T: Clone> {
     iter: crate::avl::IntoIter<T, ()>,
 }
+
+impl<T: Clone> ExactSizeIterator for IntoIter<T> {
+    fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
+
+impl<T: Clone> FusedIterator for IntoIter<T> {}
 
 impl<T: Clone> Iterator for IntoIter<T> {
     type Item = T;
