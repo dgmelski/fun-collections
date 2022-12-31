@@ -33,7 +33,7 @@ where
 
 enum InsertResult<K, V, const N: usize> {
     Replaced(V),
-    Split((Option<NodePtr<K, V, N>>, K, V)),
+    Split(Option<NodePtr<K, V, N>>, K, V),
     Absorbed,
 }
 
@@ -139,11 +139,11 @@ impl<K, V, const N: usize> Node<K, V, N> {
         // needing to insert a new separator at this level.
         let res = match self.child_mut(ub_x) {
             Some(n) => Arc::make_mut(n).insert(key, val),
-            None => Split((None, key, val)),
+            None => Split(None, key, val),
         };
 
         // update for a node split at the next level down
-        if let Split((child, k, v)) = res {
+        if let Split(child, k, v) = res {
             // TODO: split before insert to reduce memmove
 
             self.elems.insert(ub_x, (k, v));
@@ -155,34 +155,39 @@ impl<K, V, const N: usize> Node<K, V, N> {
                 return Absorbed;
             }
 
-            // split this overcrowded node
-
-            // take the top half from the existing node
-            let mut other_elems = self.elems.split_off(Self::MIN_OCCUPANCY + 1);
-            let mut other_kids = if self.kids.is_empty() {
-                Vec::new()
-            } else {
-                self.kids.split_off(Self::MIN_OCCUPANCY + 1)
-            };
-
-            // swap the top half into the existing node
-            std::mem::swap(&mut self.elems, &mut other_elems);
-            std::mem::swap(&mut self.kids, &mut other_kids);
-
-            // take the separator between the divided sides
-            let (mid_k, mid_v) = other_elems.pop().unwrap();
-
-            // make a node for the lhs
-            let lhs = Some(Arc::new(Node {
-                elems: other_elems,
-                kids: other_kids,
-            }));
-
-            Split((lhs, mid_k, mid_v))
+            self.split()
         } else {
             // res is Replaced(v) or Absorbed
             res
         }
+    }
+
+    // split this overcrowded node
+    fn split(&mut self) -> InsertResult<K, V, N> {
+        assert!(self.len() > Self::MAX_OCCUPANCY);
+
+        // take the top half from the existing node
+        let mut other_elems = self.elems.split_off(Self::MIN_OCCUPANCY + 1);
+        let mut other_kids = if self.kids.is_empty() {
+            Vec::new()
+        } else {
+            self.kids.split_off(Self::MIN_OCCUPANCY + 1)
+        };
+
+        // swap the top half into the existing node
+        std::mem::swap(&mut self.elems, &mut other_elems);
+        std::mem::swap(&mut self.kids, &mut other_kids);
+
+        // take the separator between the divided sides
+        let (mid_k, mid_v) = other_elems.pop().unwrap();
+
+        // make a node for the lhs
+        let lhs = Some(Arc::new(Node {
+            elems: other_elems,
+            kids: other_kids,
+        }));
+
+        InsertResult::Split(lhs, mid_k, mid_v)
     }
 
     fn is_branch(&self) -> bool {
@@ -561,7 +566,7 @@ impl<K, V, const N: usize> BTreeMap<K, V, N> {
             match Arc::make_mut(r).insert(key, val) {
                 InsertResult::Replaced(v) => Some(v),
 
-                InsertResult::Split((lhs, k, v)) => {
+                InsertResult::Split(lhs, k, v) => {
                     self.len += 1;
                     self.root = Some(Arc::new(Node {
                         elems: vec![(k, v)],
