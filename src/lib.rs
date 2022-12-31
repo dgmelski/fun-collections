@@ -189,7 +189,14 @@ use make_set_op_iter;
 pub trait Map {
     type Key;
     type Value;
+
+    // A Half is "half" of a map.  It contains an internal map node and a
+    // key-value pair where the key is greater than everything in the node.
     type Half;
+
+    // MAX_HALF_LEN is usually the maximum number of elements in an internal map
+    // node plus one for the extra key-value item.
+    const MAX_HALF_LEN: usize;
 
     fn contains_key_<Q>(&mut self, key: &Q) -> bool
     where
@@ -211,13 +218,20 @@ pub trait Map {
         Self::Key: Clone + Ord,
         Self::Value: Clone;
 
-    fn make_half(key: Self::Key, value: Self::Value) -> Self::Half;
+    // Make a Half map from 'len' elements supplied by the 'next' function.  Len
+    // should be small enough that the map needs at most a single leaf.
+    fn make_half<F: FnMut() -> Option<(Self::Key, Self::Value)>>(
+        next: F,
+        len: usize,
+    ) -> Self::Half;
 
+    // convert a Half into a standard Map
     fn make_whole(h: Self::Half, len: usize) -> Self
     where
         Self::Key: Clone + Ord,
         Self::Value: Clone;
 
+    // combine a lower Half and an upper Half into "half" of a yet larger map
     fn stitch(lf: Self::Half, rt: Self::Half) -> Self::Half
     where
         Self::Key: Clone + Ord,
@@ -352,14 +366,10 @@ mod serde {
             {
                 assert!(len > 0);
 
-                if len == 1 {
-                    let Some((key, value)) = access.next_entry()? else {
-                        panic!("too few elements");
-                    };
-
-                    Ok(MAP::make_half(key, value))
+                if len <= MAP::MAX_HALF_LEN {
+                    Ok(MAP::make_half(|| access.next_entry().unwrap(), len))
                 } else {
-                    let lf_len = (len + 1) / 2; // left gets bigger half, since it has mid point
+                    let lf_len = (len + 1) / 2; // left gets big half for mid pt
                     let rt_len = len - lf_len;
                     Ok(MAP::stitch(
                         build_map_by_halves::<MAP, M>(access, lf_len)?,

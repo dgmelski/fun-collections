@@ -2290,6 +2290,7 @@ impl<K, V> Map for AvlMap<K, V> {
     type Key = K;
     type Value = V;
     type Half = Half<K, V>;
+    const MAX_HALF_LEN: usize = 2;
 
     fn contains_key_<Q>(&mut self, key: &Q) -> bool
     where
@@ -2316,10 +2317,22 @@ impl<K, V> Map for AvlMap<K, V> {
         self.insert(key, val)
     }
 
-    fn make_half(key: Self::Key, value: Self::Value) -> Self::Half {
-        Self::Half {
-            h: (None, key, value),
-        }
+    fn make_half<F: FnMut() -> Option<(Self::Key, Self::Value)>>(
+        mut next: F,
+        len: usize,
+    ) -> Self::Half {
+        assert!((1..=2).contains(&len));
+
+        let n = if len > 1 {
+            let (k, v) = next().unwrap();
+            Node::opt_new(k, v, None, None)
+        } else {
+            None
+        };
+
+        let (k, v) = next().unwrap();
+
+        Self::Half { h: (n, k, v) }
     }
 
     fn make_whole(h: Self::Half, mut len: usize) -> Self

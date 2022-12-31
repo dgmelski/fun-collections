@@ -1039,6 +1039,7 @@ impl<K, V, const N: usize> Map for BTreeMap<K, V, N> {
     type Key = K;
     type Value = V;
     type Half = Half<K, V, N>;
+    const MAX_HALF_LEN: usize = max_occupancy(N) + 1;
 
     fn contains_key_<Q>(&mut self, key: &Q) -> bool
     where
@@ -1065,9 +1066,26 @@ impl<K, V, const N: usize> Map for BTreeMap<K, V, N> {
         self.insert(key, val)
     }
 
-    fn make_half(key: Self::Key, value: Self::Value) -> Self::Half {
+    fn make_half<F: FnMut() -> Option<(Self::Key, Self::Value)>>(
+        mut next: F,
+        len: usize,
+    ) -> Self::Half {
+        assert!(len > 0);
+        assert!(len <= max_occupancy(N) + 1);
+
+        let mut elems = Vec::new();
+        for _ in 0..(len - 1) {
+            elems.push(next().unwrap());
+        }
+
+        let (k, v) = next().unwrap();
+        let n = Arc::new(Node {
+            elems,
+            kids: Vec::new(),
+        });
+
         Self::Half {
-            h: (None, key, value),
+            h: (Some((n, 1)), k, v),
         }
     }
 
