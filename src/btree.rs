@@ -1079,7 +1079,7 @@ impl<K, V, const N: usize> Map for BTreeMap<K, V, N> {
         let (n, k, v) = h.h;
         let n = n.map(|x| x.0); // discard height
 
-        // create a map without the final kv, which is one smaller than final
+        // create a map without the final kv
         len = len.saturating_sub(1);
         let mut m = Self { len, root: n };
 

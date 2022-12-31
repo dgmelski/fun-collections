@@ -455,6 +455,39 @@ fn range_regr1() {
     check_range(vec![(248, 0), (249, 0), (0, 0)], (Unbounded, Excluded(248)));
 }
 
+#[cfg(feature = "serde")]
+mod serde {
+    #![allow(unused_imports)]
+    use super::*;
+    use crate::common::*;
+    use proptest::prelude::*;
+    use serde_test::{assert_tokens, Token};
+
+    fn check_serde(v: U16Pairs) {
+        let m = Maps::new(v);
+
+        let mut ts = vec![Token::Map {
+            len: Some(m.std_map.len()),
+        }];
+        for (&k, &v) in m.std_map.iter() {
+            ts.push(Token::U16(k));
+            ts.push(Token::U16(v));
+        }
+        ts.push(Token::MapEnd);
+
+        assert_tokens(&m.avl_map, &ts);
+        assert_tokens(&m.btree_map, &ts);
+        assert_tokens(&m.narrow_map, &ts);
+    }
+
+    proptest! {
+        #[test]
+        fn test_serde(v in small_int_pairs()) {
+            check_serde(v);
+        }
+    }
+}
+
 proptest! {
     #[test]
     fn test_range(v in small_int_pairs(), r in range_bounds_1k()) {

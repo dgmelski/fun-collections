@@ -2329,7 +2329,7 @@ impl<K, V> Map for AvlMap<K, V> {
     {
         let (n, k, v) = h.h;
 
-        // create a map without the final kv, which is one smaller than final
+        // create a map without the final kv
         len = len.saturating_sub(1);
         let mut m = chk_map!(Self { len, root: n });
 
