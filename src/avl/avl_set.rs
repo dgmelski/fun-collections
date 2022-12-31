@@ -1,6 +1,7 @@
 use super::{AvlMap, Node};
 use std::borrow::Borrow;
 use std::cmp::Ordering::*;
+use std::ops::RangeBounds;
 use std::sync::Arc;
 
 /// A sorted set of values.
@@ -277,7 +278,18 @@ impl<T> AvlSet<T> {
         self.map.pop_last().map(|e| e.0)
     }
 
-    // TODO: range
+    /// Returns an iterator over the entries in the given range
+    pub fn range<Q, R>(
+        &self,
+        range: R,
+    ) -> impl DoubleEndedIterator<Item = &T> + FusedIterator
+    where
+        Q: Ord + ?Sized,
+        T: Borrow<Q>,
+        R: RangeBounds<Q>,
+    {
+        self.map.range(range).map(|e| e.0)
+    }
 
     /// Removes the given value from self returning true if the value was
     /// present and false otherwise.

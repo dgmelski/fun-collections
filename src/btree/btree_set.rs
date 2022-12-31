@@ -233,7 +233,7 @@ impl<T, const N: usize> BTreeSet<T, N> {
         self.map.pop_last().map(|e| e.0)
     }
 
-    pub fn range<Q, R, I>(
+    pub fn range<Q, R>(
         &self,
         range: R,
     ) -> impl DoubleEndedIterator<Item = &T> + FusedIterator
