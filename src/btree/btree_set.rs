@@ -1,7 +1,7 @@
 use super::*;
 
 #[derive(Clone, Eq)]
-pub struct BTreeSet<T, const N: usize> {
+pub struct BTreeSet<T, const N: usize = 5> {
     map: BTreeMap<T, (), N>,
 }
 

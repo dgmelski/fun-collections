@@ -416,7 +416,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
 }
 
 #[derive(Clone)]
-pub struct BTreeMap<K, V, const N: usize = 2> {
+pub struct BTreeMap<K, V, const N: usize = 5> {
     len: usize,
     root: Option<NodePtr<K, V, N>>,
 }
