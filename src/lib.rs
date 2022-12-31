@@ -218,6 +218,8 @@ pub trait Map {
         Self::Key: Clone + Ord,
         Self::Value: Clone;
 
+    fn new_() -> Self;
+
     // Make a Half map from 'len' elements supplied by the 'next' function.  Len
     // should be small enough that the map needs at most a single leaf.
     fn make_half<F: FnMut() -> Option<(Self::Key, Self::Value)>>(
@@ -329,11 +331,11 @@ pub(crate) trait Set {
 mod serde {
     use super::{Map, Set};
     use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
-    use std::fmt;
+    use std::{fmt, marker::PhantomData};
 
     pub(crate) struct MapVisitor<M: Map> {
-        pub map: Box<M>,
         pub desc: String,
+        pub marker: PhantomData<fn() -> M>,
     }
 
     impl<'de, MAP: Map> Visitor<'de> for MapVisitor<MAP>
@@ -348,10 +350,7 @@ mod serde {
             formatter.write_str(&self.desc)
         }
 
-        fn visit_map<M>(
-            mut self,
-            mut access: M,
-        ) -> Result<Self::Value, M::Error>
+        fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
         where
             M: MapAccess<'de>,
         {
@@ -385,11 +384,11 @@ mod serde {
                 }
             }
 
+            let mut map = MAP::new_();
             while let Some((key, value)) = access.next_entry()? {
-                self.map.insert_(key, value);
+                map.insert_(key, value);
             }
-
-            Ok(*self.map)
+            Ok(map)
         }
     }
 

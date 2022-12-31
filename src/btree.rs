@@ -1066,6 +1066,10 @@ impl<K, V, const N: usize> Map for BTreeMap<K, V, N> {
         self.insert(key, val)
     }
 
+    fn new_() -> Self {
+        Self::new()
+    }
+
     fn make_half<F: FnMut() -> Option<(Self::Key, Self::Value)>>(
         mut next: F,
         len: usize,
@@ -2175,8 +2179,8 @@ where
         D: serde::de::Deserializer<'de>,
     {
         let map_visitor = super::serde::MapVisitor {
-            map: Box::new(BTreeMap::new()),
             desc: "lazy_clone_collections::AvlMap".to_string(),
+            marker: std::marker::PhantomData,
         };
         deserializer.deserialize_map(map_visitor)
     }
