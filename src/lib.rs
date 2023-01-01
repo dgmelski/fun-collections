@@ -440,13 +440,13 @@ mod serde {
                     );
 
                     match res {
-                        // if size_hint was small, there may be more elems
                         Ok(h) => {
                             debug_assert!(match MAP::check_half(&h) {
                                 Ok(sz) => len == sz,
                                 Err(e) => e == "Unsorted", // res==Err on others
                             });
                             map = MAP::make_whole(h, len)
+                            // if size_hint was small, there may be more elems
                         }
 
                         Err(StitchErr::TooFewElems(Some(h))) => {
