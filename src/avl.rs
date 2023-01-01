@@ -17,12 +17,20 @@ type OptNode<K, V> = Option<Arc<Node<K, V>>>;
 struct IsShorter(bool);
 struct IsTaller(bool);
 
+#[derive(Clone, Copy, Debug)]
+enum MapErr {
+    BadHeight,
+    BadLen,
+    Imbalanced,
+    OutOfOrder,
+}
+
 #[cfg(test)]
 #[macro_export]
 macro_rules! chk_node {
     ( $x:expr ) => {{
         let n = $x;
-        chk(&n, None);
+        chk(&n, None).unwrap();
         n
     }};
 }
@@ -32,7 +40,7 @@ macro_rules! chk_node {
 macro_rules! chk_map {
     ( $x:expr ) => {{
         let n = $x;
-        let chk_len = chk(&n.root, None).0;
+        let chk_len = chk(&n.root, None).unwrap().0;
         assert_eq!(chk_len, n.len);
         n
     }};
@@ -142,33 +150,37 @@ impl<K, V> Node<K, V> {
 }
 
 impl<K: Ord, V> Node<K, V> {
-    #[cfg(test)]
-    fn chk(&self, greatest: Option<&K>) -> (usize, Option<&K>) {
-        // is our node in order with left-side ancestors?
-        assert!(greatest.iter().all(|&k| k < &self.key));
+    // NB: Performs an expensive scan of the node.  For checks that only occur
+    // on testing and not in release, use the chk_node! macro.
+    fn chk(&self, greatest: Option<&K>) -> Result<(usize, Option<&K>), MapErr> {
+        use MapErr::*;
 
-        // do we know the heights of our children?
-        assert_eq!(height(&self.left), self.left_ht);
-        assert_eq!(height(&self.right), self.right_ht);
+        // are we greater than a left-side ancestor?
+        if greatest.iter().any(|&k| k >= &self.key) {
+            return Err(OutOfOrder);
+        }
 
-        // are we balanced?
-        assert!(self.is_bal());
+        if height(&self.left) != self.left_ht
+            || height(&self.right) != self.right_ht
+        {
+            return Err(BadHeight);
+        }
 
-        // are our left descendents okay?
-        let (lf_len, greatest) = chk(&self.left, greatest);
+        if !self.is_bal() {
+            return Err(Imbalanced);
+        }
 
-        // are our left descendents all less than us?
-        assert!(greatest.iter().all(|&k| k < &self.key));
+        let (lf_len, greatest) = chk(&self.left, greatest)?;
 
-        // are our right descendents okay?
-        let (rt_len, greatest) = chk(&self.right, Some(&self.key));
+        // are we greater than our left descendants?
+        if greatest.iter().any(|&k| k >= &self.key) {
+            return Err(OutOfOrder);
+        }
 
-        (lf_len + rt_len + 1, greatest)
+        let (rt_len, greatest) = chk(&self.right, Some(&self.key))?;
+
+        Ok((lf_len + rt_len + 1, greatest))
     }
-
-    #[allow(dead_code)]
-    #[cfg(not(test))]
-    fn chk(&self) {}
 }
 
 impl<K: Debug, V: Debug> Debug for Node<K, V> {
@@ -312,13 +324,13 @@ fn len<K, V>(opt_node: &OptNode<K, V>) -> usize {
         .map_or(0, |r| len(&r.left) + 1 + len(&r.right))
 }
 
-#[cfg(test)]
+// Performs a scan of the entire tree.  Use chk_node! for test-only checks.
 fn chk<'a, K: Ord, V>(
     opt_node: &'a OptNode<K, V>,
     greatest: Option<&'a K>,
-) -> (usize, Option<&'a K>) {
+) -> Result<(usize, Option<&'a K>), MapErr> {
     match opt_node.as_ref() {
-        None => (0, greatest),
+        None => Ok((0, greatest)),
         Some(n) => n.chk(greatest),
     }
 }
@@ -1877,12 +1889,17 @@ impl<K, V> AvlMap<K, V> {
         }
     }
 
-    #[cfg(test)]
-    fn chk(&self)
+    #[allow(dead_code)]
+    // Scans the entire tree. Use chk_map!() for test-only checks.
+    fn chk(&self) -> Result<(), MapErr>
     where
         K: Ord,
     {
-        assert_eq!(self.len, chk(&self.root, None).0);
+        match chk(&self.root, None) {
+            Ok((len, _)) if len == self.len => Ok(()),
+            Ok(_) => Err(MapErr::BadLen),
+            Err(e) => Err(e),
+        }
     }
 }
 
@@ -2450,7 +2467,7 @@ mod test {
         for &(k, v) in vs.iter() {
             fmap.insert(k, v);
             println!("{fmap:?}");
-            fmap.chk();
+            fmap.chk().unwrap();
         }
     }
 
@@ -2475,14 +2492,14 @@ mod test {
 
             // println!("{:?}", fmap);
             assert!(fmap.iter().cmp(btree.iter()).is_eq());
-            fmap.chk();
+            fmap.chk().unwrap();
         }
     }
 
     fn split_test<K: Clone + Ord, V: Clone>(mut fmap: AvlMap<K, V>, k: &K) {
         let rhs = fmap.split_off(k);
-        fmap.chk();
-        rhs.chk();
+        fmap.chk().unwrap();
+        rhs.chk().unwrap();
         assert!(fmap.last_key_value().map_or(true, |(k2, _)| k2 < k));
         assert!(rhs.first_key_value().map_or(true, |(k2, _)| k <= k2));
     }
@@ -2492,7 +2509,7 @@ mod test {
         for (k, v) in fmap.iter() {
             let mut fmap2 = fmap.clone();
             assert_eq!(fmap2.remove(k), Some(*v));
-            fmap2.chk();
+            fmap2.chk().unwrap();
         }
     }
 
@@ -2517,7 +2534,7 @@ mod test {
             *v = 1;
         }
 
-        m.chk();
+        m.chk().unwrap();
 
         for (i, (k, v)) in m.iter().enumerate() {
             assert_eq!(i, *k);
@@ -2737,7 +2754,7 @@ mod test {
             let f2: AvlMap<_, _> =
                 v2.into_iter().enumerate().map(|(i,v)| (i+mid+1, v)).collect();
             let f3 = AvlMap::new_join(f1, mid, 0, f2);
-            f3.chk();
+            f3.chk().unwrap();
         }
 
         fn qc_split_test(vs: Vec<(u8, u16)>) -> () {
