@@ -186,6 +186,11 @@ macro_rules! make_set_op_iter {
 
 use make_set_op_iter;
 
+enum StitchErr<H, E> {
+    TooFewElems(Option<H>), // H is partial result, if possible
+    Other(E),               // E is an err from another module
+}
+
 pub trait Map {
     type Key;
     type Value;
@@ -326,7 +331,7 @@ pub(crate) trait Set {
 
 #[cfg(feature = "serde")]
 mod serde {
-    use super::{Map, Set};
+    use super::{Map, Set, StitchErr};
     use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
     use std::{fmt, marker::PhantomData};
 
@@ -355,7 +360,7 @@ mod serde {
                 access: &mut M,
                 len: usize,
                 scratch: &mut Vec<(MAP::Key, MAP::Value)>, // used for leaves
-            ) -> Result<MAP::Half, M::Error>
+            ) -> Result<MAP::Half, StitchErr<MAP::Half, M::Error>>
             where
                 M: MapAccess<'de>,
                 MAP::Key: Clone + Deserialize<'de> + Ord,
@@ -365,32 +370,70 @@ mod serde {
 
                 if len <= MAP::MAX_HALF_LEN {
                     assert!(scratch.is_empty());
+
                     for _ in 0..len {
-                        let kv = access.next_entry()?.unwrap();
+                        let kv = match access.next_entry() {
+                            Ok(Some(kv)) => kv,
+
+                            Ok(None) => {
+                                let partial = if scratch.is_empty() {
+                                    None
+                                } else {
+                                    Some(MAP::make_half(scratch))
+                                };
+                                return Err(StitchErr::TooFewElems(partial));
+                            }
+
+                            Err(e) => return Err(StitchErr::Other(e)),
+                        };
+
                         scratch.push(kv);
                     }
+
                     Ok(MAP::make_half(scratch))
                 } else {
                     let lf_len = (len + 1) / 2; // left gets big half for mid pt
                     let rt_len = len - lf_len;
-                    Ok(MAP::stitch(
-                        build_map_by_halves::<MAP, M>(access, lf_len, scratch)?,
-                        build_map_by_halves::<MAP, M>(access, rt_len, scratch)?,
-                    ))
+                    let lhs =
+                        build_map_by_halves::<MAP, M>(access, lf_len, scratch)?;
+                    let rhs =
+                        build_map_by_halves::<MAP, M>(access, rt_len, scratch);
+
+                    match rhs {
+                        Ok(rhs) => Ok(MAP::stitch(lhs, rhs)),
+
+                        Err(StitchErr::TooFewElems(None)) => {
+                            Err(StitchErr::TooFewElems(Some(lhs)))
+                        }
+
+                        Err(StitchErr::TooFewElems(Some(rhs))) => Err(
+                            StitchErr::TooFewElems(Some(MAP::stitch(lhs, rhs))),
+                        ),
+
+                        e @ Err(StitchErr::Other(_)) => e,
+                    }
                 }
             }
 
-            if let Some(sz) = access.size_hint() {
-                if sz > 0 {
-                    // we allocate and pass a buffer for collecting leaf entries
-                    // to avoid multiple de/allocations & simplify errors
+            if let Some(len) = access.size_hint() {
+                if len > 0 {
+                    // we allocate and pass a buffer for temporarily holding
+                    // leaf entries to avoid de/allocations & simplify errors
                     let mut scratch = Vec::new();
-                    let h = build_map_by_halves::<MAP, M>(
+                    let res = build_map_by_halves::<MAP, M>(
                         &mut access,
-                        sz,
+                        len,
                         &mut scratch,
-                    )?;
-                    return Ok(MAP::make_whole(h, sz));
+                    );
+
+                    match res {
+                        Ok(h) => return Ok(MAP::make_whole(h, len)),
+                        Err(StitchErr::Other(e)) => return Err(e),
+                        Err(StitchErr::TooFewElems(None)) => {
+                            return Ok(MAP::new_())
+                        }
+                        Err(StitchErr::TooFewElems(Some(h))) => todo!(),
+                    }
                 }
             }
 
