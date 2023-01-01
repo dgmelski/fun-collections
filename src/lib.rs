@@ -186,6 +186,7 @@ macro_rules! make_set_op_iter {
 
 use make_set_op_iter;
 
+#[allow(dead_code)]
 enum StitchErr<H, E> {
     TooFewElems(Option<H>), // H is partial result, if possible
     Other(E),               // E is an err from another module

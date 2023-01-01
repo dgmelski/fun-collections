@@ -2241,7 +2241,7 @@ where
         D: serde::de::Deserializer<'de>,
     {
         let map_visitor = super::serde::MapVisitor {
-            desc: "lazy_clone_collections::AvlMap".to_string(),
+            desc: "lazy_clone_collections::BTreeMap".to_string(),
             marker: std::marker::PhantomData,
         };
         deserializer.deserialize_map(map_visitor)
