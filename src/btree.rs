@@ -10,6 +10,15 @@ use crate::{Entry, Map};
 
 pub mod btree_set;
 
+#[derive(Clone, Copy, Debug)]
+enum MapErr {
+    BadLen,
+    Imbalanced,
+    Overpopulated,
+    Underpopulated,
+    Unsorted,
+}
+
 type NodePtr<K, V, const N: usize> = Arc<Node<K, V, N>>;
 
 #[derive(Clone)]
@@ -1101,8 +1110,12 @@ impl<K, V, const N: usize> Map for BTreeMap<K, V, N> {
         len = len.saturating_sub(1);
         let mut m = Self { len, root: n };
 
-        #[cfg(test)]
-        m.chk();
+        // if the map is broken, rebuild it
+        if m.chk().is_err() {
+            let mut n = Self::new();
+            n.extend(m); // requires IntoIter tolerates ill-formed maps
+            m = n;
+        }
 
         m.insert(k, v);
         m
@@ -2094,53 +2107,100 @@ impl<'a, K, V, const N: usize> DoubleEndedIterator for RangeMut<'a, K, V, N> {
     }
 }
 
-#[cfg(test)]
+struct Check<'a, K> {
+    ht: usize,
+    len: usize,
+    greatest: Option<&'a K>,
+}
+
 fn chk_node_ptr<'a, K: Ord, V, const N: usize>(
     n: Option<&'a Arc<Node<K, V, N>>>,
-    prev: Option<&'a K>,
-) -> (usize, Option<&'a K>) {
+    pred: Option<&'a K>,
+) -> Result<Check<'a, K>, MapErr> {
+    use MapErr::*;
+
     match n {
         Some(n) => {
-            assert!(n.elems.len() >= N, "minimum occupancy violated");
-            assert!(
-                n.elems.len() <= max_occupancy(N),
-                "maximum occupancy violated"
-            );
-            n.chk(prev)
+            if n.elems.len() < N {
+                return Err(Underpopulated);
+            }
+
+            if n.elems.len() > max_occupancy(N) {
+                return Err(Overpopulated);
+            }
+
+            n.chk(pred)
         }
 
-        None => (0, prev),
+        None => Ok(Check {
+            ht: 0,
+            len: 0,
+            greatest: pred,
+        }),
     }
 }
 
-#[cfg(test)]
 impl<K: Ord, V, const N: usize> Node<K, V, N> {
-    fn chk(&self, prev: Option<&K>) -> (usize, Option<&K>) {
-        assert!(!self.elems.is_empty(), "no entries");
+    fn chk(&self, prev: Option<&K>) -> Result<Check<'_, K>, MapErr> {
+        use MapErr::*;
 
-        let (ht, prev) = chk_node_ptr(self.child(0), prev);
-        if let Some(k) = prev {
-            assert!(k < self.key(0), "order violation");
+        if self.elems.is_empty() {
+            return Err(Underpopulated);
         }
-        let mut prev = Some(self.key(0));
+
+        let first = chk_node_ptr(self.child(0), prev)?;
+        let Check {
+            ht,
+            mut len,
+            greatest: pred,
+        } = first;
+
+        if let Some(k) = pred {
+            if k >= self.key(0) {
+                return Err(Unsorted);
+            }
+        }
+
+        let mut pred = Some(self.key(0));
 
         for i in 1..self.len() {
-            let curr = chk_node_ptr(self.child(i), prev);
-            assert_eq!(ht, curr.0, "uneven branches");
-            assert!(prev.unwrap() < self.key(i), "order violation");
-            prev = Some(self.key(i));
+            let curr = chk_node_ptr(self.child(i), pred)?;
+
+            if ht != curr.ht {
+                return Err(Imbalanced);
+            }
+
+            len += curr.len;
+
+            if curr.greatest.unwrap() >= self.key(i) {
+                return Err(Unsorted);
+            }
+
+            pred = Some(self.key(i));
         }
 
-        let curr = chk_node_ptr(self.kids.last(), prev);
-        assert_eq!(ht, curr.0, "uneven branches");
-        (ht + 1, curr.1)
+        let curr = chk_node_ptr(self.kids.last(), pred)?;
+
+        if ht != curr.ht {
+            return Err(Imbalanced);
+        }
+
+        Ok(Check {
+            ht: ht + 1,
+            len: self.elems.len() + len + curr.len,
+            greatest: curr.greatest,
+        })
     }
 }
 
-#[cfg(test)]
 impl<K: Ord, V, const N: usize> BTreeMap<K, V, N> {
-    fn chk(&self) {
-        self.root.as_ref().map(|n| n.chk(None));
+    fn chk(&self) -> Result<(), MapErr> {
+        let res = chk_node_ptr(self.root.as_ref(), None)?;
+        if res.len == self.len {
+            Ok(())
+        } else {
+            Err(MapErr::BadLen)
+        }
     }
 }
 
@@ -2227,7 +2287,7 @@ mod test {
             assert_eq!(m1.insert(k, v), m2.insert(k, v));
             assert_eq!(m1.len(), m2.len());
             assert!(m1.contains_key(&k));
-            m1.chk();
+            m1.chk().unwrap();
         }
 
         for (k, v) in m2.iter() {
@@ -2248,7 +2308,7 @@ mod test {
                 assert_eq!(m1.remove(&k), m2.remove(&k));
             }
             assert_eq!(m1.len(), m2.len());
-            m1.chk();
+            m1.chk().unwrap();
         }
 
         for (k, v) in m2.iter() {

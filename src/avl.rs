@@ -22,7 +22,7 @@ enum MapErr {
     BadHeight,
     BadLen,
     Imbalanced,
-    OutOfOrder,
+    Unsorted,
 }
 
 #[cfg(test)]
@@ -157,7 +157,7 @@ impl<K: Ord, V> Node<K, V> {
 
         // are we greater than a left-side ancestor?
         if greatest.iter().any(|&k| k >= &self.key) {
-            return Err(OutOfOrder);
+            return Err(Unsorted);
         }
 
         if height(&self.left) != self.left_ht
@@ -174,7 +174,7 @@ impl<K: Ord, V> Node<K, V> {
 
         // are we greater than our left descendants?
         if greatest.iter().any(|&k| k >= &self.key) {
-            return Err(OutOfOrder);
+            return Err(Unsorted);
         }
 
         let (rt_len, greatest) = chk(&self.right, Some(&self.key))?;
