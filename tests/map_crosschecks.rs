@@ -463,17 +463,20 @@ mod serde {
     use proptest::prelude::*;
     use serde_test::{assert_de_tokens, assert_tokens, Token};
 
-    fn check_serde(v: U16Pairs) {
-        let m = Maps::new(v);
-
-        let mut ts = vec![Token::Map {
-            len: Some(m.std_map.len()),
-        }];
-        for (&k, &v) in m.std_map.iter() {
+    fn make_tokens(m: &StdMap<u16, u16>) -> Vec<Token> {
+        let mut ts = vec![Token::Map { len: Some(m.len()) }];
+        for (&k, &v) in m.iter() {
             ts.push(Token::U16(k));
             ts.push(Token::U16(v));
         }
         ts.push(Token::MapEnd);
+        ts
+    }
+
+    fn check_serde(v: U16Pairs) {
+        let m = Maps::new(v);
+
+        let ts = make_tokens(&m.std_map);
 
         assert_tokens(&m.avl_map, &ts);
         assert_tokens(&m.btree_map, &ts);
@@ -482,20 +485,27 @@ mod serde {
 
     fn check_de_short_hint(v: U16Pairs, hint: usize) {
         let m = Maps::new(v);
+        let mut ts = make_tokens(&m.std_map);
 
+        // normalize the hint to something shorter than the map length
         let hint = if m.std_map.len() <= 1 {
             0
         } else {
-            // normalize the hint to something shorter than the map length
             hint % (m.std_map.len() - 1)
         };
+        ts[0] = Token::Map { len: Some(hint) };
 
-        let mut ts = vec![Token::Map { len: Some(hint) }];
-        for (&k, &v) in m.std_map.iter() {
-            ts.push(Token::U16(k));
-            ts.push(Token::U16(v));
-        }
-        ts.push(Token::MapEnd);
+        assert_de_tokens(&m.avl_map, &ts);
+        assert_de_tokens(&m.btree_map, &ts);
+        assert_de_tokens(&m.narrow_map, &ts);
+    }
+
+    fn check_de_long_hint(v: U16Pairs, over_len: usize) {
+        let m = Maps::new(v);
+        let mut ts = make_tokens(&m.std_map);
+
+        let hint = m.std_map.len().saturating_add(over_len);
+        ts[0] = Token::Map { len: Some(hint) };
 
         assert_de_tokens(&m.avl_map, &ts);
         assert_de_tokens(&m.btree_map, &ts);
@@ -522,6 +532,11 @@ mod serde {
             }))
         {
             check_de_short_hint(v, hint);
+        }
+
+        #[test]
+        fn test_de_long_hint(v in small_int_pairs(), over_len in (1usize..)) {
+            check_de_long_hint(v, over_len);
         }
     }
 }
