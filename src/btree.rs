@@ -225,7 +225,7 @@ impl<K, V, const N: usize> Node<K, V, N> {
             ),
 
             (Some((mut rc, mut ht)), None) => {
-                assert!(rc.is_leaf());
+                // NB: rc is a leaf or there elems ran out before hinted len
 
                 let n = Arc::get_mut(&mut rc).unwrap();
                 n.elems.push((lf.1, lf.2));
@@ -277,7 +277,8 @@ impl<K, V, const N: usize> Node<K, V, N> {
                 assert!(lf_ht >= rt_ht, "left should split before right");
 
                 if lf_ht > rt_ht {
-                    assert_eq!(lf_ht, rt_ht + 1, "left & right out-of-sync");
+                    // if lf_ht > rt_ht + 1, elems finished before hinted length
+                    // and we're constructing an ill-formed tree
 
                     let lf_n = Arc::get_mut(&mut lf_rc).unwrap();
                     lf_n.elems.push((lf.1, lf.2));
@@ -294,7 +295,8 @@ impl<K, V, const N: usize> Node<K, V, N> {
                     (Some((lf_rc, lf_ht)), rt.1, rt.2)
                 } else {
                     assert!(lf_rc.len() >= Self::MIN_OCCUPANCY);
-                    assert!(rt_rc.len() >= Self::MIN_OCCUPANCY);
+                    // if rt_rc.len() < SELF::MIN_OCCUPANCY, elems finished
+                    // before hinted length and tree will be ill-formed
 
                     (
                         Some((
