@@ -2363,7 +2363,14 @@ impl<K, V> Map for AvlMap<K, V> {
 
         // create a map without the final kv
         len = len.saturating_sub(1);
-        let mut m = chk_map!(Self { len, root: n });
+        let mut m = Self { len, root: n };
+
+        // if any sorting errors or imbalances, rebuild the map
+        if m.chk().is_err() {
+            let mut n = Self::new();
+            n.extend(m); // requires IntoIter handles malformed trees
+            m = n;
+        }
 
         m.insert(k, v);
         m

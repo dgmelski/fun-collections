@@ -415,6 +415,8 @@ mod serde {
                 }
             }
 
+            let mut map = MAP::new_();
+
             if let Some(len) = access.size_hint() {
                 if len > 0 {
                     // we allocate and pass a buffer for temporarily holding
@@ -427,20 +429,26 @@ mod serde {
                     );
 
                     match res {
-                        Ok(h) => return Ok(MAP::make_whole(h, len)),
-                        Err(StitchErr::Other(e)) => return Err(e),
+                        // if size_hint was small, there may be more elems
+                        Ok(h) => map = MAP::make_whole(h, len),
+
+                        Err(StitchErr::TooFewElems(Some(h))) => {
+                            return Ok(MAP::make_whole(h, len))
+                        }
+
                         Err(StitchErr::TooFewElems(None)) => {
                             return Ok(MAP::new_())
                         }
-                        Err(StitchErr::TooFewElems(Some(h))) => todo!(),
+
+                        Err(StitchErr::Other(e)) => return Err(e),
                     }
                 }
             }
 
-            let mut map = MAP::new_();
             while let Some((key, value)) = access.next_entry()? {
                 map.insert_(key, value);
             }
+
             Ok(map)
         }
     }
