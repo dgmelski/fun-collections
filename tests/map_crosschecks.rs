@@ -487,7 +487,9 @@ mod serde {
         let m = Maps::new(v);
         let mut ts = make_tokens(&m.std_map);
 
-        // normalize the hint to something shorter than the map length
+        // Normalize the hint to something shorter than the map length. NB: we
+        // generate a hint < v.len(), but v may contain repeats and
+        // m.std_map.len() can be less than v.len().
         let hint = if m.std_map.len() <= 1 {
             0
         } else {
@@ -526,9 +528,9 @@ mod serde {
         #[test]
         fn test_de_short_hint(
             (v, hint) in
-            small_int_pairs().prop_flat_map(|v| {
+            u16_pairs(0..1024, 1..512).prop_flat_map(|v| {
                 let len = v.len();
-                (Just(v), (0..=len))
+                (Just(v), 0..len)
             }))
         {
             check_de_short_hint(v, hint);
@@ -567,32 +569,32 @@ proptest! {
     }
 
     #[test]
-    fn test_contains_key(u in u16_pairs(64,48)) {
+    fn test_contains_key(u in tiny_int_pairs()) {
         check_contains_key(u);
     }
 
     #[test]
-    fn test_and_modify(v in u16_pairs(64, 48), i in 0u16..64) {
+    fn test_and_modify(v in tiny_int_pairs(), i in 0u16..64) {
         check_and_modify(v, i);
     }
 
     #[test]
-    fn test_or_default(v in u16_pairs(64, 48), i in 0u16..64) {
+    fn test_or_default(v in tiny_int_pairs(), i in 0u16..64) {
         check_or_default(v, i);
     }
 
     #[test]
-    fn test_or_insert(v in u16_pairs(64, 48), i in 0u16..64) {
+    fn test_or_insert(v in tiny_int_pairs(), i in 0u16..64) {
         check_or_insert(v, i);
     }
 
     #[test]
-    fn test_or_insert_with(v in u16_pairs(64, 48), i in 0u16..64) {
+    fn test_or_insert_with(v in tiny_int_pairs(), i in 0u16..64) {
         check_or_insert_with(v, i);
     }
 
     #[test]
-    fn test_or_insert_with_key(v in u16_pairs(64, 48), i in 0u16..64) {
+    fn test_or_insert_with_key(v in tiny_int_pairs(), i in 0u16..64) {
         check_or_insert_with_key(v, i);
     }
 
@@ -618,7 +620,7 @@ proptest! {
 
     #[test]
     fn test_remove(
-        v in u16_pairs(64, 48),
+        v in tiny_int_pairs(),
         w in prop::collection::vec(0u16..64, 48))
     {
         check_remove(v, w);
@@ -630,7 +632,7 @@ proptest! {
     }
 
     #[test]
-    fn test_split_off(v in u16_pairs(64, 48), w in 0_u16..64) {
+    fn test_split_off(v in tiny_int_pairs(), w in 0_u16..64) {
         check_split_off(v, w);
     }
 }

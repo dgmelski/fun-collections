@@ -1,7 +1,7 @@
 #![allow(dead_code, unused_imports, unused_macros)]
 use proptest::prelude::*;
 use std::cell::RefCell;
-use std::ops::Bound;
+use std::ops::{Bound, Range};
 use std::rc::Rc;
 
 macro_rules! assert_eq_all {
@@ -79,14 +79,18 @@ impl PartialEq for CloneCounter {
 pub(super) type U16Pairs = Vec<(u16, u16)>;
 
 pub(super) fn u16_pairs(
-    ub: u16,
-    max_len: usize,
+    elem_range: Range<u16>,
+    len_range: Range<usize>,
 ) -> impl Strategy<Value = U16Pairs> {
-    prop::collection::vec((0..ub, 0..ub), 0..max_len)
+    prop::collection::vec((elem_range.clone(), elem_range), len_range)
+}
+
+pub(super) fn tiny_int_pairs() -> impl Strategy<Value = U16Pairs> {
+    u16_pairs(0..64, 0..48)
 }
 
 pub(super) fn small_int_pairs() -> impl Strategy<Value = U16Pairs> {
-    u16_pairs(1024, 512)
+    u16_pairs(0..1024, 0..512)
 }
 
 pub(super) type U16Seq = Vec<u16>;
