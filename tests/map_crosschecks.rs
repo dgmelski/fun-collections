@@ -461,7 +461,7 @@ mod serde {
     use super::*;
     use crate::common::*;
     use proptest::prelude::*;
-    use serde_test::{assert_tokens, Token};
+    use serde_test::{assert_de_tokens, assert_tokens, Token};
 
     fn check_serde(v: U16Pairs) {
         let m = Maps::new(v);
@@ -480,10 +480,48 @@ mod serde {
         assert_tokens(&m.narrow_map, &ts);
     }
 
+    fn check_de_short_hint(v: U16Pairs, hint: usize) {
+        let m = Maps::new(v);
+
+        let hint = if m.std_map.len() <= 1 {
+            0
+        } else {
+            // normalize the hint to something shorter than the map length
+            hint % (m.std_map.len() - 1)
+        };
+
+        let mut ts = vec![Token::Map { len: Some(hint) }];
+        for (&k, &v) in m.std_map.iter() {
+            ts.push(Token::U16(k));
+            ts.push(Token::U16(v));
+        }
+        ts.push(Token::MapEnd);
+
+        assert_de_tokens(&m.avl_map, &ts);
+        assert_de_tokens(&m.btree_map, &ts);
+        assert_de_tokens(&m.narrow_map, &ts);
+    }
+
+    #[test]
+    fn test_de_short_hint_regr1() {
+        check_de_short_hint(vec![(0, 0)], 1);
+    }
+
     proptest! {
         #[test]
         fn test_serde(v in small_int_pairs()) {
             check_serde(v);
+        }
+
+        #[test]
+        fn test_de_short_hint(
+            (v, hint) in
+            small_int_pairs().prop_flat_map(|v| {
+                let len = v.len();
+                (Just(v), (0..=len))
+            }))
+        {
+            check_de_short_hint(v, hint);
         }
     }
 }
