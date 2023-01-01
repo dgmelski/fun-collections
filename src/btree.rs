@@ -1084,6 +1084,12 @@ impl<K, V, const N: usize> Map for BTreeMap<K, V, N> {
 
         let (k_max, v_max) = elems.pop().unwrap();
 
+        if elems.is_empty() {
+            return Self::Half {
+                h: (None, k_max, v_max),
+            };
+        }
+
         let n = Arc::new(Node {
             elems: {
                 let mut v = Vec::new();
