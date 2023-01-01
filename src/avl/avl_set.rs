@@ -5,10 +5,18 @@ use std::iter::{ExactSizeIterator, FusedIterator};
 use std::ops::RangeBounds;
 use std::sync::Arc;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// A sorted set of values.
 ///
 /// The implementation is a wrapper around [`AvlMap<T,()>`].
 #[derive(Clone, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(bound(deserialize = "T: Clone + Ord + Deserialize<'de>"))
+)]
 pub struct AvlSet<T> {
     map: AvlMap<T, ()>,
 }
@@ -582,43 +590,6 @@ impl<K: Clone + Ord> std::ops::Sub for &AvlSet<K> {
     }
 }
 
-#[cfg(feature = "serde")]
-impl<T> serde::ser::Serialize for AvlSet<T>
-where
-    T: serde::ser::Serialize,
-{
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::ser::Serializer,
-    {
-        use serde::ser::SerializeSeq;
-
-        let mut seq = serializer.serialize_seq(Some(self.len()))?;
-        for k in self {
-            seq.serialize_element(k)?;
-        }
-        seq.end()
-    }
-}
-
-#[cfg(feature = "serde")]
-impl<'de, T> serde::de::Deserialize<'de> for AvlSet<T>
-where
-    T: Clone + serde::de::Deserialize<'de> + Ord,
-{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::de::Deserializer<'de>,
-    {
-        let set_visitor = crate::serde::SetVisitor {
-            set: Box::new(AvlSet::new()),
-            desc: "lazy_clone_collections::AvlSet".to_string(),
-        };
-
-        deserializer.deserialize_seq(set_visitor)
-    }
-}
-
 #[cfg(test)]
 mod test {
     extern crate quickcheck;
@@ -708,14 +679,24 @@ mod test {
             s.insert('b');
             s.insert('c');
 
+            // TODO: is there a less brittle to test this?
             assert_tokens(
                 &s,
                 &[
-                    Token::Seq { len: Some(3) },
+                    Token::Struct {
+                        name: "AvlSet",
+                        len: 1,
+                    },
+                    Token::Str("map"),
+                    Token::Map { len: Some(3) },
                     Token::Char('a'),
+                    Token::Unit,
                     Token::Char('b'),
+                    Token::Unit,
                     Token::Char('c'),
-                    Token::SeqEnd,
+                    Token::Unit,
+                    Token::MapEnd,
+                    Token::StructEnd,
                 ],
             );
         }

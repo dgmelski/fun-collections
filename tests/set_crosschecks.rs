@@ -55,6 +55,11 @@ where
         assert_eq_iters(self.avl_set.iter(), self.std_set.iter());
         assert_eq_iters(self.btree_set.iter(), self.std_set.iter());
         assert_eq_iters(self.narrow_set.iter(), self.std_set.iter());
+
+        use lazy_clone_collections::Set;
+        self.avl_set.check().unwrap();
+        self.btree_set.check().unwrap();
+        self.narrow_set.check().unwrap();
     }
 }
 
@@ -209,6 +214,54 @@ fn check_range_back(v: U16Seq, r: (Bound<u16>, Bound<u16>)) {
     assert_eq_iters_back(sets.avl_set.range(r), sets.std_set.range(r));
     assert_eq_iters_back(sets.btree_set.range(r), sets.std_set.range(r));
     assert_eq_iters_back(sets.narrow_set.range(r), sets.std_set.range(r));
+}
+#[cfg(feature = "serde")]
+mod serde {
+    #![allow(unused_imports)]
+    use super::*;
+    use crate::common::*;
+    use proptest::prelude::*;
+    use serde_test::{assert_de_tokens, assert_tokens, Token};
+
+    fn make_tokens(m: &StdSet<u16>) -> Vec<Token> {
+        let mut ts = vec![
+            Token::Struct {
+                name: "AvlSet",
+                len: 1,
+            },
+            Token::Str("map"),
+            Token::Map { len: Some(m.len()) },
+        ];
+
+        for &k in m.iter() {
+            ts.push(Token::U16(k));
+            ts.push(Token::Unit);
+        }
+        ts.push(Token::MapEnd);
+        ts.push(Token::StructEnd);
+        ts
+    }
+
+    fn check_serde(v: U16Seq) {
+        let m = Sets::new(v);
+
+        let mut ts = make_tokens(&m.std_set);
+        assert_tokens(&m.avl_set, &ts);
+
+        ts[0] = Token::Struct {
+            name: "BTreeSet",
+            len: 1,
+        };
+        assert_tokens(&m.btree_set, &ts);
+        assert_tokens(&m.narrow_set, &ts);
+    }
+
+    proptest! {
+        #[test]
+        fn test_serde(v in small_int_seq()) {
+            check_serde(v);
+        }
+    }
 }
 
 proptest! {

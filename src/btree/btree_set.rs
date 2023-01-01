@@ -1,6 +1,14 @@
 use super::*;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 #[derive(Clone, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(bound(deserialize = "T: Clone + Ord + Deserialize<'de>"))
+)]
 pub struct BTreeSet<T, const N: usize = 5> {
     map: BTreeMap<T, (), N>,
 }
@@ -553,42 +561,5 @@ impl<K: Clone + Ord, const N: usize> std::ops::Sub for &BTreeSet<K, N> {
 
     fn sub(self, rhs: Self) -> Self::Output {
         BTreeSet::new_diff(self.clone(), rhs.clone())
-    }
-}
-
-#[cfg(feature = "serde")]
-impl<T, const N: usize> serde::ser::Serialize for BTreeSet<T, N>
-where
-    T: serde::ser::Serialize,
-{
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::ser::Serializer,
-    {
-        use serde::ser::SerializeSeq;
-
-        let mut seq = serializer.serialize_seq(Some(self.len()))?;
-        for k in self {
-            seq.serialize_element(k)?;
-        }
-        seq.end()
-    }
-}
-
-#[cfg(feature = "serde")]
-impl<'de, T, const N: usize> serde::de::Deserialize<'de> for BTreeSet<T, N>
-where
-    T: Clone + serde::de::Deserialize<'de> + Ord,
-{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::de::Deserializer<'de>,
-    {
-        let set_visitor = crate::serde::SetVisitor {
-            set: Box::new(BTreeSet::new()),
-            desc: "lazy_clone_collections::AvlSet".to_string(),
-        };
-
-        deserializer.deserialize_seq(set_visitor)
     }
 }

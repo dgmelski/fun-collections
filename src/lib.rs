@@ -329,8 +329,13 @@ impl<'a, M: Map> Entry<'a, M> {
     }
 }
 
-pub(crate) trait Set {
+pub trait Set {
     type Value;
+
+    // check if the tree invariants hold
+    fn check(&self) -> Result<(), String>
+    where
+        Self::Value: Ord;
 
     fn insert_(&mut self, value: Self::Value) -> bool
     where
