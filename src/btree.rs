@@ -1134,7 +1134,6 @@ impl<K, V, const N: usize> Map for BTreeMap<K, V, N> {
         Self::Key: Clone + Ord,
         Self::Value: Clone,
     {
-        assert!(lf.h.1 < rt.h.1);
         Self::Half {
             h: Node::stitch(lf.h, rt.h),
         }

@@ -2384,11 +2384,11 @@ impl<K, V> Map for AvlMap<K, V> {
         let (lf, mid_k, mid_v) = lf.h;
         let (rt, hi_k, hi_v) = rt.h;
 
-        assert!(mid_k < hi_k);
+        // If the size hint is accurate, left can have at most one more element
+        // and be at most one taller.  We can directly construct a balanced node.
+        let n = Node::opt_new(mid_k, mid_v, lf, rt);
 
-        Self::Half {
-            h: (join(lf, mid_k, mid_v, rt), hi_k, hi_v),
-        }
+        Self::Half { h: (n, hi_k, hi_v) }
     }
 }
 

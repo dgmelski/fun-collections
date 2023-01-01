@@ -514,6 +514,21 @@ mod serde {
         assert_de_tokens(&m.narrow_map, &ts);
     }
 
+    fn check_de_unsorted(v: U16Pairs, i: usize, j: usize) {
+        let m = Maps::new(v);
+        let mut ts = make_tokens(&m.std_map);
+
+        let i = i % m.std_map.len();
+        let j = j % m.std_map.len();
+
+        ts.swap(2 * i + 1, 2 * j + 1); // +1 over Token::Map, 2x to a key
+        ts.swap(2 * i + 2, 2 * j + 2); // +1 more to get to a value
+
+        assert_de_tokens(&m.avl_map, &ts);
+        assert_de_tokens(&m.btree_map, &ts);
+        assert_de_tokens(&m.narrow_map, &ts);
+    }
+
     #[test]
     fn test_de_short_hint_regr1() {
         check_de_short_hint(vec![(0, 0)], 1);
@@ -539,6 +554,17 @@ mod serde {
         #[test]
         fn test_de_long_hint(v in small_int_pairs(), over_len in (1usize..)) {
             check_de_long_hint(v, over_len);
+        }
+
+        #[test]
+        fn test_de_unsorted(
+            (v, i, j) in
+                u16_pairs(0..1024, 2..512).prop_flat_map(|v| {
+                    let len = v.len();
+                    (Just(v), 0..len, 0..len)
+                })
+        ) {
+            check_de_unsorted(v, i, j);
         }
     }
 }
