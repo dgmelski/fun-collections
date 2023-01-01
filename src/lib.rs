@@ -220,12 +220,9 @@ pub trait Map {
 
     fn new_() -> Self;
 
-    // Make a Half map from 'len' elements supplied by the 'next' function.  Len
-    // should be small enough that the map needs at most a single leaf.
-    fn make_half<F: FnMut() -> Option<(Self::Key, Self::Value)>>(
-        next: F,
-        len: usize,
-    ) -> Self::Half;
+    // Make a Half map from the given elements, which should be non-empty but
+    // may contain one more than fits in a leaf node.  elems is emptied.
+    fn make_half(elems: &mut Vec<(Self::Key, Self::Value)>) -> Self::Half;
 
     // convert a Half into a standard Map
     fn make_whole(h: Self::Half, len: usize) -> Self
@@ -357,6 +354,7 @@ mod serde {
             fn build_map_by_halves<'de, MAP: Map, M>(
                 access: &mut M,
                 len: usize,
+                scratch: &mut Vec<(MAP::Key, MAP::Value)>, // used for leaves
             ) -> Result<MAP::Half, M::Error>
             where
                 M: MapAccess<'de>,
@@ -366,20 +364,32 @@ mod serde {
                 assert!(len > 0);
 
                 if len <= MAP::MAX_HALF_LEN {
-                    Ok(MAP::make_half(|| access.next_entry().unwrap(), len))
+                    assert!(scratch.is_empty());
+                    for _ in 0..len {
+                        let kv = access.next_entry()?.unwrap();
+                        scratch.push(kv);
+                    }
+                    Ok(MAP::make_half(scratch))
                 } else {
                     let lf_len = (len + 1) / 2; // left gets big half for mid pt
                     let rt_len = len - lf_len;
                     Ok(MAP::stitch(
-                        build_map_by_halves::<MAP, M>(access, lf_len)?,
-                        build_map_by_halves::<MAP, M>(access, rt_len)?,
+                        build_map_by_halves::<MAP, M>(access, lf_len, scratch)?,
+                        build_map_by_halves::<MAP, M>(access, rt_len, scratch)?,
                     ))
                 }
             }
 
             if let Some(sz) = access.size_hint() {
                 if sz > 0 {
-                    let h = build_map_by_halves::<MAP, M>(&mut access, sz)?;
+                    // we allocate and pass a buffer for collecting leaf entries
+                    // to avoid multiple de/allocations & simplify errors
+                    let mut scratch = Vec::new();
+                    let h = build_map_by_halves::<MAP, M>(
+                        &mut access,
+                        sz,
+                        &mut scratch,
+                    )?;
                     return Ok(MAP::make_whole(h, sz));
                 }
             }

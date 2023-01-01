@@ -2321,22 +2321,20 @@ impl<K, V> Map for AvlMap<K, V> {
         Self::new()
     }
 
-    fn make_half<F: FnMut() -> Option<(Self::Key, Self::Value)>>(
-        mut next: F,
-        len: usize,
-    ) -> Self::Half {
-        assert!((1..=2).contains(&len));
+    fn make_half(elems: &mut Vec<(Self::Key, Self::Value)>) -> Self::Half {
+        assert!((1..=2).contains(&elems.len()));
 
-        let n = if len > 1 {
-            let (k, v) = next().unwrap();
-            Node::opt_new(k, v, None, None)
+        // greatest key in half, held separately
+        let (k1, v1) = elems.pop().unwrap();
+
+        // lesser key (if present), held in tree
+        let n = if let Some((k0, v0)) = elems.pop() {
+            Node::opt_new(k0, v0, None, None)
         } else {
             None
         };
 
-        let (k, v) = next().unwrap();
-
-        Self::Half { h: (n, k, v) }
+        Self::Half { h: (n, k1, v1) }
     }
 
     fn make_whole(h: Self::Half, mut len: usize) -> Self

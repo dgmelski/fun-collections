@@ -1070,26 +1070,22 @@ impl<K, V, const N: usize> Map for BTreeMap<K, V, N> {
         Self::new()
     }
 
-    fn make_half<F: FnMut() -> Option<(Self::Key, Self::Value)>>(
-        mut next: F,
-        len: usize,
-    ) -> Self::Half {
-        assert!(len > 0);
-        assert!(len <= max_occupancy(N) + 1);
+    fn make_half(elems: &mut Vec<(Self::Key, Self::Value)>) -> Self::Half {
+        assert!((1..=(max_occupancy(N) + 1)).contains(&elems.len()));
 
-        let mut elems = Vec::new();
-        for _ in 0..(len - 1) {
-            elems.push(next().unwrap());
-        }
+        let (k_max, v_max) = elems.pop().unwrap();
 
-        let (k, v) = next().unwrap();
         let n = Arc::new(Node {
-            elems,
+            elems: {
+                let mut v = Vec::new();
+                v.append(elems);
+                v
+            },
             kids: Vec::new(),
         });
 
         Self::Half {
-            h: (Some((n, 1)), k, v),
+            h: (Some((n, 1)), k_max, v_max),
         }
     }
 
