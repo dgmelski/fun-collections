@@ -204,6 +204,16 @@ pub trait Map {
     // node plus one for the extra key-value item.
     const MAX_HALF_LEN: usize;
 
+    // check if the map invariants hold
+    fn check(&self) -> Result<(), String>
+    where
+        Self::Key: Ord;
+
+    // return the observed length or a description of an invariant violation
+    fn check_half(h: &Self::Half) -> Result<usize, String>
+    where
+        Self::Key: Ord;
+
     fn contains_key_<Q>(&mut self, key: &Q) -> bool
     where
         Self::Key: std::borrow::Borrow<Q>,
@@ -431,7 +441,13 @@ mod serde {
 
                     match res {
                         // if size_hint was small, there may be more elems
-                        Ok(h) => map = MAP::make_whole(h, len),
+                        Ok(h) => {
+                            debug_assert!(match MAP::check_half(&h) {
+                                Ok(sz) => len == sz,
+                                Err(e) => e == "Unsorted", // res==Err on others
+                            });
+                            map = MAP::make_whole(h, len)
+                        }
 
                         Err(StitchErr::TooFewElems(Some(h))) => {
                             return Ok(MAP::make_whole(h, len))

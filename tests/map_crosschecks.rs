@@ -63,6 +63,11 @@ where
         assert_eq_iters(self.avl_map.iter(), self.std_map.iter());
         assert_eq_iters(self.btree_map.iter(), self.std_map.iter());
         assert_eq_iters(self.narrow_map.iter(), self.std_map.iter());
+
+        use lazy_clone_collections::Map; // for Map::check()
+        self.avl_map.check().unwrap();
+        self.btree_map.check().unwrap();
+        self.narrow_map.check().unwrap();
     }
 }
 

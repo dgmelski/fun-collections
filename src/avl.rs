@@ -20,7 +20,7 @@ struct IsTaller(bool);
 #[derive(Clone, Copy, Debug)]
 enum MapErr {
     BadHeight,
-    BadLen,
+    BadLen(usize),
     Imbalanced,
     Unsorted,
 }
@@ -1896,8 +1896,13 @@ impl<K, V> AvlMap<K, V> {
         K: Ord,
     {
         match chk(&self.root, None) {
-            Ok((len, _)) if len == self.len => Ok(()),
-            Ok(_) => Err(MapErr::BadLen),
+            Ok((len, _)) => {
+                if len == self.len {
+                    Ok(())
+                } else {
+                    Err(MapErr::BadLen(len))
+                }
+            }
             Err(e) => Err(e),
         }
     }
@@ -2309,6 +2314,35 @@ impl<K, V> Map for AvlMap<K, V> {
     type Half = Half<K, V>;
     const MAX_HALF_LEN: usize = 2;
 
+    fn check(&self) -> Result<(), String>
+    where
+        Self::Key: Ord,
+    {
+        match self.chk() {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("{e:?}")),
+        }
+    }
+
+    fn check_half(h: &Self::Half) -> Result<usize, String>
+    where
+        Self::Key: Ord,
+    {
+        match chk(&h.h.0, None) {
+            Ok((len, greatest)) => {
+                if let Some(gt) = greatest {
+                    if gt >= &h.h.1 {
+                        return Err("Unsorted".to_string());
+                    }
+                }
+
+                Ok(len + 1)
+            }
+
+            Err(e) => Err(format!("{e:?}")),
+        }
+    }
+
     fn contains_key_<Q>(&mut self, key: &Q) -> bool
     where
         Self::Key: std::borrow::Borrow<Q>,
@@ -2365,11 +2399,19 @@ impl<K, V> Map for AvlMap<K, V> {
         len = len.saturating_sub(1);
         let mut m = Self { len, root: n };
 
-        // if any sorting errors or imbalances, rebuild the map
-        if m.chk().is_err() {
-            let mut n = Self::new();
-            n.extend(m); // requires IntoIter handles malformed trees
-            m = n;
+        match m.chk() {
+            // Maybe the size hint was just a little short, but everything else
+            // is fine?  Just fix the length.
+            Err(MapErr::BadLen(correct_len)) => m.len = correct_len,
+
+            // if any sorting errors or imbalances, rebuild the map
+            Err(_) => {
+                let mut n = Self::new();
+                n.extend(m); // requires IntoIter handles malformed trees
+                m = n;
+            }
+
+            Ok(_) => (),
         }
 
         m.insert(k, v);

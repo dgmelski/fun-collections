@@ -12,7 +12,7 @@ pub mod btree_set;
 
 #[derive(Clone, Copy, Debug)]
 enum MapErr {
-    BadLen,
+    BadLen(usize), // provide the observed (correct) len
     Imbalanced,
     Overpopulated,
     Underpopulated,
@@ -1052,6 +1052,40 @@ impl<K, V, const N: usize> Map for BTreeMap<K, V, N> {
     type Half = Half<K, V, N>;
     const MAX_HALF_LEN: usize = max_occupancy(N) + 1;
 
+    fn check(&self) -> Result<(), String>
+    where
+        Self::Key: Ord,
+    {
+        match self.chk() {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("{e:?}")),
+        }
+    }
+
+    fn check_half(h: &Self::Half) -> Result<usize, String>
+    where
+        Self::Key: Ord,
+    {
+        let n = h.h.0.as_ref().map(|e| &e.0);
+        match chk_node_ptr(n, None, 1) {
+            Ok(Check {
+                ht: _,
+                len,
+                greatest,
+            }) => {
+                if let Some(gt) = greatest {
+                    if gt >= &h.h.1 {
+                        return Err("Unsorted".to_string());
+                    }
+                }
+
+                Ok(len + 1)
+            }
+
+            Err(e) => Err(format!("{e:?}")),
+        }
+    }
+
     fn contains_key_<Q>(&mut self, key: &Q) -> bool
     where
         Self::Key: std::borrow::Borrow<Q>,
@@ -1118,11 +1152,19 @@ impl<K, V, const N: usize> Map for BTreeMap<K, V, N> {
         len = len.saturating_sub(1);
         let mut m = Self { len, root: n };
 
-        // if the map is broken, rebuild it
-        if m.chk().is_err() {
-            let mut n = Self::new();
-            n.extend(m); // requires IntoIter tolerates ill-formed maps
-            m = n;
+        match m.chk() {
+            // Maybe the size hint was just a little short, but everything else
+            // is fine?  Just fix the length.
+            Err(MapErr::BadLen(correct_len)) => m.len = correct_len,
+
+            // if any sorting errors or imbalances, rebuild the map
+            Err(_) => {
+                let mut n = Self::new();
+                n.extend(m); // requires IntoIter handles malformed trees
+                m = n;
+            }
+
+            Ok(_) => (),
         }
 
         m.insert(k, v);
@@ -2123,21 +2165,10 @@ struct Check<'a, K> {
 fn chk_node_ptr<'a, K: Ord, V, const N: usize>(
     n: Option<&'a Arc<Node<K, V, N>>>,
     pred: Option<&'a K>,
+    min_pop: usize,
 ) -> Result<Check<'a, K>, MapErr> {
-    use MapErr::*;
-
     match n {
-        Some(n) => {
-            if n.elems.len() < N {
-                return Err(Underpopulated);
-            }
-
-            if n.elems.len() > max_occupancy(N) {
-                return Err(Overpopulated);
-            }
-
-            n.chk(pred)
-        }
+        Some(n) => n.chk(pred, min_pop),
 
         None => Ok(Check {
             ht: 0,
@@ -2148,14 +2179,24 @@ fn chk_node_ptr<'a, K: Ord, V, const N: usize>(
 }
 
 impl<K: Ord, V, const N: usize> Node<K, V, N> {
-    fn chk(&self, prev: Option<&K>) -> Result<Check<'_, K>, MapErr> {
+    fn chk(
+        &self,
+        prev: Option<&K>,
+        min_pop: usize,
+    ) -> Result<Check<'_, K>, MapErr> {
         use MapErr::*;
 
-        if self.elems.is_empty() {
+        assert!(min_pop == 1 || min_pop == N);
+
+        if self.elems.len() < min_pop {
             return Err(Underpopulated);
         }
 
-        let first = chk_node_ptr(self.child(0), prev)?;
+        if self.elems.len() > max_occupancy(N) {
+            return Err(Overpopulated);
+        }
+
+        let first = chk_node_ptr(self.child(0), prev, N)?;
         let Check {
             ht,
             mut len,
@@ -2171,7 +2212,7 @@ impl<K: Ord, V, const N: usize> Node<K, V, N> {
         let mut pred = Some(self.key(0));
 
         for i in 1..self.len() {
-            let curr = chk_node_ptr(self.child(i), pred)?;
+            let curr = chk_node_ptr(self.child(i), pred, N)?;
 
             if ht != curr.ht {
                 return Err(Imbalanced);
@@ -2186,7 +2227,7 @@ impl<K: Ord, V, const N: usize> Node<K, V, N> {
             pred = Some(self.key(i));
         }
 
-        let curr = chk_node_ptr(self.kids.last(), pred)?;
+        let curr = chk_node_ptr(self.kids.last(), pred, N)?;
 
         if ht != curr.ht {
             return Err(Imbalanced);
@@ -2202,11 +2243,11 @@ impl<K: Ord, V, const N: usize> Node<K, V, N> {
 
 impl<K: Ord, V, const N: usize> BTreeMap<K, V, N> {
     fn chk(&self) -> Result<(), MapErr> {
-        let res = chk_node_ptr(self.root.as_ref(), None)?;
+        let res = chk_node_ptr(self.root.as_ref(), None, 1)?;
         if res.len == self.len {
             Ok(())
         } else {
-            Err(MapErr::BadLen)
+            Err(MapErr::BadLen(res.len))
         }
     }
 }
