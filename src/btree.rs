@@ -1171,11 +1171,7 @@ impl<K, V, const N: usize> Map for BTreeMap<K, V, N> {
         m
     }
 
-    fn stitch(lf: Self::Half, rt: Self::Half) -> Self::Half
-    where
-        Self::Key: Clone + Ord,
-        Self::Value: Clone,
-    {
+    fn stitch(lf: Self::Half, rt: Self::Half) -> Self::Half {
         Self::Half {
             h: Node::stitch(lf.h, rt.h),
         }

@@ -247,10 +247,7 @@ pub trait Map {
         Self::Value: Clone;
 
     // combine a lower Half and an upper Half into "half" of a yet larger map
-    fn stitch(lf: Self::Half, rt: Self::Half) -> Self::Half
-    where
-        Self::Key: Clone + Ord,
-        Self::Value: Clone;
+    fn stitch(lf: Self::Half, rt: Self::Half) -> Self::Half;
 }
 
 #[derive(Debug)]
@@ -446,7 +443,7 @@ mod serde {
                                 Err(e) => e == "Unsorted", // res==Err on others
                             });
                             map = MAP::make_whole(h, len)
-                            // if size_hint was small, there may be more elems
+                            // if hint too small, there are more elems; cont.
                         }
 
                         Err(StitchErr::TooFewElems(Some(h))) => {

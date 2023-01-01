@@ -2418,11 +2418,7 @@ impl<K, V> Map for AvlMap<K, V> {
         m
     }
 
-    fn stitch(lf: Self::Half, rt: Self::Half) -> Self::Half
-    where
-        K: Clone + Ord,
-        V: Clone,
-    {
+    fn stitch(lf: Self::Half, rt: Self::Half) -> Self::Half {
         let (lf, mid_k, mid_v) = lf.h;
         let (rt, hi_k, hi_v) = rt.h;
 
