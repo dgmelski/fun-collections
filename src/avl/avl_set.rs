@@ -414,6 +414,14 @@ impl<T> AvlSet<T> {
 impl<T> crate::Set for AvlSet<T> {
     type Value = T;
 
+    fn check(&self) -> Result<(), String>
+    where
+        Self::Value: Ord,
+    {
+        use crate::Map;
+        self.map.check()
+    }
+
     fn insert_(&mut self, value: T) -> bool
     where
         T: Clone + Ord,

@@ -371,6 +371,13 @@ impl<T, const N: usize> BTreeSet<T, N> {
 impl<T, const N: usize> crate::Set for BTreeSet<T, N> {
     type Value = T;
 
+    fn check(&self) -> Result<(), String>
+    where
+        Self::Value: Ord,
+    {
+        self.map.check()
+    }
+
     fn insert_(&mut self, value: T) -> bool
     where
         T: Clone + Ord,
