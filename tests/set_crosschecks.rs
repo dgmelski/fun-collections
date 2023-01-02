@@ -294,6 +294,77 @@ fn check_remove(v: U16Seq, w: Vec<u16>) {
     }
 }
 
+#[derive(Clone, Debug, Eq)]
+struct Ignores2nd(String, u16);
+
+impl From<&Ignores2nd> for (String, u16) {
+    fn from(n: &Ignores2nd) -> Self {
+        (n.0.clone(), n.1)
+    }
+}
+
+impl From<Ignores2nd> for (String, u16) {
+    fn from(n: Ignores2nd) -> Self {
+        (n.0, n.1)
+    }
+}
+
+impl PartialEq for Ignores2nd {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl PartialOrd for Ignores2nd {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+
+impl Ord for Ignores2nd {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+fn check_replace(u: Vec<(String, u16)>, k: String) {
+    let u = Vec::from_iter(u.into_iter().map(|(x, y)| Ignores2nd(x, y)));
+    let mut s = Sets::new(u);
+    let kv = Ignores2nd(k.clone(), 2048);
+
+    let orig: Option<(String, u16)> = s.std_set.get(&kv).map(|e| e.into());
+    assert_eq_all!(
+        orig,
+        s.avl_set.replace(kv.clone()).map(|e| e.into()),
+        s.btree_set.replace(kv.clone()).map(|e| e.into()),
+        s.narrow_set.replace(kv.clone()).map(|e| e.into()),
+        s.std_set.replace(kv).map(|e| e.into())
+    );
+
+    s.chk();
+
+    let kv2 = Ignores2nd(k.clone(), 0);
+    if s.std_set.contains(&kv2) {
+        assert_eq_all!(
+            Some((k, 2048)),
+            s.avl_set.get(&kv2).map(|e| e.into()),
+            s.btree_set.get(&kv2).map(|e| e.into()),
+            s.narrow_set.get(&kv2).map(|e| e.into()),
+            s.std_set.get(&kv2).map(|e| e.into())
+        );
+    }
+}
+
+#[test]
+fn test_replace_regr1() {
+    check_replace(vec![], "".to_string())
+}
+
+#[test]
+fn test_replace_regr2() {
+    check_replace(vec![("".into(), 0), ("".into(), 1)], "".to_string())
+}
+
 fn check_retain(v: U16Seq) {
     let mut m = Sets::new(v);
 
@@ -429,6 +500,11 @@ proptest! {
         w in prop::collection::vec(0u16..64, 48))
     {
         check_remove(v, w);
+    }
+
+    #[test]
+    fn test_replace(u in string_u16_pairs(), k in "[a-z]{0,2}") {
+        check_replace(u, k);
     }
 
     #[test]

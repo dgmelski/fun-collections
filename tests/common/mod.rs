@@ -112,7 +112,7 @@ pub(super) fn small_int_seq() -> impl Strategy<Value = U16Seq> {
 
 #[allow(dead_code)]
 pub(super) fn string_u16_pairs() -> impl Strategy<Value = Vec<(String, u16)>> {
-    prop::collection::vec(("[a-z]{0,2}", 0u16..1024u16), 0..512)
+    prop::collection::vec(("[a-z]{0,2}", 0u16..1024u16), 0..384)
 }
 
 pub(super) fn range_bounds_1k(
