@@ -170,6 +170,82 @@ fn check_append(u: U16Seq, v: U16Seq) {
     s2.chk();
 }
 
+fn check_borrowed_key(u: Vec<String>, k: &str) {
+    let mut s = Sets::new(u);
+
+    assert_eq_all!(
+        s.avl_set.contains(k),
+        s.btree_set.contains(k),
+        s.narrow_set.contains(k),
+        s.std_set.contains(k)
+    );
+
+    assert_eq_all!(
+        s.avl_set.get(k),
+        s.btree_set.get(k),
+        s.narrow_set.get(k),
+        s.std_set.get(k)
+    );
+
+    use Bound::*;
+    type Q = str;
+    type R<'a> = (Bound<&'a str>, Bound<&'a str>);
+    let r = (Included(k), Unbounded::<&str>);
+
+    assert_eq_iters(
+        s.avl_set.range::<Q, R<'_>>(r),
+        s.std_set.range::<Q, R<'_>>(r),
+    );
+
+    assert_eq_iters(
+        s.btree_set.range::<Q, R<'_>>(r),
+        s.std_set.range::<Q, R<'_>>(r),
+    );
+
+    assert_eq_iters(
+        s.narrow_set.range::<Q, R<'_>>(r),
+        s.std_set.range::<Q, R<'_>>(r),
+    );
+
+    let mut t = Sets {
+        avl_set: s.avl_set.split_off(k),
+        btree_set: s.btree_set.split_off(k),
+        narrow_set: s.narrow_set.split_off(k),
+        std_set: s.std_set.split_off(k),
+    };
+
+    s.chk();
+    t.chk();
+
+    assert_eq_all!(
+        None,
+        s.avl_set.take(k),
+        s.btree_set.take(k),
+        s.narrow_set.take(k),
+        s.std_set.take(k)
+    );
+
+    assert_eq_all!(
+        t.avl_set.take(k),
+        t.btree_set.take(k),
+        t.narrow_set.take(k),
+        t.std_set.take(k)
+    );
+
+    // tests signature more than functionality
+    assert_eq_all!(
+        false,
+        s.avl_set.remove(k),
+        s.btree_set.remove(k),
+        s.narrow_set.remove(k),
+        s.std_set.remove(k),
+        t.avl_set.remove(k),
+        t.btree_set.remove(k),
+        t.narrow_set.remove(k),
+        t.std_set.remove(k)
+    );
+}
+
 fn check_contains(u: U16Seq) {
     let sets = Sets::new(u);
 
@@ -412,7 +488,22 @@ fn check_range_back(v: U16Seq, r: (Bound<u16>, Bound<u16>)) {
     assert_eq_iters_back(sets.narrow_set.range(r), sets.std_set.range(r));
 }
 
-// TODO take
+fn check_take(u: Vec<(String, u16)>, k: String) {
+    let u = Vec::from_iter(u.into_iter().map(|(x, y)| Ignores2nd(x, y)));
+    let mut s = Sets::new(u);
+    let kv = Ignores2nd(k, 2048);
+    let orig: Option<(String, u16)> = s.std_set.get(&kv).map(|e| e.into());
+
+    assert_eq_all!(
+        orig,
+        s.avl_set.take(&kv).map(|e| e.into()),
+        s.btree_set.take(&kv).map(|e| e.into()),
+        s.narrow_set.take(&kv).map(|e| e.into()),
+        s.std_set.take(&kv).map(|e| e.into())
+    );
+
+    s.chk();
+}
 
 #[cfg(feature = "serde")]
 mod serde {
@@ -480,6 +571,18 @@ proptest! {
     }
 
     #[test]
+    fn test_borrowed_key(
+        u in prop::collection::vec("[a-z]{0,2}", 0..384),
+        k in "[a-z]{0,2}")
+    {
+        check_borrowed_key(u.clone(), &k);
+
+        // "ma" is roughly in the middle of the range; more importantly, it is
+        // the borrowed form of String, so we test the type signature.
+        check_borrowed_key(u, "ma");
+    }
+
+    #[test]
     fn test_contains(u in u16_seq(64,48)) {
         check_contains(u);
     }
@@ -515,5 +618,10 @@ proptest! {
     #[test]
     fn test_split_off(v in u16_seq(64, 48), w in 0_u16..64) {
         check_split_off(v, w);
+    }
+
+    #[test]
+    fn test_take(u in string_u16_pairs(), k in "[a-z]{0,2}") {
+        check_take(u, k);
     }
 }
