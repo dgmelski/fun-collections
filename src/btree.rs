@@ -10,6 +10,9 @@ use crate::{Entry, Map};
 
 pub mod btree_set;
 
+pub(crate) mod core;
+pub mod fixed;
+
 #[derive(Clone, Copy, Debug)]
 enum MapErr {
     BadLen(usize), // provide the observed (correct) len
@@ -429,13 +432,14 @@ impl<K, V, const N: usize> Node<K, V, N> {
     {
         assert!(self.is_branch(), "cannot rebalance a leaf");
 
+        let merge_threshold: usize = Self::MAX_OCCUPANCY - Self::MIN_OCCUPANCY;
         if at > 0 {
-            if self.kids[at - 1].elems.len() > Self::MIN_OCCUPANCY {
+            if self.kids[at - 1].elems.len() > merge_threshold {
                 self.rot_rt(at - 1);
             } else {
                 self.merge_kids(at - 1);
             }
-        } else if self.kids[at + 1].elems.len() > Self::MIN_OCCUPANCY {
+        } else if self.kids[at + 1].elems.len() > merge_threshold {
             self.rot_lf(at);
         } else {
             self.merge_kids(at);

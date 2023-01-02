@@ -17,7 +17,48 @@
 #![cfg(feature = "none")] // **************** REMOVE ME to RUN *****************
 #![feature(test)]
 
+use std::{iter::IntoIterator, ops::Deref, ops::DerefMut};
+
+extern crate im;
 extern crate test;
+
+struct OrdMap<K, V>(im::OrdMap<K, V>);
+
+impl<K, V> OrdMap<K, V> {
+    fn new() -> Self {
+        OrdMap(im::OrdMap::new())
+    }
+}
+
+impl<K, V> FromIterator<(K, V)> for OrdMap<K, V>
+where
+    K: Clone + Ord,
+    V: Clone,
+{
+    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
+        let mut m = im::OrdMap::new();
+        for (k, v) in iter {
+            m.insert(k, v);
+        }
+        OrdMap(m)
+    }
+}
+
+impl<K, V> Deref for OrdMap<K, V> {
+    type Target = im::OrdMap<K, V>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<K, V> DerefMut for OrdMap<K, V> {
+    // type Target = im::OrdMap<K, V>;
+
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 // An xmacro that takes the name of another macro and invokes it once for each
 // of the map types we are testing: BTreeMap, AvlMap, and HashMap.  The passed
@@ -45,11 +86,25 @@ macro_rules! for_each_map_type {
                 $macro_name!(HashMap);
             }
 
+            mod im {
+                use crate::OrdMap;
+                use test::Bencher;
+
+                $macro_name!(OrdMap);
+            }
+
             mod shared_avlmap {
                 use lazy_clone_collections::AvlMap;
                 use test::Bencher;
 
                 $macro_name!(AvlMap);
+            }
+
+            mod fixed_btree {
+                use lazy_clone_collections::btree::fixed::BTreeMap;
+                use test::Bencher;
+
+                $macro_name!(BTreeMap);
             }
 
             mod shared_btree_minpop_0001 {
@@ -75,6 +130,15 @@ macro_rules! for_each_map_type {
 
                 type BTreeMap<K, V> =
                     lazy_clone_collections::btree::BTreeMap<K, V, 3>;
+
+                $macro_name!(BTreeMap);
+            }
+
+            mod shared_btree_minpop_0005 {
+                use test::Bencher;
+
+                type BTreeMap<K, V> =
+                    lazy_clone_collections::btree::BTreeMap<K, V, 5>;
 
                 $macro_name!(BTreeMap);
             }

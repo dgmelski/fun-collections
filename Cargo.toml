@@ -7,9 +7,10 @@ edition = "2021"
 
 [features]
 default = []
-bench = []
+bench = ["im"]
 
 [dependencies]
+im = { version = "15.1.0", optional = true }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 serde_test = { version = "1.0", optional = true }
 
