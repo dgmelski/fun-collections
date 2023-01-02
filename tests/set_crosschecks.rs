@@ -554,6 +554,69 @@ mod serde {
     }
 }
 
+#[test]
+fn test_set_send() {
+    use std::sync::mpsc;
+    use std::thread;
+
+    let (tx, rx) = mpsc::channel();
+
+    thread::spawn(move || {
+        let v = Vec::from_iter(0u16..1024);
+        let s = Sets::new(v);
+        tx.send(s).unwrap();
+    });
+
+    let received = rx.recv().unwrap();
+    received.chk();
+}
+
+fn check_concurrent_inserts(u: Vec<u16>, mut v: Vec<u16>) {
+    use std::sync::mpsc;
+    use std::thread;
+    use std::time::Duration;
+
+    let s = Sets::new(u);
+    let mut handles = Vec::new();
+    let (tx, rx) = mpsc::channel();
+
+    let x = v.len() / 4;
+    for _ in 0..4 {
+        let mut s = s.clone();
+        let v = v.split_off(v.len().saturating_sub(x));
+        let tx = tx.clone();
+
+        let h = thread::spawn(move || {
+            for i in v {
+                s.avl_set.insert(i);
+                s.btree_set.insert(i);
+                s.narrow_set.insert(i);
+                s.std_set.insert(i);
+                thread::sleep(Duration::from_millis(1));
+            }
+
+            s.chk();
+
+            tx.send(s).unwrap();
+        });
+
+        handles.push(h);
+    }
+
+    while let Some(h) = handles.pop() {
+        h.join().unwrap();
+    }
+
+    s.chk();
+
+    for _ in 0..4 {
+        let t = rx.recv().unwrap();
+        t.chk();
+    }
+
+    s.chk();
+}
+
 proptest! {
     #[test]
     fn test_range(v in small_int_seq(), r in range_bounds_1k()) {
@@ -623,5 +686,13 @@ proptest! {
     #[test]
     fn test_take(u in string_u16_pairs(), k in "[a-z]{0,2}") {
         check_take(u, k);
+    }
+
+    #[test]
+    fn test_concurrent_inserts(
+        u in small_int_seq(),
+        v in prop::collection::vec(0u16..1024, 64)
+    ) {
+        check_concurrent_inserts(u, v)
     }
 }
