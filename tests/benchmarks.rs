@@ -14,6 +14,7 @@
 //! If "partial_test_name" is excluded, all benchmarks are run.  If given, any
 //! test name that contains partial_test_name will run.
 #![cfg(feature = "bench")]
+#![cfg(feature = "none")] // **************** REMOVE ME to RUN *****************
 #![feature(test)]
 
 extern crate test;
