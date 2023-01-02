@@ -136,7 +136,10 @@ impl<K, V, const N: usize> Node<K, V, N> {
         while ub_x < self.len() {
             match key.cmp(self.key(ub_x)) {
                 Less => break,
-                Equal => return Replaced(replace(self.val_mut(ub_x), val)),
+                Equal => {
+                    *self.key_mut(ub_x) = key;
+                    return Replaced(replace(self.val_mut(ub_x), val));
+                }
                 Greater => (),
             }
 

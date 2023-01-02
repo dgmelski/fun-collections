@@ -539,7 +539,10 @@ where
     };
 
     match k.cmp(&n.key) {
-        Equal => (Some(std::mem::replace(&mut n.val, v)), IsTaller(false)),
+        Equal => {
+            n.key = k;
+            (Some(std::mem::replace(&mut n.val, v)), IsTaller(false))
+        }
 
         Less => {
             let (old_v, is_taller) = ins(&mut n.left, k, v);
