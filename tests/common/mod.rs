@@ -102,6 +102,10 @@ pub(super) fn u16_seq(
     prop::collection::vec(0..ub, 0..max_len)
 }
 
+pub(super) fn tiny_int_seq() -> impl Strategy<Value = U16Seq> {
+    u16_seq(64, 48)
+}
+
 pub(super) fn small_int_seq() -> impl Strategy<Value = U16Seq> {
     u16_seq(1024, 512)
 }

@@ -8,7 +8,7 @@ use common::*;
 
 type NarrowSet<T> = lazy_clone_collections::btree::btree_set::BTreeSet<T, 1>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Sets<T> {
     avl_set: AvlSet<T>,       // AvlSet
     btree_set: BTreeSet<T>,   // BTreeSet with recommended MIN_OCCUPANCY
@@ -29,17 +29,17 @@ where
         }
     }
 
-    // fn new_overlapping(u: Vec<T>, v: Vec<T>) -> (Sets<T>, Sets<T>) {
-    //     let m1 = Self::new(u);
+    fn new_overlapping(u: Vec<T>, v: Vec<T>) -> (Sets<T>, Sets<T>) {
+        let m1 = Self::new(u);
 
-    //     let mut m2 = m1.clone();
-    //     m2.avl_set.extend(v.clone());
-    //     m2.btree_set.extend(v.clone());
-    //     m2.narrow_set.extend(v.clone());
-    //     m2.std_set.extend(v);
+        let mut m2 = m1.clone();
+        m2.avl_set.extend(v.clone());
+        m2.btree_set.extend(v.clone());
+        m2.narrow_set.extend(v.clone());
+        m2.std_set.extend(v);
 
-    //     (m1, m2)
-    // }
+        (m1, m2)
+    }
 
     fn chk(&self)
     where
@@ -62,6 +62,100 @@ where
         self.narrow_set.check().unwrap();
     }
 }
+
+macro_rules! make_setop_tests {
+    ($iter:ident, $cons:ident, $op:tt) => {
+        mod $iter {
+            use super::*;
+            // use proptest::prelude::*;
+
+            fn check_iter(u: U16Seq, v: U16Seq) {
+                let s = Sets::new(u);
+                let t = Sets::new(v);
+
+                let si = s.std_set.$iter(&t.std_set);
+                assert_eq_iters(s.avl_set.$iter(&t.avl_set), si.clone());
+                assert_eq_iters(s.btree_set.$iter(&t.btree_set), si.clone());
+                assert_eq_iters(s.narrow_set.$iter(&t.narrow_set), si);
+
+                s.chk();
+                t.chk();
+            }
+
+            fn check_new(mut vs: Vec<U16Seq>) {
+                let s = Sets::new_overlapping(vs.pop().unwrap(), vs.pop().unwrap());
+                let t = Sets::new_overlapping(vs.pop().unwrap(), vs.pop().unwrap());
+
+                let x_std =
+                    StdSet::from_iter(s.0.std_set.$iter(&t.0.std_set).copied());
+
+                let x = Sets {
+                    avl_set: AvlSet::$cons(s.0.avl_set, t.0.avl_set),
+                    btree_set: BTreeSet::$cons(s.0.btree_set, t.0.btree_set),
+                    narrow_set: NarrowSet::$cons(s.0.narrow_set, t.0.narrow_set),
+                    std_set: x_std,
+                };
+
+                x.chk();
+                s.1.chk();
+                t.1.chk();
+
+                let x_std =
+                    StdSet::from_iter(s.1.std_set.$iter(&t.1.std_set).copied());
+
+                let x = Sets {
+                    avl_set: AvlSet::$cons(s.1.avl_set, t.1.avl_set),
+                    btree_set: BTreeSet::$cons(s.1.btree_set, t.1.btree_set),
+                    narrow_set: NarrowSet::$cons(s.1.narrow_set, t.1.narrow_set),
+                    std_set: x_std,
+                };
+
+                x.chk();
+            }
+
+            fn check_bitop(u: U16Seq, v: U16Seq) {
+                let s = Sets::new(u);
+                let t = Sets::new(v);
+
+                let x = Sets {
+                    avl_set: &s.avl_set $op &t.avl_set,
+                    btree_set: &s.btree_set $op &t.btree_set,
+                    narrow_set: &s.narrow_set $op &t.narrow_set,
+                    std_set: &s.std_set $op &t.std_set,
+                };
+
+                x.chk();
+            }
+
+            proptest! {
+                #[test]
+                fn test_iter(u in small_int_seq(), v in small_int_seq()) {
+                    check_iter(u, v);
+                }
+
+                #[test]
+                fn test_new(vs in [
+                    small_int_seq(),
+                    small_int_seq(),
+                    small_int_seq(),
+                    small_int_seq(),
+                ]) {
+                    check_new(vs.to_vec());
+                }
+
+                #[test]
+                fn test_bitop(u in tiny_int_seq(), v in tiny_int_seq()) {
+                    check_bitop(u, v);
+                }
+            }
+        }
+    };
+}
+
+make_setop_tests!(difference, new_diff, -);
+make_setop_tests!(intersection, new_intersection, &);
+make_setop_tests!(union, new_union, |);
+make_setop_tests!(symmetric_difference, new_sym_diff, ^);
 
 fn check_append(u: U16Seq, v: U16Seq) {
     let mut s1 = Sets::new(u);
@@ -156,6 +250,37 @@ fn test_first_and_last() {
     );
 }
 
+fn check_is_disjoint(u: U16Seq, v: U16Seq) {
+    let s = Sets::new(u);
+    let t = Sets::new(v);
+
+    assert_eq_all!(
+        s.std_set.is_disjoint(&t.std_set),
+        s.avl_set.is_disjoint(&t.avl_set),
+        s.btree_set.is_disjoint(&t.btree_set),
+        s.narrow_set.is_disjoint(&t.narrow_set)
+    );
+}
+
+fn check_is_subset_superset(u: U16Seq, v: U16Seq) {
+    let s = Sets::new(u);
+    let t = Sets::new(v);
+
+    assert_eq_all!(
+        s.std_set.is_subset(&t.std_set),
+        s.avl_set.is_subset(&t.avl_set),
+        s.btree_set.is_subset(&t.btree_set),
+        s.narrow_set.is_subset(&t.narrow_set)
+    );
+
+    assert_eq_all!(
+        s.std_set.is_superset(&t.std_set),
+        s.avl_set.is_superset(&t.avl_set),
+        s.btree_set.is_superset(&t.btree_set),
+        s.narrow_set.is_superset(&t.narrow_set)
+    );
+}
+
 fn check_remove(v: U16Seq, w: Vec<u16>) {
     let mut m = Sets::new(v);
 
@@ -215,6 +340,9 @@ fn check_range_back(v: U16Seq, r: (Bound<u16>, Bound<u16>)) {
     assert_eq_iters_back(sets.btree_set.range(r), sets.std_set.range(r));
     assert_eq_iters_back(sets.narrow_set.range(r), sets.std_set.range(r));
 }
+
+// TODO take
+
 #[cfg(feature = "serde")]
 mod serde {
     #![allow(unused_imports)]
@@ -283,6 +411,16 @@ proptest! {
     #[test]
     fn test_contains(u in u16_seq(64,48)) {
         check_contains(u);
+    }
+
+    #[test]
+    fn test_is_disjoint(u in small_int_seq(), v in small_int_seq()) {
+        check_is_disjoint(u, v);
+    }
+
+    #[test]
+    fn test_is_subset_superset(u in small_int_seq(), v in small_int_seq()) {
+        check_is_subset_superset(u, v);
     }
 
     #[test]
