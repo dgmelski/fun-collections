@@ -131,6 +131,18 @@ impl<K, V> BTreeMap<K, V> {
 
         self.rm_and_rebal(|n| n.remove(key)).map(|e| e.1)
     }
+
+    #[cfg(test)]
+    fn chk(&self)
+    where
+        K: Clone + Ord,
+    {
+        if let Some(root) = self.root.as_ref() {
+            assert_eq!(root.chk(), self.len);
+        } else {
+            assert_eq!(self.len, 0);
+        }
+    }
 }
 
 impl<K: Clone, V: Clone> IntoIterator for BTreeMap<K, V> {
@@ -222,7 +234,10 @@ mod life_tracker {
 mod test {
     extern crate quickcheck;
     use super::*;
+    use crate::btree::core::node;
+    use crate::btree::core::test::btree_strat;
     use life_tracker::*;
+    use proptest::prelude::*;
     use quickcheck::quickcheck;
 
     #[test]
@@ -283,12 +298,14 @@ mod test {
         let mut n = std::collections::BTreeMap::new();
         for k in keys {
             m.insert(k, Counted::new(k));
+            m.chk();
             n.insert(k, k);
             assert_eq!(get_cnt_live(), n.len() as isize);
         }
 
         for t in tgts {
             assert_eq!(m.remove(&t).map(|v| *v.borrow()), n.remove(&t));
+            m.chk();
             assert_eq!(get_cnt_live(), n.len() as isize);
         }
     }
@@ -430,6 +447,40 @@ mod test {
         #[test]
         fn qc_test_overlapping_into_iter(u: Vec<u8>, v: Vec<u8>) -> () {
             check_overlapping_into_iter(u, v);
+        }
+    }
+
+    fn check_remove_rand_tree(mut m: BTreeMap<u32, u32>, tgts: Vec<u32>) {
+        m.chk();
+
+        let mut n = std::collections::BTreeMap::new();
+        for (k, v) in m.iter() {
+            n.insert(*k, *v);
+        }
+
+        for t in tgts.iter() {
+            assert_eq!(m.remove(t), n.remove(t));
+            m.chk();
+        }
+    }
+
+    fn check_strat((n, len): (NodePtr<u32, u32>, usize)) {
+        let m = BTreeMap { root: Some(n), len };
+        assert!(m.get(&4).is_some());
+    }
+
+    proptest! {
+        #[test]
+        fn test_strat(x in btree_strat(3)) {
+            check_strat(x);
+        }
+
+        #[test]
+        fn test_remove_rand_tree(
+            (root, len) in btree_strat(3),
+            t in prop::collection::vec(0u32..1024, 1..20))
+        {
+            check_remove_rand_tree(BTreeMap{ root: Some(root), len }, t);
         }
     }
 }

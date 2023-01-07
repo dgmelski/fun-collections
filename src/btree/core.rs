@@ -21,16 +21,41 @@ pub const MAX_KIDS: usize = MAX_OCCUPANCY + 1;
 
 type InlineVecLen = u32;
 
+#[allow(unused_macros)]
+macro_rules! node {
+    ($elems:expr, $kids:expr) => {{
+        let mut n = Node::new();
+
+        let elems = $elems;
+        for e in elems {
+            n.elems.push(e);
+        }
+
+        let ks = $kids;
+        if !ks.is_empty() {
+            let mut kids = Kids::new();
+            for c in ks {
+                kids.push((Arc::new(c), ()));
+            }
+            n.kids = Some(Box::new(kids));
+        }
+
+        n
+    }};
+}
+
+pub(crate) use node;
+
 // A vector with a fixed capacity and known Size. Conceptually, it stores
 // pairs of values, called 'keys' and 'vals' w/o further interpretation.
-struct InlineVec<K, V, const N: usize> {
+pub struct InlineVec<K, V, const N: usize> {
     keys: [MaybeUninit<K>; N], // keys stored contiguously for cache
     vals: [MaybeUninit<V>; N],
     len: InlineVecLen,
 }
 
 impl<K, V, const N: usize> InlineVec<K, V, N> {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             keys: unsafe { MaybeUninit::uninit().assume_init() },
             vals: unsafe { MaybeUninit::uninit().assume_init() },
@@ -97,7 +122,7 @@ impl<K, V, const N: usize> InlineVec<K, V, N> {
         self.len as usize
     }
 
-    fn push(&mut self, kv: (K, V)) {
+    pub fn push(&mut self, kv: (K, V)) {
         assert!(self.len < N as InlineVecLen);
         self.keys[self.len as usize].write(kv.0);
         self.vals[self.len as usize].write(kv.1);
@@ -180,6 +205,34 @@ impl<K, V, const N: usize> Default for InlineVec<K, V, N> {
     }
 }
 
+impl<K, V> std::fmt::Debug for Elems<K, V>
+where
+    K: std::fmt::Debug,
+    V: std::fmt::Debug,
+{
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> Result<(), std::fmt::Error> {
+        f.debug_list()
+            .entries(self.keys().iter().zip(self.vals().iter()))
+            .finish()
+    }
+}
+
+impl<K, V> std::fmt::Debug for Kids<K, V>
+where
+    K: std::fmt::Debug,
+    V: std::fmt::Debug,
+{
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> Result<(), std::fmt::Error> {
+        f.debug_list().entries(self.keys().iter()).finish()
+    }
+}
+
 impl<K, V, const N: usize> Drop for InlineVec<K, V, N> {
     fn drop(&mut self) {
         self.clear();
@@ -188,12 +241,12 @@ impl<K, V, const N: usize> Drop for InlineVec<K, V, N> {
 
 pub struct IsUnderPop(pub bool);
 
-type Elems<K, V> = InlineVec<K, V, MAX_OCCUPANCY>;
+pub type Elems<K, V> = InlineVec<K, V, MAX_OCCUPANCY>;
 
 // Our storage of 'Kids' is a bit hacky: we reuse our existing fixed-capacity
 // vector for storing key-value pairs, but set the value type to () and trust
 // the compiler to optimize away manipulations of the zero-sized type.
-type Kids<K, V> = InlineVec<NodePtr<K, V>, (), MAX_KIDS>;
+pub type Kids<K, V> = InlineVec<NodePtr<K, V>, (), MAX_KIDS>;
 
 // A node in the BTree.
 //
@@ -204,15 +257,15 @@ type Kids<K, V> = InlineVec<NodePtr<K, V>, (), MAX_KIDS>;
 // leaf nodes.]  Leaving space for child pointers in leaves could waste a lot of
 // space, so we take the pointer-chasing penalty and store them externally.
 // (TODO: use dynamically-sized types in rust, though it seems painful.)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub struct Node<K, V> {
-    elems: Elems<K, V>,
-    kids: Option<Box<Kids<K, V>>>,
+    pub elems: Elems<K, V>,
+    pub kids: Option<Box<Kids<K, V>>>,
 }
 
 impl<K, V> Node<K, V> {
     // create an empty leaf
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             elems: InlineVec::new(),
             kids: None,
@@ -699,6 +752,75 @@ impl<K, V> Node<K, V> {
             kv,
             IsUnderPop(is_under_pop && self.rebal(self.elems.len()).0),
         ))
+    }
+
+    pub fn chk(&self) -> usize
+    where
+        K: Clone + Ord,
+    {
+        self.chk_aux(None, 1).2
+    }
+
+    fn chk_aux(
+        &self,
+        mut greatest: Option<K>,
+        min_len: usize,
+    ) -> (Option<K>, usize, usize)
+    where
+        K: Clone + Ord,
+    {
+        assert!(self.elems.len() >= min_len);
+        assert!(self.elems.len() <= MAX_OCCUPANCY);
+        assert!(
+            self.kids.is_none()
+                || self.kids.as_ref().unwrap().len() == self.elems.len() + 1
+        );
+
+        let mut ht = 0;
+        let mut len = 0;
+
+        if let Some(c) = self.child(0) {
+            let (g, h, l) = c.chk_aux(greatest, MIN_OCCUPANCY);
+            greatest = g;
+            ht = h;
+            len = l;
+        }
+
+        for i in 0..self.elems.len() {
+            len += 1;
+
+            let k = self.key(i);
+            if let Some(g) = greatest.as_ref() {
+                assert!(g < k)
+            }
+
+            greatest = Some(k.clone());
+            if let Some(c) = self.child(i + 1) {
+                let (g, h, l) = c.chk_aux(greatest, MIN_OCCUPANCY);
+                assert_eq!(h, ht);
+                len += l;
+                greatest = g;
+            }
+        }
+
+        (greatest, ht + 1, len)
+    }
+}
+
+impl<K, V> std::fmt::Debug for Node<K, V>
+where
+    K: std::fmt::Debug,
+    V: std::fmt::Debug,
+{
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> Result<(), std::fmt::Error> {
+        let kids = self.kids.as_ref().map(|ks| ks.keys()).unwrap_or(&[]);
+        f.debug_struct("Node")
+            .field("elems", &self.elems)
+            .field("kids", &kids)
+            .finish()
     }
 }
 
@@ -1233,32 +1355,73 @@ pub fn new_into_iter<K: Clone, V: Clone>(
     IntoIter::new(root, len)
 }
 
-// #[cfg(test)]
-// mod test {
-//     use super::InsertResult::{self, *};
-//     use super::Node;
-//     use std::sync::Arc;
+#[cfg(test)]
+pub(crate) mod test {
+    use super::*;
 
-//     #[test]
-//     fn test_insert_node() {
-//         let mut root_arc = Arc::new(Node::new_empty_leaf());
+    use proptest::prelude::*;
 
-//         for i in 0..100 {
-//             let root = Arc::get_mut(&mut root_arc).unwrap();
-//             let res = root.insert((i, i + 1000));
-//             match res {
-//                 Absorbed => (),
-//                 Replaced(_, _) => panic!("should not have mached"),
-//                 Split(kid, kv) => {
-//                     root_arc =
-//                         Arc::new(Node::new_branch(kid.unwrap(), kv, root_arc));
-//                 }
-//             }
-//         }
+    // Generates a tree of ht 'h' filled with (0, 0).  Because all the keys are
+    // the same, it violates the sortedness invariant of the tree.
+    fn btree_skel_strat(ht: usize) -> impl Strategy<Value = NodePtr<u32, u32>> {
+        (MIN_OCCUPANCY..=MAX_OCCUPANCY)
+            .prop_flat_map(move |len| {
+                (
+                    Just(len),
+                    prop::collection::vec(
+                        btree_skel_strat(ht - 1),
+                        if ht > 1 { len + 1 } else { 0 },
+                    ),
+                )
+            })
+            .prop_map(|(len, ks)| {
+                let mut n = Node::new();
+                for _ in 0..len {
+                    n.elems.push((0, 0));
+                }
 
-//         for i in 0..100 {
-//             let kv = root_arc.get(&i);
-//             assert_eq!(kv, Some((&i, &(i + 1000))));
-//         }
-//     }
-// }
+                if !ks.is_empty() {
+                    assert!(ks.len() == len + 1);
+                    let mut kids = Box::new(Kids::new());
+                    for c in ks {
+                        kids.push((c, ()));
+                    }
+                    n.kids = Some(kids);
+                }
+
+                Arc::new(n)
+            })
+            .boxed()
+    }
+
+    pub fn btree_strat(
+        ht: usize,
+    ) -> impl Strategy<Value = (NodePtr<u32, u32>, usize)> {
+        fn assign_elems<I: Iterator<Item = u32>>(
+            n: &mut NodePtr<u32, u32>,
+            gen: &mut I,
+        ) {
+            let n = Arc::get_mut(n).unwrap();
+            let len = n.elems.len as usize;
+            for i in 0..len {
+                if let Some(c) = n.child_mut(i) {
+                    assign_elems(c, gen);
+                }
+
+                let x = gen.next().unwrap();
+                *n.key_mut(i) = x * 2; // mul by const to create gaps
+                *n.val_mut(i) = x;
+            }
+
+            if let Some(c) = n.last_child_mut() {
+                assign_elems(c, gen);
+            }
+        }
+
+        btree_skel_strat(ht).prop_map(|mut n| {
+            let mut ns = std::iter::successors(Some(0), |n| Some(n + 1));
+            assign_elems(&mut n, &mut ns);
+            (n, ns.next().unwrap() as usize)
+        })
+    }
+}
