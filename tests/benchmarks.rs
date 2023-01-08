@@ -231,6 +231,64 @@ macro_rules! get_500_elems {
 
 for_each_map_type!(get_500_elems);
 
+macro_rules! get_100_elems_fat_keys {
+    ( $map_t:ident ) => {
+        const MAP_LEN: usize = 100;
+
+        #[bench]
+        fn f(b: &mut Bencher) {
+            let mut m = $map_t::new();
+
+            for i in 0..MAP_LEN {
+                let mut k = [0usize; 64];
+                k[63] = i;
+                m.insert(k, i);
+            }
+
+            b.iter(|| {
+                let mut s = 0;
+                let mut k = [0usize; 64];
+                for i in 0..MAP_LEN {
+                    k[63] = i;
+                    s += m.get(&k).unwrap();
+                }
+                s
+            });
+        }
+    };
+}
+
+for_each_map_type!(get_100_elems_fat_keys);
+
+macro_rules! get_100_elems_vec_keys {
+    ( $map_t:ident ) => {
+        const MAP_LEN: usize = 100;
+
+        #[bench]
+        fn f(b: &mut Bencher) {
+            let mut m = $map_t::new();
+
+            for i in 0..MAP_LEN {
+                let mut k = vec![0usize; 64];
+                k[63] = i;
+                m.insert(k, i);
+            }
+
+            b.iter(|| {
+                let mut s = 0;
+                let mut k = vec![0usize; 64];
+                for i in 0..MAP_LEN {
+                    k[63] = i;
+                    s += m.get(&k).unwrap();
+                }
+                s
+            });
+        }
+    };
+}
+
+for_each_map_type!(get_100_elems_vec_keys);
+
 macro_rules! iter_500_elems {
     ( $map_t:ident ) => {
         const MAP_LEN: usize = 500;
