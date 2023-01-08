@@ -63,6 +63,29 @@ impl<K, V, const N: usize> InlineVec<K, V, N> {
         }
     }
 
+    fn search_keys<Q>(&self, key: &Q) -> Result<usize, usize>
+    where
+        K: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        // we expect this comparison to be decided during compilation
+        if std::mem::size_of::<K>() <= std::mem::size_of::<usize>() {
+            // hope K has a cheap compare & use linear search
+            for (i, k) in self.keys().iter().enumerate() {
+                match key.cmp(k.borrow()) {
+                    Less => return Err(i),
+                    Equal => return Ok(i),
+                    Greater => (),
+                }
+            }
+
+            Err(self.len as usize)
+        } else {
+            // guard against an expensive compare with binary search
+            self.keys().binary_search_by_key(&key, |k| k.borrow())
+        }
+    }
+
     fn clear(&mut self) {
         for i in 0..self.len {
             unsafe {
@@ -347,15 +370,10 @@ impl<K, V> Node<K, V> {
         V: Clone,
         Q: Ord + ?Sized,
     {
-        for (i, k) in self.elems.keys().iter().enumerate() {
-            match key.cmp(k.borrow()) {
-                Less => return self.child(i)?.get(key),
-                Equal => return Some((self.key(i), self.val(i))),
-                Greater => (),
-            }
+        match self.elems.search_keys(key) {
+            Ok(i) => Some((self.key(i), self.val(i))),
+            Err(i) => self.child(i)?.get(key),
         }
-
-        self.last_child()?.get(key)
     }
 
     pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
@@ -364,17 +382,10 @@ impl<K, V> Node<K, V> {
         V: Clone,
         Q: Ord + ?Sized,
     {
-        for (i, k) in self.elems.keys().iter().enumerate() {
-            match key.cmp(k.borrow()) {
-                Less => {
-                    return Arc::make_mut(self.child_mut(i)?).get_mut(key);
-                }
-                Equal => return Some(self.val_mut(i)),
-                Greater => (),
-            }
+        match self.elems.search_keys(key) {
+            Ok(i) => Some(self.val_mut(i)),
+            Err(i) => Arc::make_mut(self.child_mut(i)?).get_mut(key),
         }
-
-        Arc::make_mut(self.last_child_mut()?).get_mut(key)
     }
 
     pub fn insert(&mut self, kv: (K, V)) -> InsertResult<K, V>
@@ -384,39 +395,31 @@ impl<K, V> Node<K, V> {
     {
         use InsertResult::*;
 
-        let mut ub_x = 0;
-        // let len = self.elems.len();
-        for k in self.elems.keys().iter() {
-            match kv.0.cmp(k) {
-                Less => break,
-                Equal => {
-                    let old_k = replace(self.key_mut(ub_x), kv.0);
-                    let old_v = replace(self.val_mut(ub_x), kv.1);
-                    return Replaced(old_k, old_v);
-                }
-                Greater => (),
+        match self.elems.search_keys(&kv.0) {
+            Ok(ub_x) => {
+                let old_k = replace(self.key_mut(ub_x), kv.0);
+                let old_v = replace(self.val_mut(ub_x), kv.1);
+                Replaced(old_k, old_v)
             }
 
-            ub_x += 1;
-        }
+            Err(ub_x) => {
+                // Recurse to the appropriate child if it exists (ie, we're not a leaf).
+                // If we are a leaf, pretend that we visited a child and it resulted in
+                // needing to insert a new separator at this level.
+                let res = if let Some(kid) = self.child_mut(ub_x) {
+                    Arc::make_mut(kid).insert(kv)
+                } else {
+                    Split(None, kv)
+                };
 
-        assert!(ub_x < MAX_KIDS);
+                let Split(kid, kv) = res else { return res; };
 
-        // Recurse to the appropriate child if it exists (ie, we're not a leaf).
-        // If we are a leaf, pretend that we visited a child and it resulted in
-        // needing to insert a new separator at this level.
-        let res = if let Some(kid) = self.child_mut(ub_x) {
-            Arc::make_mut(kid).insert(kv)
-        } else {
-            Split(None, kv)
-        };
-
-        let Split(kid, kv) = res else { return res; };
-
-        if self.elems.len() < MAX_OCCUPANCY {
-            self.ins_no_split(ub_x, kid, kv)
-        } else {
-            self.ins_split(ub_x, kid, kv)
+                if self.elems.len() < MAX_OCCUPANCY {
+                    self.ins_no_split(ub_x, kid, kv)
+                } else {
+                    self.ins_split(ub_x, kid, kv)
+                }
+            }
         }
     }
 
@@ -695,53 +698,37 @@ impl<K, V> Node<K, V> {
         V: Clone,
         Q: Ord + ?Sized,
     {
-        for (i, k) in self.elems.keys().iter().enumerate() {
-            match key.cmp(k.borrow()) {
-                Less => {
-                    let lt_k = self.child_mut(i)?;
-                    let lt_k = Arc::make_mut(lt_k);
-                    let (kv, IsUnderPop(is_under_pop)) = lt_k.remove(key)?;
+        match self.elems.search_keys(key) {
+            Ok(i) => {
+                if self.kids.is_none() {
+                    let old_kv = self.elems.remove(i);
                     return Some((
-                        kv,
-                        IsUnderPop(is_under_pop && self.rebal(i).0),
+                        old_kv,
+                        IsUnderPop(self.elems.len() < MIN_OCCUPANCY),
                     ));
                 }
 
-                Equal => {
-                    if self.kids.is_none() {
-                        let old_kv = self.elems.remove(i);
-                        return Some((
-                            old_kv,
-                            IsUnderPop(self.elems.len() < MIN_OCCUPANCY),
-                        ));
-                    }
+                let lt_k = self.child_mut(i).unwrap();
+                let lt_k = Arc::make_mut(lt_k);
+                let (kv, is_under_pop) = lt_k.pop_greatest();
+                let old_kv = (
+                    replace(self.key_mut(i), kv.0),
+                    replace(self.val_mut(i), kv.1),
+                );
 
-                    let lt_k = self.child_mut(i).unwrap();
-                    let lt_k = Arc::make_mut(lt_k);
-                    let (kv, is_under_pop) = lt_k.pop_greatest();
-                    let old_kv = (
-                        replace(self.key_mut(i), kv.0),
-                        replace(self.val_mut(i), kv.1),
-                    );
-                    if is_under_pop.0 {
-                        return Some((old_kv, self.rebal(i)));
-                    } else {
-                        return Some((old_kv, IsUnderPop(false)));
-                    }
+                if is_under_pop.0 {
+                    Some((old_kv, self.rebal(i)))
+                } else {
+                    Some((old_kv, IsUnderPop(false)))
                 }
+            }
 
-                Greater => (),
+            Err(i) => {
+                let kid = Arc::make_mut(self.child_mut(i)?);
+                let (kv, IsUnderPop(is_under_pop)) = kid.remove(key)?;
+                Some((kv, IsUnderPop(is_under_pop && self.rebal(i).0)))
             }
         }
-
-        // greater than all in this node; try descending rightmost child
-        let gt_k = self.last_child_mut()?;
-        let gt_k = Arc::make_mut(gt_k);
-        let (kv, IsUnderPop(is_under_pop)) = gt_k.remove(key)?;
-        Some((
-            kv,
-            IsUnderPop(is_under_pop && self.rebal(self.elems.len()).0),
-        ))
     }
 
     pub fn chk(&self) -> usize
