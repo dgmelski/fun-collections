@@ -234,7 +234,6 @@ mod life_tracker {
 mod test {
     extern crate quickcheck;
     use super::*;
-    use crate::btree::core::node;
     use crate::btree::core::test::btree_strat;
     use life_tracker::*;
     use proptest::prelude::*;

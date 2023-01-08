@@ -1,5 +1,5 @@
-#![allow(unused_imports)]
-#![allow(dead_code)]
+// #![allow(unused_imports)]
+// #![allow(dead_code)]
 
 use std::borrow::Borrow;
 use std::cmp::Ordering::*;
@@ -7,8 +7,7 @@ use std::collections::VecDeque;
 use std::iter::FusedIterator;
 use std::marker::PhantomData;
 use std::mem::{replace, MaybeUninit};
-use std::ops::{Deref, DerefMut};
-use std::ptr::{copy, copy_nonoverlapping};
+use std::ptr::copy;
 use std::sync::Arc;
 
 pub const fn max_occupancy(min_occ: usize) -> usize {
@@ -44,6 +43,7 @@ macro_rules! node {
     }};
 }
 
+#[allow(unused_imports)]
 pub(crate) use node;
 
 // A vector with a fixed capacity and known Size. Conceptually, it stores
@@ -299,15 +299,6 @@ impl<K, V> Node<K, V> {
         self.kids_mut().and_then(|ks| ks.get_mut(i))
     }
 
-    fn last_child(&self) -> Option<&NodePtr<K, V>> {
-        let kids = self.kids.as_ref()?;
-        if kids.len > 0 {
-            kids.keys().get((kids.len - 1) as usize)
-        } else {
-            None
-        }
-    }
-
     fn last_child_mut(&mut self) -> Option<&mut NodePtr<K, V>> {
         let kids = self.kids.as_mut()?;
         let klen = kids.len as usize;
@@ -344,27 +335,6 @@ impl<K, V> Node<K, V> {
 
     fn val_mut(&mut self, i: usize) -> &mut V {
         &mut self.elems.vals_mut()[i]
-    }
-
-    fn clear(&mut self) {
-        self.elems.clear();
-        self.kids.take();
-    }
-
-    fn insert_kv(&mut self, idx: usize, kv: (K, V)) {
-        self.elems.insert(idx, kv);
-    }
-
-    fn push_kv(&mut self, kv: (K, V)) {
-        self.elems.push(kv);
-    }
-
-    fn remove_kv(&mut self, idx: usize) -> (K, V) {
-        self.elems.remove(idx)
-    }
-
-    fn pop_kv(&mut self) -> (K, V) {
-        self.elems.pop()
     }
 
     pub fn is_empty(&self) -> bool {

@@ -78,13 +78,13 @@ where
         self.narrow_map.check().unwrap();
     }
 
-    fn chk_fixed(&self)
-    where
-        K: Eq + std::fmt::Debug,
-        V: Eq + std::fmt::Debug,
-    {
-        assert_eq_iters(self.std_map.iter(), self.fixed_map.iter());
-    }
+    // fn chk_fixed(&self)
+    // where
+    //     K: Eq + std::fmt::Debug,
+    //     V: Eq + std::fmt::Debug,
+    // {
+    //     assert_eq_iters(self.std_map.iter(), self.fixed_map.iter());
+    // }
 }
 
 fn check_append(u: U16Pairs, v: U16Pairs) {
