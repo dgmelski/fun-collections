@@ -293,7 +293,7 @@ mod test {
         check_insert(vec![(0, 126)]);
     }
 
-    fn check_remove(keys: Vec<u8>, tgts: Vec<u8>) {
+    fn check_remove1(keys: Vec<u8>, tgts: Vec<u8>) {
         let mut m = BTreeMap::new();
         let mut n = std::collections::BTreeMap::new();
         for k in keys {
@@ -312,7 +312,7 @@ mod test {
 
     #[test]
     fn test_remove_regr1() {
-        check_remove(vec![0, 2, 3, 4, 7, 5, 8, 6, 9, 10, 1, 11], vec![0, 1]);
+        check_remove1(vec![0, 2, 3, 4, 7, 5, 8, 6, 9, 10, 1, 11], vec![0, 1]);
     }
 
     #[test]
@@ -436,7 +436,7 @@ mod test {
 
         #[test]
         fn qc_test_remove(keys: Vec<u8>, tgts: Vec<u8>) -> () {
-            check_remove(keys, tgts);
+            check_remove1(keys, tgts);
         }
 
         #[test]
@@ -450,7 +450,34 @@ mod test {
         }
     }
 
-    fn check_remove_rand_tree(mut m: BTreeMap<u32, u32>, tgts: Vec<u32>) {
+    fn check_get(m: BTreeMap<u32, u32>, tgts: Vec<u32>) {
+        m.chk();
+
+        let mut n = std::collections::BTreeMap::new();
+        for (k, v) in m.iter() {
+            n.insert(*k, *v);
+        }
+
+        for t in tgts.iter() {
+            assert_eq!(m.get(t), n.get(t));
+        }
+    }
+
+    fn check_insert2(mut m: BTreeMap<u32, u32>, tgts: Vec<u32>) {
+        m.chk();
+
+        let mut n = std::collections::BTreeMap::new();
+        for (k, v) in m.iter() {
+            n.insert(*k, *v);
+        }
+
+        for t in tgts.iter().copied() {
+            assert_eq!(m.insert(t, t), n.insert(t, t));
+            m.chk();
+        }
+    }
+
+    fn check_remove2(mut m: BTreeMap<u32, u32>, tgts: Vec<u32>) {
         m.chk();
 
         let mut n = std::collections::BTreeMap::new();
@@ -476,11 +503,27 @@ mod test {
         }
 
         #[test]
-        fn test_remove_rand_tree(
+        fn test_get(
             (root, len) in btree_strat(3),
-            t in prop::collection::vec(0u32..1024, 1..20))
+            t in prop::collection::vec(0u32..1024, 1..256))
         {
-            check_remove_rand_tree(BTreeMap{ root: Some(root), len }, t);
+            check_get(BTreeMap{ root: Some(root), len }, t);
+        }
+
+        #[test]
+        fn test_insert2(
+            (root, len) in btree_strat(3),
+            t in prop::collection::vec(0u32..1024, 1..256))
+        {
+            check_insert2(BTreeMap{ root: Some(root), len }, t);
+        }
+
+        #[test]
+        fn test_remove2(
+            (root, len) in btree_strat(3),
+            t in prop::collection::vec(0u32..1024, 1..256))
+        {
+            check_remove2(BTreeMap{ root: Some(root), len }, t);
         }
     }
 }

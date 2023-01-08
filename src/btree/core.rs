@@ -698,6 +698,27 @@ impl<K, V> Node<K, V> {
         IsUnderPop(self.elems.len() < MIN_OCCUPANCY)
     }
 
+    pub fn pop_greatest(&mut self) -> ((K, V), IsUnderPop)
+    where
+        K: Clone,
+        V: Clone,
+    {
+        if let Some(rt) = self.last_child_mut() {
+            // self is a branch; recurse to the rightmost child
+            let rt = Arc::make_mut(rt);
+            let ret = rt.pop_greatest();
+            if let (kv, IsUnderPop(true)) = ret {
+                (kv, self.rebal(self.elems.len()))
+            } else {
+                ret
+            }
+        } else {
+            // self is a leaf
+            let kv = self.elems.pop();
+            (kv, IsUnderPop(self.elems.len() < MIN_OCCUPANCY))
+        }
+    }
+
     pub fn remove<Q>(&mut self, key: &Q) -> Option<((K, V), IsUnderPop)>
     where
         K: Borrow<Q> + Clone,
@@ -727,13 +748,12 @@ impl<K, V> Node<K, V> {
 
                     let lt_k = self.child_mut(i).unwrap();
                     let lt_k = Arc::make_mut(lt_k);
-                    let kv = lt_k.elems.pop(); // FIXME!!!!!!
-                    let is_under_pop = lt_k.elems.len() < MIN_OCCUPANCY;
+                    let (kv, is_under_pop) = lt_k.pop_greatest();
                     let old_kv = (
                         replace(self.key_mut(i), kv.0),
                         replace(self.val_mut(i), kv.1),
                     );
-                    if is_under_pop {
+                    if is_under_pop.0 {
                         return Some((old_kv, self.rebal(i)));
                     } else {
                         return Some((old_kv, IsUnderPop(false)));
